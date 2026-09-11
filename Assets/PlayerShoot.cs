@@ -20,6 +20,8 @@ public class PlayerShoot : MonoBehaviour
         if (!Mouse.current.leftButton.wasPressedThisFrame)
             return;
 
+        WildlifeAlarm.NotifyShot(cam.transform.position);
+
         Ray ray = new Ray(cam.transform.position, cam.transform.forward);
         if (Physics.Raycast(ray, out RaycastHit hit, range))
         {

@@ -4,8 +4,11 @@ using UnityEngine.InputSystem;
 public class PlayerMove : MonoBehaviour
 {
     public float speed = 5f;
+    public float crouchSpeed = 2f;
     public float mouseSensitivity = 0.15f;
     public float gravity = -20f;
+
+    public static bool IsCrouching;
 
     CharacterController controller;
     Transform cam;
@@ -38,6 +41,8 @@ public class PlayerMove : MonoBehaviour
         xRotation = Mathf.Clamp(xRotation, -80f, 80f);
         cam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
 
+        IsCrouching = Keyboard.current.leftCtrlKey.isPressed;
+
         Vector2 moveInput = Vector2.zero;
         if (Keyboard.current.aKey.isPressed) moveInput.x -= 1f;
         if (Keyboard.current.dKey.isPressed) moveInput.x += 1f;
@@ -53,7 +58,8 @@ public class PlayerMove : MonoBehaviour
 
         verticalSpeed += gravity * Time.deltaTime;
 
-        Vector3 motion = move * speed;
+        float currentSpeed = IsCrouching ? crouchSpeed : speed;
+        Vector3 motion = move * currentSpeed;
         motion.y = verticalSpeed;
         controller.Move(motion * Time.deltaTime);
     }
