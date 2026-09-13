@@ -246,7 +246,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6636e2ac8467d1e4da3c32dcf13c4073, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Animal
-  points: 10
+  kind: 1
+  meatAmount: 2
+  moveSpeed: 2
+  fleeSpeed: 8
+  nightDamage: 8
+  nightAttackRange: 4
+  nightAttackCooldown: 1.5
 --- !u!1 &1030093768
 GameObject:
   m_ObjectHideFlags: 0
@@ -336,6 +342,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1047815675}
   - component: {fileID: 1047815676}
+  - component: {fileID: 1047815677}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -371,6 +378,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ScoreManager
   scoreText: {fileID: 1155434231}
+--- !u!114 &1047815677
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1047815674}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 070114f066a9d214682c90d6ca857686, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Inventory
+  meat: 0
+  cookedMeat: 0
+  wood: 0
+  hasPickaxe: 1
+  meatSpoilSeconds: 90
 --- !u!1 &1155434229
 GameObject:
   m_ObjectHideFlags: 0
@@ -847,7 +871,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
   speed: 5
+  crouchSpeed: 2
   mouseSensitivity: 0.15
+  gravity: -20
 --- !u!114 &1844861804
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -893,7 +919,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6636e2ac8467d1e4da3c32dcf13c4073, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Animal
-  points: 10
+  kind: 1
+  meatAmount: 2
+  moveSpeed: 2
+  fleeSpeed: 8
+  nightDamage: 8
+  nightAttackRange: 4
+  nightAttackCooldown: 1.5
 --- !u!136 &2045612325
 CapsuleCollider:
   m_ObjectHideFlags: 0
