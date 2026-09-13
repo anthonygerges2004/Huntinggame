@@ -1,0 +1,177 @@
+﻿UNIVERSITY OF BALAMAND
+School of Arts and Sciences  ΓÇó  Computer Science
+CSIS290 ΓÇö Project Proposal
+First-Person Wildlife Hunting Game (Unity)
+Prepared by Anthony Gerges and Joseph Chamoun  ΓÇó  11 September 2026
+1. Project Group Member(s)
+Names & IDs
+This is a two-member group project.
+GitHub repository: https://github.com/anthonygerges2004/Hunting-game
+2. Project Abstract
+Brief Description
+This Unity first-person wildlife hunting game lets the player hunt, loot meat, chop wood, and trade. Birds scatter after a shot, meat spoils unless cooked, and one legendary animal is rare. Fire, night attacks, and a camp trader complete the wildlife loop.
+Word count: 42 words.
+3. Introduction
+Project Overview
+The project is a first-person hunting game set in a wildlife area, not a score-only shooting gallery. The player lives off the land: hunt animals, take meat and other materials from kills, gather wood, keep a fire, stay alive, and trade extra goods for better gear. The world has a morning and a night. Day is safer for hunting and gathering. Night is dangerous: animals can attack if the player has no fire.
+Wildlife is mixed. Birds are the most common targets and give a small amount of meat. Medium animals (for example deer) appear less often and give more loot. Large animals are rare but can be found; they drop more meat and valuable items, and they are a bigger threat. After a kill, the animal is not only removed for points: the player loots meat and related materials into an inventory.
+The player can also harvest wood from trees, but only while carrying a pickaxe. Wood is used to make a fire at any time and can be sold. A trade post (a camp or trader) is a fixed place on the map where the player exchanges meat, wood, and weapons. The player has a limited life (health). Reaching zero health ends the hunt. A campfire nearby at night stops animal attacks; without fire, night wildlife can damage the player.
+What makes the project special is that the forest reacts. A gunshot or a kill makes birds fly up and nearby animals run. Meat is not a permanent score: it spoils unless the player cooks it on the fire or sells it in time. Cooking restores health, so the fire matters in the day as well as at night. One legendary animal appears rarely (for example at dawn, after a rumor at the trader). Extra systems include short-lived tracks, overhunting that empties an area, a trader who is also a rival hunter, and quiet crouch movement so animals hear running and shooting more easily.
+A Unity 6 prototype already exists: first-person move and look, raycast shooting, placeholder deer, and a score HUD. The problem is to grow that prototype into a complete wildlife loop (hunt ΓåÆ loot ΓåÆ cook or trade ΓåÆ gather ΓåÆ fire ΓåÆ survive day and night) plus the special systems above. The proposed solution keeps the current player and raycast weapon and adds inventory, rarity, day/night, campfire, trader, trees, health, and the unique hunting rules (alarm, spoilage, legendary animal).
+4. Motivation and Scope
+Motivation
+We want a hunting game that also feels like living in the wild. Shooting an animal should matter because it gives meat, not only a number on the screen. Chopping wood, lighting a fire, and waiting for morning create tension that a timed score hunt does not. Trading gives a reason to store extra meat and wood instead of ending the session after a few shots. Special rules make the wildlife feel alive: animals warn each other, meat spoils, and a legendary animal is the hunt everyone talks about.
+The idea started from the Unity prototype (player, camera, shoot, score) and from survival games where night, fire, and gathering change how the player moves.
+Scope
+In scope (minimum viable product):
+First-person movement, mouse look, and hitscan shooting.
+Wildlife types: common birds, less common medium animals, rare large animals.
+Loot from kills: meat and simple materials go into an inventory.
+Chop wood from trees only if the player has a pickaxe.
+Place or light a campfire at any time (using wood).
+Day/night (morning and night) with different lighting.
+Player health (life limit); game over at zero health.
+At night, animals can attack the player if no fire is active nearby.
+One trade place to buy/sell weapons, meat, and wood.
+A HUD for health, time of day, meat freshness, and inventory counts.
+GitHub repository with a Unity .gitignore.
+Special features (what makes this hunt unique):
+Animals warn each other: a shot or kill makes birds scatter and nearby deer flee.
+Meat spoils after a short time unless it is cooked on the fire or sold; cooking restores health.
+One legendary animal is very rare (rumor at the trader; may appear at dawn).
+Large animals leave tracks for a short time; the player can follow them instead of a map marker.
+Overhunting: killing too many animals in one area makes that zone quieter and night more dangerous.
+The trader is a rival hunter who also wants the legendary animal if the player is too slow.
+Crouch / quiet movement: running and shooting alert wildlife more than slow movement.
+Assumptions:
+Single-player, keyboard and mouse, Unity editor or Windows build.
+Placeholder models (capsules, simple trees) are allowed until better assets are added.
+One compact map with one trader camp, not an open world.
+ΓÇ£PickaxeΓÇ¥ is the required tool for chopping trees in this game (gameplay rule, not realism).
+Out of scope / boundaries:
+Graphic gore, realistic butchering, or blood systems.
+Multiplayer, crafting trees beyond fire, farming, or vehicles.
+Online trading, accounts, mobile ports, or huge streaming maps.
+Full hunting-license simulation or realistic ballistics.
+5. Related Work
+Similar Systems
+Hunting games such as theHunter: Call of the Wild focus on tracking wildlife and taking a shot. Survival games such as The Forest, Green Hell, and Valheim add gathering, fire, night danger, and a camp. Our project sits between those two: hunting is the main activity, but meat, wood, fire, health, and a trader make the wildlife area a place to live, not only a shooting range.
+Unity FPS samples show move, look, and shoot. We reuse that idea for the hunter, then add loot, inventory, and a day/night threat that a normal FPS does not have. Compared with Minecraft-style survival, the focus stays on hunting animals of different rarity (birds vs. rare large animals) and on a single trade post rather than a full crafting economy. Special hunting rules (alarming birds, spoiling meat, a legendary target, tracks, and a rival trader) separate this project from a generic FPS or a simple score hunt.
+6. System Architecture
+Basic Architecture
+The game is one Unity scene: a wildlife map, trees, a trader camp, and a player. The Player object keeps the Character Controller, camera, PlayerMove, and PlayerShoot from the prototype, and adds PlayerHealth and Inventory. Animals are typed (Bird, Medium, RareLarge) with spawn weights, loot tables, and a night attack behaviour when no campfire is active. DayNightCycle drives lighting. Campfire is a placeable object that consumes wood and creates a safe radius at night. Trees require a pickaxe in inventory before they give wood. The Trader is a trigger zone with a simple buy/sell UI and can act as a rival for the legendary animal. Special scripts handle bird scatter, meat timers, cooking, tracks, overhunting, and crouch detection.
+Component Interaction
+Core Gameplay Flow
+Example data flow: PlayerShoot hits a deer ΓåÆ nearby birds scatter and deer flee ΓåÆ Animal.Die() ΓåÆ Inventory.Add(meat with a spoil timer). If meat is cooked on the campfire, health is restored; if not, it becomes worthless. A legendary spawn is rare and may be claimed by the rival trader if the player waits too long. At night, DayNightCycle sets night. If Campfire.IsActive is false, NightThreat damages PlayerHealth. Chopping a tree fails unless Inventory.Has(pickaxe).
+7. Goals and Objectives
+Final Outcome
+The expected result is a playable first-person wildlife hunting prototype. A classmate should be able to hunt, loot meat, cook or sell it before it spoils, follow tracks to a legendary animal, cut wood with a pickaxe, light a fire, survive a night, and trade at camp. Planned functionalities:
+Control a first-person hunter (walk, look, shoot, lock/unlock cursor).
+Find birds often; find large animals rarely.
+Collect meat and related items from killed animals.
+Collect wood from trees only with a pickaxe.
+Light a fire at any time using wood.
+See morning and night; night animals attack if there is no fire.
+Have a health/life limit; dying ends the run.
+Trade weapons, meat, and wood at one camp.
+Show health, day/night, meat freshness, and inventory on the HUD.
+Keep the project on GitHub for backup and instructor review.
+Special features
+These systems are what make the project more than a generic shooter. They are part of the planned outcome:
+Animals warn each other: birds scatter and nearby animals flee after a shot or a kill.
+Meat spoils unless cooked on the fire or sold in time; cooked meat restores health.
+One legendary animal is very rare and is the main ΓÇ£wowΓÇ¥ hunt of the demo.
+Tracks: large/legendary animals leave footprints that fade after a short time.
+Overhunting: too many kills in one area reduces spawns and makes night worse.
+Rival trader: the camp trader also hunts the legendary animal if the player delays.
+Stealth: crouch to stay quieter; running and shooting alert wildlife.
+Success is a stable Play-mode demo of the full loop (hunt, loot, cook or sell, fire, night, trade) plus at least the three core special features (scatter, spoiling meat, legendary animal), even if models are placeholders.
+8. Individual Tasks (for Group Projects)
+Task Assignment
+Work is split so hunting/wildlife and survival/trading can be built in parallel after the shared player exists. Both members test the merged scene and write the final report.
+9. Gantt Chart
+Project Timeline
+The timeline covers the remainder of the Fall 2026 term, from 11 September 2026 to 11 December 2026. Shaded cells show when a task is active. Hunting, survival, and trading work are split between the two members so several tracks can run in parallel.
+Dependencies (serial vs. parallel):
+Serial: proposal ΓåÆ player/shooting ΓåÆ loot and survival systems ΓåÆ trade (needs inventory) ΓåÆ final submission.
+Parallel after the player walks and shoots: AnthonyΓÇÖs wildlife/rarity/loot with JosephΓÇÖs health, fire, and day/night.
+Parallel: environment (trees, camp) with gathering and animal work.
+Serial: trade UI waits until meat, wood, and inventory exist.
+Serial: special features (scatter, spoil, legendary) start after loot and fire exist.
+Serial finish: documentation and the final build wait until hunt + night + trade work in one scene.
+Start of project work: 11 September 2026. Target end date: 11 December 2026. Adjust week labels if the instructorΓÇÖs official deadline differs.
+10. Future Work
+Possible Extensions
+If more time were available after the wildlife loop and special features are stable:
+Replace placeholders with animated birds, deer, legendary animal, plus audio.
+Wind direction for scent (full hunting simulation).
+Visible rifle, limited ammo, and more weapon tiers at the trader.
+Weather, seasons, a larger map, and more than one trade camp.
+A trophy board at camp for the legendary kill.
+Windows executable and a short GitHub README trailer.
+11. Tools and Technologies
+Tools / Technologies List
+12. Resources
+Critical Resources
+The project can be completed with two student PCs, Unity, and free assets. No paid dataset is required. Instructor contact should be taken from the CSIS290 course page.
+End of proposal.
+
+---TABLES---
+=== Table 1 ===
+Full name | Student ID | Role
+Anthony Gerges | a2212825 | Hunting, wildlife, player combat
+Joseph Chamoun | [Insert JosephΓÇÖs student ID] | Survival, inventory, trading, fire
+=== Table 2 ===
+Layer | Components | Responsibility
+Presentation | Camera, HUD (health, time of day, inventory), crosshair | Show first-person view, life, day/night, and carried items
+Player systems | PlayerMove, PlayerShoot, PlayerHealth, Character Controller | Walk, look, crouch, shoot, take damage, and die at zero health
+Hunting & wildlife | Animal types (birds, deer, rare large animals), loot drops | Spawn by rarity; scatter/flee on shots; drop meat; legendary rare spawn
+Survival | Campfire, DayNightCycle, NightThreat | Morning/night lighting; night attacks unless a fire is lit
+Gathering | Tree, Pickaxe tool check, Inventory | Chop wood only if the player has a pickaxe
+Trading | Trader camp / trade post | Buy/sell meat, wood, weapons; trader may also hunt the legendary animal
+Special gameplay | Alarm (birds scatter), MeatSpoil, Cooking, LegendaryAnimal, Tracks, Overhunt, RivalTrader, Stealth | Wildlife reacts to shots; meat goes bad unless cooked; rare legendary hunt; tracks; quiet movement
+Engine / input | Unity 6, URP, Input System, Physics, Lighting | Render the world, read input, raycasts, day/night lights
+=== Table 3 ===
+Explore wildlife area | Hunt / chop wood | Loot / cook meat | Fire & night | Trade at camp | Survive (health)
+ΓåÆ | ΓåÆ | ΓåÆ | ΓåÆ | ΓåÆ | Continue cycle
+=== Table 4 ===
+Work package | Owner | Justification
+Player, camera, shooting, GitHub setup | Anthony Gerges | Prototype already started by Anthony; combat stays with the hunter systems.
+Animal types, rarity, loot, scatter/flee, legendary spawn, tracks, overhunting | Anthony Gerges | Wildlife reaction and rare hunts depend on shooting and spawn rules.
+Health, day/night, campfire, night attacks, cooking, meat spoil timer | Joseph Chamoun | Survival and food timers sit with fire, health, and inventory.
+Pickaxe, trees, wood, inventory UI, crouch stealth check | Joseph Chamoun | Gathering, inventory, and quiet-move detection are survival-side.
+Trade post and rival-trader legendary race | Joseph Chamoun (Anthony helps legendary spawn) | Trading needs inventory; the rival race needs AnthonyΓÇÖs legendary animal.
+Map, trees, camp visuals, HUD polish | Both | Shared world so hunting and survival meet in one scene.
+Special-feature integration and playtest | Both | Scatter, spoil, and legendary must work together in one demo.
+Testing, proposal, demo, final build | Both | Course delivery is shared; each member tests the otherΓÇÖs systems.
+=== Table 5 ===
+Task | Dates / type | W1 11ΓÇô17 Sep | W2 18ΓÇô24 Sep | W3 25 SepΓÇô1 Oct | W4 2ΓÇô8 Oct | W5 9ΓÇô15 Oct | W6 16ΓÇô22 Oct | W7 23ΓÇô29 Oct | W8 30 OctΓÇô5 Nov | W9 6ΓÇô12 Nov | W10 13ΓÇô19 Nov | W11 20ΓÇô26 Nov | W12 27 NovΓÇô3 Dec | W13 4ΓÇô11 Dec
+Proposal & planning (both) | 11 Sep ΓÇô 18 Sep (Serial start) | ΓûêΓûê | ΓûêΓûê |  |  |  |  |  |  |  |  |  |  | 
+Player, camera, shooting (Anthony) | 11 Sep ΓÇô 25 Sep (In progress) | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê |  |  |  |  |  |  |  |  |  | 
+Wildlife types, rarity, loot (Anthony) | 25 Sep ΓÇô 22 Oct (After shooting) |  |  | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê |  |  |  |  |  |  | 
+Health, fire, day/night (Joseph) | 25 Sep ΓÇô 29 Oct (Parallel survival) |  |  | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê |  |  |  |  |  | 
+Wood, pickaxe, inventory (Joseph) | 2 Oct ΓÇô 5 Nov (Needs player) |  |  |  | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê |  |  |  |  | 
+Trade post & item prices (both) | 16 Oct ΓÇô 12 Nov (Needs inventory) |  |  |  |  |  | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê |  |  |  | 
+Environment, trees, camp (both) | 2 Oct ΓÇô 12 Nov (Parallel world) |  |  |  | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê |  |  |  | 
+Special features: scatter, spoil/cook, legendary, tracks (both) | 16 Oct ΓÇô 19 Nov (After loot + fire) |  |  |  |  |  | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê |  |  | 
+Playtesting & bug fixes (both) | 30 Oct ΓÇô 26 Nov (Ongoing polish) |  |  |  |  |  |  |  | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê |  | 
+Documentation & demo (both) | 13 Nov ΓÇô 3 Dec (After stable build) |  |  |  |  |  |  |  |  |  | ΓûêΓûê | ΓûêΓûê | ΓûêΓûê | 
+Final build & submission (both) | 27 Nov ΓÇô 11 Dec (Serial finish) |  |  |  |  |  |  |  |  |  |  |  | ΓûêΓûê | ΓûêΓûê
+=== Table 6 ===
+Tool / technology | Purpose in this project
+Unity 6 (6000.6) with URP | 3D world, lighting for morning/night, physics, Play-mode testing
+C# scripts (MonoBehaviour) | Player, animals, inventory, fire, day/night, trader, health
+Unity Input System | WASD, mouse look, shoot, crouch, interact (trees, fire, trade, cook)
+TextMeshPro / uGUI | Health, inventory, time of day, trade menu
+Git + GitHub | Shared version control (Hunting-game repository)
+Visual Studio  | Edit C#; Unity remains the main editor
+Windows 10/11 | Development and playtest platform
+=== Table 7 ===
+Resource | Why it is needed | How to obtain / contact
+Anthony Gerges | Hunting, wildlife, player combat | Student ID a2212825  ΓÇó  GitHub: anthonygerges2004
+Joseph Chamoun | Survival, inventory, fire, trading | Student ID to be inserted  ΓÇó  add campus email before submit
+Unity Hub + Unity 6 editor | Build and run the 3D project | https://unity.com/download  (student license if required)
+GitHub repository | Shared backup and history | https://github.com/anthonygerges2004/Hunting-game
+Two Windows PCs with mice | Split development and playtests | Personal machines already in use
+Free Unity assets (optional) | Trees, animals, camp, audio | Unity Asset Store free kits; placeholders allowed
+CSIS290 instructor / lab | Requirements, grading, feedback | Official course email and office hours

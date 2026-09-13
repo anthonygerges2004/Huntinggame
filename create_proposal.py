@@ -9,8 +9,8 @@ OUTPUTS = [
     r"C:\Users\antho\senior\CSIS290_Hunting_Game_Project_Proposal.docx",
     r"C:\Users\antho\senior\CSIS290_Hunting_Game_Project_Proposal_UPDATED.docx",
     r"C:\Users\antho\OneDrive\Desktop\CSIS290_Hunting_Game_Project_Proposal.docx",
-    r"C:\Users\antho\OneDrive\Desktop\CSIS290_Hunting_Game_Project_Proposal_UPDATED.docx",
     r"C:\Users\antho\OneDrive\Documents\CSIS290_Hunting_Game_Project_Proposal.docx",
+    r"d:\downloadss\CSIS290_Hunting_Game_Project_Proposal.docx",
     r"C:\senior\CSIS290_Hunting_Game_Project_Proposal.docx",
 ]
 
@@ -228,7 +228,7 @@ def add_flow_table(doc):
 def add_gantt(doc):
     add_paragraph(
         doc,
-        "The timeline covers the remainder of the Fall 2026 term, from 11 September 2026 to 11 December 2026. "
+        "The timeline covers the remainder of the Fall 2026 term, from 11 September 2026 to 8 December 2026. "
         "Shaded cells show when a task is active. Hunting, survival, and trading work are split between the two members so several tracks can run in parallel.",
         align="justify",
         space_after=8,
@@ -246,7 +246,7 @@ def add_gantt(doc):
         "W10 13–19 Nov",
         "W11 20–26 Nov",
         "W12 27 Nov–3 Dec",
-        "W13 4–11 Dec",
+        "W13 4–8 Dec",
     ]
     tasks = [
         ("Proposal & planning (both)", "11 Sep – 18 Sep", "Serial start", [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
@@ -259,7 +259,7 @@ def add_gantt(doc):
         ("Special features: scatter, spoil/cook, legendary, tracks (both)", "16 Oct – 19 Nov", "After loot + fire", [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0]),
         ("Playtesting & bug fixes (both)", "30 Oct – 26 Nov", "Ongoing polish", [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0]),
         ("Documentation & demo (both)", "13 Nov – 3 Dec", "After stable build", [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0]),
-        ("Final build & submission (both)", "27 Nov – 11 Dec", "Serial finish", [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1]),
+        ("Final build & submission (both)", "27 Nov – 8 Dec", "Serial finish", [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1]),
     ]
     table = doc.add_table(rows=1 + len(tasks), cols=2 + len(weeks))
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -604,7 +604,7 @@ def build():
     bullet(doc, "Serial finish: documentation and the final build wait until hunt + night + trade work in one scene.")
     add_paragraph(
         doc,
-        "Start of project work: 11 September 2026. Target end date: 11 December 2026. "
+        "Start of project work: 11 September 2026. Target end date: 8 December 2026. "
         "Adjust week labels if the instructor’s official deadline differs.",
         size=10,
         italic=True,
