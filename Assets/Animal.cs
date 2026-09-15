@@ -74,6 +74,9 @@ public class Animal : MonoBehaviour
         if (Campfire.PlayerIsSafe())
             return;
 
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+            return;
+
         Transform player = Camera.main != null ? Camera.main.transform : null;
         if (player == null)
             return;
@@ -88,7 +91,10 @@ public class Animal : MonoBehaviour
 
         attackTimer = nightAttackCooldown;
         if (PlayerHealth.Instance != null)
+        {
             PlayerHealth.Instance.TakeDamage(nightDamage);
+            Debug.Log($"{kind} attacked player! {nightDamage} damage taken.");
+        }
     }
 
     public void Hit()

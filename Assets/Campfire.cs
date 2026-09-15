@@ -5,18 +5,40 @@ public class Campfire : MonoBehaviour
 {
     public static Campfire Instance;
 
+    [Header("Campfire Settings")]
     public float safeRadius = 8f;
     public int woodCost = 1;
     public Key fireKey = Key.F;
     public Key cookKey = Key.C;
+    public float spawnDistance = 3f;
 
+    [Header("Prefab Assignment")]
+    [Tooltip("Drag your campfire 3D prefab here from your Assets folder")]
+    public GameObject fireModelPrefab;
+
+    [Header("Status")]
     public bool isLit;
-    Light fireLight;
-    GameObject fireObject;
+
+    private Light fireLight;
+    private GameObject fireInstance;
 
     void Awake()
     {
-        Instance = this;
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        // Fallback search if not assigned in Inspector
+        if (fireModelPrefab == null)
+        {
+            fireModelPrefab = Resources.Load<GameObject>("campfire");
+        }
     }
 
     void Update()
@@ -45,15 +67,6 @@ public class Campfire : MonoBehaviour
             return;
         }
 
-        if (Camera.main != null)
-        {
-            Vector3 feet = Camera.main.transform.position;
-            feet.y = transform.position.y;
-            if (Mathf.Abs(feet.y) < 0.01f)
-                feet.y = 0.2f;
-            transform.position = new Vector3(Camera.main.transform.position.x, 0.2f, Camera.main.transform.position.z);
-        }
-
         SetLit(true);
     }
 
@@ -61,27 +74,72 @@ public class Campfire : MonoBehaviour
     {
         isLit = lit;
 
-        if (lit && fireObject == null)
+        if (lit)
         {
-            fireObject = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            fireObject.name = "FireVisual";
-            fireObject.transform.SetParent(transform);
-            fireObject.transform.localPosition = Vector3.zero;
-            fireObject.transform.localScale = new Vector3(0.6f, 0.2f, 0.6f);
+            Camera mainCam = Camera.main;
+            if (mainCam == null)
+            {
+                Debug.LogError("Campfire: No camera tagged as 'MainCamera' found in the scene!");
+                return;
+            }
 
-            fireLight = fireObject.AddComponent<Light>();
+            // Raycast downward from in front of camera to snap precisely to ground height
+            Vector3 targetPoint = mainCam.transform.position + (mainCam.transform.forward * spawnDistance);
+            Vector3 spawnPos = targetPoint;
+
+            if (Physics.Raycast(targetPoint + Vector3.up * 3f, Vector3.down, out RaycastHit hit, 10f))
+            {
+                spawnPos = hit.point;
+            }
+
+            // Spawn campfire model
+            if (fireModelPrefab != null)
+            {
+                fireInstance = Instantiate(fireModelPrefab, spawnPos, Quaternion.identity);
+                fireInstance.name = "CampfireInstance";
+                fireInstance.SetActive(true);
+
+                // Remove colliders so player can walk through
+                Collider[] colliders = fireInstance.GetComponentsInChildren<Collider>();
+                foreach (Collider col in colliders)
+                {
+                    Destroy(col);
+                }
+            }
+            else
+            {
+                Debug.LogWarning("Campfire: fireModelPrefab is missing! Drag your prefab into the Campfire script in the Inspector.");
+            }
+
+            // Add point light slightly above campfire base
+            GameObject lightObj = new GameObject("CampfireLight");
+            if (fireInstance != null)
+            {
+                lightObj.transform.SetParent(fireInstance.transform);
+                lightObj.transform.localPosition = Vector3.up * 0.5f;
+            }
+            else
+            {
+                lightObj.transform.position = spawnPos + Vector3.up * 0.5f;
+            }
+
+            fireLight = lightObj.AddComponent<Light>();
             fireLight.type = LightType.Point;
             fireLight.color = new Color(1f, 0.55f, 0.15f);
             fireLight.range = safeRadius;
+            fireLight.intensity = 2f;
         }
-
-        if (fireObject != null)
-            fireObject.SetActive(lit);
-
-        if (fireLight != null)
+        else
         {
-            fireLight.enabled = lit;
-            fireLight.intensity = lit ? 3f : 0f;
+            // Extinguish and cleanup
+            if (fireInstance != null)
+                Destroy(fireInstance);
+
+            if (fireLight != null)
+                Destroy(fireLight.gameObject);
+
+            fireInstance = null;
+            fireLight = null;
         }
     }
 
@@ -105,13 +163,10 @@ public class Campfire : MonoBehaviour
 
     public static bool PlayerIsSafe()
     {
-        if (Instance == null || !Instance.isLit)
+        if (Instance == null || !Instance.isLit || Instance.fireInstance == null || Camera.main == null)
             return false;
 
-        if (Camera.main == null)
-            return false;
-
-        float dist = Vector3.Distance(Instance.transform.position, Camera.main.transform.position);
+        float dist = Vector3.Distance(Instance.fireInstance.transform.position, Camera.main.transform.position);
         return dist <= Instance.safeRadius;
     }
 }
