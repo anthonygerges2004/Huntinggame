@@ -171,8 +171,8 @@ def add_architecture_table(doc):
         ),
         (
             "Hunting & wildlife",
-            "Animal types (birds, deer, rare large animals), loot drops",
-            "Spawn by rarity; scatter/flee on shots; drop meat; legendary rare spawn",
+            "Animal (Species, Size, Rarity), spawn weights, loot tables",
+            "Composable stats per entity; scatter/flee on shots; legendary = high Rarity",
         ),
         (
             "Survival",
@@ -206,6 +206,36 @@ def add_architecture_table(doc):
         fill = LIGHT if r % 2 else "FFFFFF"
         for c, val in enumerate(row):
             write_cell(table.rows[r].cells[c], val, size=10, fill=fill, center=(c == 0))
+
+
+def add_wildlife_attributes_table(doc):
+    subheading(doc, "Wildlife attributes (data model)")
+    add_paragraph(
+        doc,
+        "Wildlife is not stored as one flat label such as “RareLarge.” Each animal uses three independent "
+        "properties so combinations stay flexible without new types for every mix. Species is the kind of animal "
+        "(Bird, Deer, Bear, and similar). Size is Small, Medium, or Large and drives health, threat, and loot amount. "
+        "Rarity is Common, Uncommon, Rare, or Legendary and drives spawn weight and trade value. The Animal "
+        "component reads these fields (or a ScriptableObject row) to set spawn rules, drops, and AI reactions.",
+        align="justify",
+        first_line=True,
+    )
+    table = doc.add_table(rows=6, cols=4)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    headers = ["Species", "Size", "Rarity", "Role in the demo"]
+    examples = [
+        ("Bird", "Small", "Common", "Most frequent hunt; small meat; triggers scatter alarm"),
+        ("Deer", "Medium", "Common", "Default prey; moderate loot; flees when alarmed"),
+        ("Deer", "Medium", "Uncommon", "Less common deer; slightly better drops"),
+        ("Bear", "Large", "Rare", "Harder fight; more meat; may leave tracks"),
+        ("Bear", "Large", "Legendary", "Very rare “wow” hunt; tracks; rival trader may compete"),
+    ]
+    for i, h in enumerate(headers):
+        write_cell(table.rows[0].cells[i], h, bold=True, size=10, center=True, color=RGBColor(255, 255, 255), fill=ACCENT)
+    for r, row in enumerate(examples, start=1):
+        fill = LIGHT if r % 2 else "FFFFFF"
+        for c, val in enumerate(row):
+            write_cell(table.rows[r].cells[c], val, size=10, fill=fill, center=(c < 3))
 
 
 def add_flow_table(doc):
@@ -414,7 +444,10 @@ def build():
     subheading(doc, "Scope")
     add_paragraph(doc, "In scope (minimum viable product):", bold=True)
     bullet(doc, "First-person movement, mouse look, and hitscan shooting.")
-    bullet(doc, "Wildlife types: common birds, less common medium animals, rare large animals.")
+    bullet(
+        doc,
+        "Wildlife with Species, Size, and Rarity (e.g. common small birds, medium deer, rare large animals, one legendary hunt).",
+    )
     bullet(doc, "Loot from kills: meat and simple materials go into an inventory.")
     bullet(doc, "Chop wood from trees only if the player has a pickaxe.")
     bullet(doc, "Place or light a campfire at any time (using wood).")
@@ -471,14 +504,16 @@ def build():
         doc,
         "The game is one Unity scene: a wildlife map, trees, a trader camp, and a player. The Player object keeps "
         "the Character Controller, camera, PlayerMove, and PlayerShoot from the prototype, and adds PlayerHealth "
-        "and Inventory. Animals are typed (Bird, Medium, RareLarge) with spawn weights, loot tables, and a night "
-        "attack behaviour when no campfire is active. DayNightCycle drives lighting. Campfire is a placeable object "
+        "and Inventory. Each wildlife entity has Species, Size, and Rarity (not a single combined type name). "
+        "Spawn weights, loot tables, and night threat scale from those fields—for example a rare large bear is "
+        "Large size plus Rare or Legendary rarity, not a separate “RareLarge” enum. DayNightCycle drives lighting. Campfire is a placeable object "
         "that consumes wood and creates a safe radius at night. Trees require a pickaxe in inventory before they "
         "give wood. The Trader is a trigger zone with a simple buy/sell UI and can act as a rival for the legendary "
         "animal. Special scripts handle bird scatter, meat timers, cooking, tracks, overhunting, and crouch detection.",
         align="justify",
         first_line=True,
     )
+    add_wildlife_attributes_table(doc)
     add_architecture_table(doc)
     add_flow_table(doc)
     add_paragraph(
