@@ -20,13 +20,21 @@ public class Animal : MonoBehaviour
 
     Vector3 startPos;
     Vector3 wanderTarget;
+    Vector3 previousPosition;
+    Animator animalAnimator;
     bool fleeing;
     float attackTimer;
     bool dead;
 
+    static readonly int VerticalAnimation = Animator.StringToHash("Vert");
+    static readonly int StateAnimation = Animator.StringToHash("State");
+
     void Start()
     {
         startPos = transform.position;
+        previousPosition = transform.position;
+        animalAnimator = GetComponentInChildren<Animator>();
+        DisableImportedMovementControllers();
         PickWanderTarget();
     }
 
@@ -39,14 +47,77 @@ public class Animal : MonoBehaviour
         {
             Vector3 away = transform.position + transform.forward * 2f;
             transform.position = Vector3.MoveTowards(transform.position, away, fleeSpeed * Time.deltaTime);
+            UpdateAnimation(true);
             return;
         }
 
+        FaceDirection(wanderTarget - transform.position);
         transform.position = Vector3.MoveTowards(transform.position, wanderTarget, moveSpeed * Time.deltaTime);
         if (Vector3.Distance(transform.position, wanderTarget) < 0.3f)
             PickWanderTarget();
 
         TryNightAttack();
+        UpdateAnimation(false);
+    }
+
+    void FaceDirection(Vector3 direction)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.001f)
+            return;
+
+        Quaternion targetRotation = Quaternion.LookRotation(direction.normalized);
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            targetRotation,
+            6f * Time.deltaTime);
+    }
+
+    void UpdateAnimation(bool running)
+    {
+        if (animalAnimator == null)
+            return;
+
+        float distanceMoved = Vector3.Distance(transform.position, previousPosition);
+        bool moving = distanceMoved > 0.0001f;
+
+        animalAnimator.SetFloat(
+            VerticalAnimation,
+            moving ? 1f : 0f,
+            0.12f,
+            Time.deltaTime);
+        animalAnimator.SetFloat(
+            StateAnimation,
+            running ? 1f : 0f,
+            0.12f,
+            Time.deltaTime);
+
+        previousPosition = transform.position;
+    }
+
+    void DisableImportedMovementControllers()
+    {
+        MonoBehaviour[] behaviours = GetComponentsInChildren<MonoBehaviour>(true);
+        foreach (MonoBehaviour behaviour in behaviours)
+        {
+            if (behaviour == null || behaviour == this)
+                continue;
+
+            string typeName = behaviour.GetType().FullName;
+            if (typeName == "ithappy.Animals_FREE.MovePlayerInput" ||
+                typeName == "ithappy.Animals_FREE.CreatureMover")
+            {
+                behaviour.enabled = false;
+            }
+        }
+
+        CharacterController[] childControllers =
+            GetComponentsInChildren<CharacterController>(true);
+        foreach (CharacterController controller in childControllers)
+        {
+            if (controller.gameObject != gameObject)
+                controller.enabled = false;
+        }
     }
 
     void PickWanderTarget()
