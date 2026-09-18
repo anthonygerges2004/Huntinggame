@@ -21,6 +21,12 @@ public class PlayerMove : MonoBehaviour
         cam = GetComponentInChildren<Camera>().transform;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        Vector3 grounded = WorldGround.Snap(transform.position);
+        grounded.y += 1f;
+        controller.enabled = false;
+        transform.position = grounded;
+        controller.enabled = true;
     }
 
     void Update()

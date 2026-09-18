@@ -37,7 +37,8 @@ public class Animal : MonoBehaviour
     {
         ApplyKindFromName();
         AnimalVisuals.Attach(this);
-        homePos = transform.position;
+        homePos = WorldGround.Snap(transform.position);
+        transform.position = homePos;
         previousPosition = transform.position;
         animalAnimator = GetComponentInChildren<Animator>();
         DisableImportedMovementControllers();
@@ -53,7 +54,17 @@ public class Animal : MonoBehaviour
         {
             fleeTimer -= Time.deltaTime;
             Vector3 away = transform.position + transform.forward * 2f;
-            transform.position = Vector3.MoveTowards(transform.position, away, fleeSpeed * Time.deltaTime);
+            Vector3 next = WorldGround.Snap(
+                Vector3.MoveTowards(transform.position, away, fleeSpeed * Time.deltaTime));
+            if (WorldGround.InsideWater(next))
+            {
+                transform.Rotate(0f, 110f, 0f);
+                away = transform.position + transform.forward * 2f;
+                next = WorldGround.Snap(
+                    Vector3.MoveTowards(transform.position, away, fleeSpeed * Time.deltaTime));
+            }
+
+            transform.position = next;
             UpdateAnimation(true);
 
             if (fleeTimer <= 0f)
@@ -64,11 +75,13 @@ public class Animal : MonoBehaviour
 
         if (returningHome)
         {
-            FaceDirection(homePos - transform.position);
-            transform.position = Vector3.MoveTowards(transform.position, homePos, moveSpeed * Time.deltaTime);
+            Vector3 home = WorldGround.Snap(homePos);
+            FaceDirection(home - transform.position);
+            transform.position = WorldGround.Snap(
+                Vector3.MoveTowards(transform.position, home, moveSpeed * Time.deltaTime));
             UpdateAnimation(false);
 
-            if (Vector3.Distance(transform.position, homePos) < 0.4f)
+            if (Vector3.Distance(Flat(transform.position), Flat(home)) < 0.6f)
             {
                 returningHome = false;
                 PickWanderTarget();
@@ -79,8 +92,9 @@ public class Animal : MonoBehaviour
         }
 
         FaceDirection(wanderTarget - transform.position);
-        transform.position = Vector3.MoveTowards(transform.position, wanderTarget, moveSpeed * Time.deltaTime);
-        if (Vector3.Distance(transform.position, wanderTarget) < 0.3f)
+        transform.position = WorldGround.Snap(
+            Vector3.MoveTowards(transform.position, wanderTarget, moveSpeed * Time.deltaTime));
+        if (Vector3.Distance(Flat(transform.position), Flat(wanderTarget)) < 0.5f)
             PickWanderTarget();
 
         TryNightAttack();
@@ -177,9 +191,23 @@ public class Animal : MonoBehaviour
 
     void PickWanderTarget()
     {
-        Vector2 circle = Random.insideUnitCircle * 6f;
-        wanderTarget = homePos + new Vector3(circle.x, 0f, circle.y);
-        wanderTarget.y = transform.position.y;
+        for (int i = 0; i < 8; i++)
+        {
+            Vector2 circle = Random.insideUnitCircle * 6f;
+            Vector3 candidate = homePos + new Vector3(circle.x, 0f, circle.y);
+            candidate = WorldGround.Snap(candidate);
+            if (WorldGround.IsMeadow(candidate) || i == 7)
+            {
+                wanderTarget = candidate;
+                return;
+            }
+        }
+    }
+
+    static Vector3 Flat(Vector3 value)
+    {
+        value.y = 0f;
+        return value;
     }
 
     public void FleeFrom(Vector3 danger)

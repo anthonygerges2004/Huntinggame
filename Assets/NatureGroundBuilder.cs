@@ -19,6 +19,8 @@ public static class NatureGroundBuilder
             return;
         if (SceneManager.GetActiveScene().name != "GetStarted_Scene")
             return;
+        if (GameObject.Find("_NatureForest") != null)
+            return;
         if (GameObject.Find(RootName) != null)
             return;
 

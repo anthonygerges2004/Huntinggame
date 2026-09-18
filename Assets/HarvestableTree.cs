@@ -8,6 +8,17 @@ public class HarvestableTree : MonoBehaviour
 
     bool chopped;
 
+    void Start()
+    {
+        if (name.IndexOf("Legendary", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            gameObject.SetActive(false);
+            return;
+        }
+
+        transform.position = WorldGround.Snap(transform.position);
+    }
+
     void Update()
     {
         if (chopped || Keyboard.current == null)
