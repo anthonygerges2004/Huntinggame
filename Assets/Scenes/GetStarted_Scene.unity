@@ -516,6 +516,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &82216399
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -636,6 +637,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &90928841
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -757,11 +759,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 966d037d56a65db42813ae099ad29002, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 6.4640183
+      value: 5.8
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 966d037d56a65db42813ae099ad29002, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 52.083332
+      value: 53.7
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 966d037d56a65db42813ae099ad29002, type: 3}
       propertyPath: m_LocalRotation.w
@@ -987,6 +989,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &206354155
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1724,6 +1727,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &359395301
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1859,6 +1863,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &386634717
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2266,6 +2271,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!1 &510896072
 GameObject:
   m_ObjectHideFlags: 0
@@ -2322,6 +2328,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &510896075
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2554,6 +2561,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &562542586
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2829,6 +2837,38 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 595555933}
   m_Mesh: {fileID: -6831203800605888285, guid: 2bb56834cfe7c034c9f64fd80f14f6a5, type: 3}
+--- !u!1 &618645515
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 618645516}
+  m_Layer: 0
+  m_Name: _NatureForest
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &618645516
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 618645515}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 924045804}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &674780111
 GameObject:
   m_ObjectHideFlags: 0
@@ -2958,38 +2998,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 674780111}
   m_Mesh: {fileID: -6831203800605888285, guid: 2bb56834cfe7c034c9f64fd80f14f6a5, type: 3}
---- !u!1 &683750259
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 683750260}
-  m_Layer: 0
-  m_Name: _NatureForest
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &683750260
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 683750259}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 924045804}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &716917040
 GameObject:
   m_ObjectHideFlags: 0
@@ -3377,6 +3385,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &781457509
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -3795,6 +3804,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!1001 &907790995
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -3961,7 +3971,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 683750260}
+  m_Father: {fileID: 618645516}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &980704084
 PrefabInstance:
@@ -4638,7 +4648,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 20, y: -20}
-  m_SizeDelta: {x: 600, y: 120}
+  m_SizeDelta: {x: 520, y: 220}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1155434231
 MonoBehaviour:
@@ -4689,8 +4699,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 36
-  m_fontSizeBase: 36
+  m_fontSize: 28
+  m_fontSizeBase: 28
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -4752,7 +4762,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 2a0a57c24baf63a448957c17b3a2695d, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 49.483334
+      value: 48.32
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 2a0a57c24baf63a448957c17b3a2695d, type: 3}
       propertyPath: m_LocalPosition.y
@@ -4760,7 +4770,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 2a0a57c24baf63a448957c17b3a2695d, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 53.68333
+      value: 55.52
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 2a0a57c24baf63a448957c17b3a2695d, type: 3}
       propertyPath: m_LocalRotation.w
@@ -5208,6 +5218,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &1393311481
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -5472,6 +5483,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &1409773149
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -5810,6 +5822,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &1472847608
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -6148,6 +6161,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &1549717185
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -6478,6 +6492,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &1574271529
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -6879,6 +6894,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &1630510124
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -7365,6 +7381,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &1674998137
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -7500,6 +7517,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &1686065151
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -8835,6 +8853,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &2045612325
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -8979,10 +8998,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.CanvasScaler
-  m_UiScaleMode: 0
+  m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 800, y: 600}
+  m_ReferenceResolution: {x: 1920, y: 1080}
   m_ScreenMatchMode: 0
   m_MatchWidthOrHeight: 0
   m_PhysicalUnit: 3
@@ -9421,6 +9440,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &2101920143
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -9556,6 +9576,7 @@ MonoBehaviour:
   nightAttackRange: 4
   nightAttackCooldown: 1.5
   fleeDuration: 8
+  nocturnal: 0
 --- !u!136 &2115600650
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -9665,7 +9686,6 @@ SceneRoots:
   - {fileID: 980704084}
   - {fileID: 116143489}
   - {fileID: 570639195}
-  - {fileID: 683750260}
   - {fileID: 2101920141}
   - {fileID: 1393311479}
   - {fileID: 781457507}
@@ -9701,3 +9721,4 @@ SceneRoots:
   - {fileID: 1882002700}
   - {fileID: 1939432572}
   - {fileID: 720455318}
+  - {fileID: 618645516}
