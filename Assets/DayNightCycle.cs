@@ -29,7 +29,7 @@ public class DayNightCycle : MonoBehaviour
         if (timeOfDay > 1f)
             timeOfDay -= 1f;
 
-        IsNight = timeOfDay > 0.5f;
+        IsNight = timeOfDay >= 0.5f && timeOfDay < 0.7f;
 
         UpdateSkybox();
         UpdateLighting();
@@ -64,9 +64,8 @@ public class DayNightCycle : MonoBehaviour
     {
         if (sun != null)
         {
-            // Rotate sun position - day to night
-            float sunRotation = timeOfDay * 360f;
-            sun.transform.rotation = Quaternion.Euler(sunRotation - 90f, 0f, 0f);
+            // 0 = dawn, 0.25 = noon, 0.5 = dusk, 0.75 = midnight
+            sun.transform.rotation = Quaternion.Euler(timeOfDay * 360f, 170f, 0f);
 
             // Dynamic intensity based on sun position with smooth curve
             float sunHeight = Mathf.Sin(timeOfDay * Mathf.PI);

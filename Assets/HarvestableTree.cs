@@ -13,13 +13,21 @@ public class HarvestableTree : MonoBehaviour
         if (chopped || Keyboard.current == null)
             return;
 
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+            return;
+
         if (!Keyboard.current.eKey.wasPressedThisFrame)
             return;
 
         if (Camera.main == null)
             return;
 
-        if (Vector3.Distance(transform.position, Camera.main.transform.position) > chopRange)
+        Ray ray = new Ray(Camera.main.transform.position, Camera.main.transform.forward);
+        if (!Physics.Raycast(ray, out RaycastHit hit, chopRange))
+            return;
+
+        HarvestableTree tree = hit.collider.GetComponentInParent<HarvestableTree>();
+        if (tree != this)
             return;
 
         if (Inventory.Instance == null || !Inventory.Instance.hasPickaxe)

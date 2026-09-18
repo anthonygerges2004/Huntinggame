@@ -86,6 +86,8 @@ public class PlayerHealth : MonoBehaviour
     void Die()
     {
         isDead = true;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
         Debug.Log("You died. Light a fire at night and keep your health up.");
         CreateDeathScreen();
     }

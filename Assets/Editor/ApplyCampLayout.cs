@@ -11,24 +11,8 @@ public static class ApplyCampLayout
     [InitializeOnLoadMethod]
     private static void BuildAutomaticallyOnce()
     {
-        EditorApplication.delayCall += TryBuildAutomatically;
-        EditorApplication.playModeStateChanged += state =>
-        {
-            if (state == PlayModeStateChange.EnteredEditMode)
-                EditorApplication.delayCall += TryBuildAutomatically;
-        };
-    }
-
-    private static void TryBuildAutomatically()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode)
-            return;
-        if (SceneManager.GetActiveScene().name != "GetStarted_Scene")
-            return;
-        if (GameObject.Find(FillRootName) != null)
-            return;
-
-        BuildLayout();
+        // Layout is applied from Tools/Hunting Game/Build Final Island Layout.
+        // Do not rebuild automatically — that overwrites hand-placed animals and camp objects.
     }
 
     [MenuItem("Tools/Hunting Game/Build Final Island Layout")]

@@ -23,6 +23,9 @@ public class Trader : MonoBehaviour
     {
         TryRivalClaim();
 
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+            return;
+
         if (Keyboard.current == null || Camera.main == null)
             return;
 
@@ -98,7 +101,7 @@ public class Trader : MonoBehaviour
         if (rivalTimer > 0f)
             return;
 
-        Animal[] animals = FindObjectsByType<Animal>(FindObjectsSortMode.None);
+        Animal[] animals = FindObjectsByType<Animal>(FindObjectsInactive.Exclude);
         for (int i = 0; i < animals.Length; i++)
         {
             if (animals[i].kind == AnimalKind.Legendary)

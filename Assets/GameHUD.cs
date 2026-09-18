@@ -33,6 +33,7 @@ public class GameHUD : MonoBehaviour
             "   Wood: " + wood +
             "\nPickaxe: " + (pickaxe ? "Yes" : "No") +
             "   Fire nearby: " + (fire ? "Yes" : "No") +
-            "\nF = fire   C = cook   E = chop tree   1 = sell meat at trader";
+            "\nF = fire   C = cook   Q = eat   E = chop tree" +
+            "\n1 = sell meat at camp   3 = buy pickaxe";
     }
 }

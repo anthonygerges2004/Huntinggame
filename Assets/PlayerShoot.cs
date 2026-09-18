@@ -17,6 +17,9 @@ public class PlayerShoot : MonoBehaviour
         if (cam == null || Mouse.current == null)
             return;
 
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+            return;
+
         if (!Mouse.current.leftButton.wasPressedThisFrame)
             return;
 
@@ -25,7 +28,7 @@ public class PlayerShoot : MonoBehaviour
         Ray ray = new Ray(cam.transform.position, cam.transform.forward);
         if (Physics.Raycast(ray, out RaycastHit hit, range))
         {
-            Animal animal = hit.collider.GetComponent<Animal>();
+            Animal animal = hit.collider.GetComponentInParent<Animal>();
             if (animal != null)
                 animal.Hit();
         }

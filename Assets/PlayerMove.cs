@@ -25,6 +25,9 @@ public class PlayerMove : MonoBehaviour
 
     void Update()
     {
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+            return;
+
         if (Keyboard.current == null || Mouse.current == null)
             return;
 

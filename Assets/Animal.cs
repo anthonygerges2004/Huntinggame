@@ -18,20 +18,26 @@ public class Animal : MonoBehaviour
     public float nightAttackRange = 4f;
     public float nightAttackCooldown = 1.5f;
 
-    Vector3 startPos;
+    Vector3 homePos;
     Vector3 wanderTarget;
     Vector3 previousPosition;
     Animator animalAnimator;
     bool fleeing;
+    bool returningHome;
+    float fleeTimer;
     float attackTimer;
     bool dead;
+
+    public float fleeDuration = 8f;
 
     static readonly int VerticalAnimation = Animator.StringToHash("Vert");
     static readonly int StateAnimation = Animator.StringToHash("State");
 
     void Start()
     {
-        startPos = transform.position;
+        ApplyKindFromName();
+        AnimalVisuals.Attach(this);
+        homePos = transform.position;
         previousPosition = transform.position;
         animalAnimator = GetComponentInChildren<Animator>();
         DisableImportedMovementControllers();
@@ -45,9 +51,30 @@ public class Animal : MonoBehaviour
 
         if (fleeing)
         {
+            fleeTimer -= Time.deltaTime;
             Vector3 away = transform.position + transform.forward * 2f;
             transform.position = Vector3.MoveTowards(transform.position, away, fleeSpeed * Time.deltaTime);
             UpdateAnimation(true);
+
+            if (fleeTimer <= 0f)
+                StartReturningHome();
+
+            return;
+        }
+
+        if (returningHome)
+        {
+            FaceDirection(homePos - transform.position);
+            transform.position = Vector3.MoveTowards(transform.position, homePos, moveSpeed * Time.deltaTime);
+            UpdateAnimation(false);
+
+            if (Vector3.Distance(transform.position, homePos) < 0.4f)
+            {
+                returningHome = false;
+                PickWanderTarget();
+            }
+
+            TryNightAttack();
             return;
         }
 
@@ -58,6 +85,34 @@ public class Animal : MonoBehaviour
 
         TryNightAttack();
         UpdateAnimation(false);
+    }
+
+    void ApplyKindFromName()
+    {
+        string objectName = gameObject.name;
+        if (objectName.IndexOf("Legendary", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            kind = AnimalKind.Legendary;
+            if (meatAmount < 10)
+                meatAmount = 15;
+            return;
+        }
+
+        if (objectName.IndexOf("Bird", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            kind = AnimalKind.Bird;
+            return;
+        }
+
+        if (objectName.IndexOf("Big", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            objectName.IndexOf("Large", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            kind = AnimalKind.Large;
+            if (meatAmount <= 2)
+                meatAmount = 5;
+            if (nightDamage <= 8f)
+                nightDamage = 14f;
+        }
     }
 
     void FaceDirection(Vector3 direction)
@@ -123,13 +178,15 @@ public class Animal : MonoBehaviour
     void PickWanderTarget()
     {
         Vector2 circle = Random.insideUnitCircle * 6f;
-        wanderTarget = startPos + new Vector3(circle.x, 0f, circle.y);
+        wanderTarget = homePos + new Vector3(circle.x, 0f, circle.y);
         wanderTarget.y = transform.position.y;
     }
 
     public void FleeFrom(Vector3 danger)
     {
         fleeing = true;
+        returningHome = false;
+        fleeTimer = fleeDuration;
         Vector3 dir = transform.position - danger;
         dir.y = 0f;
         if (dir.sqrMagnitude < 0.01f)
@@ -137,8 +194,18 @@ public class Animal : MonoBehaviour
         transform.forward = dir.normalized;
     }
 
+    void StartReturningHome()
+    {
+        fleeing = false;
+        returningHome = true;
+        FaceDirection(homePos - transform.position);
+    }
+
     void TryNightAttack()
     {
+        if (kind == AnimalKind.Bird)
+            return;
+
         if (DayNightCycle.Instance == null || !DayNightCycle.Instance.IsNight)
             return;
 
@@ -148,7 +215,9 @@ public class Animal : MonoBehaviour
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
 
-        Transform player = Camera.main != null ? Camera.main.transform : null;
+        Transform player = PlayerHealth.Instance != null
+            ? PlayerHealth.Instance.transform
+            : (Camera.main != null ? Camera.main.transform : null);
         if (player == null)
             return;
 

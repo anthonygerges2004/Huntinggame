@@ -34,6 +34,9 @@ public class Campfire : MonoBehaviour
             return;
         }
 
+        if (GetComponent<Trader>() == null)
+            gameObject.AddComponent<Trader>();
+
         // Fallback search if not assigned in Inspector
         if (fireModelPrefab == null)
         {
@@ -43,6 +46,9 @@ public class Campfire : MonoBehaviour
 
     void Update()
     {
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+            return;
+
         if (Keyboard.current == null)
             return;
 
@@ -61,26 +67,25 @@ public class Campfire : MonoBehaviour
             return;
         }
 
-        if (Inventory.Instance == null || !Inventory.Instance.UseWood(woodCost))
+        if (Inventory.Instance == null || Inventory.Instance.wood < woodCost)
         {
             Debug.Log("Need wood to make a fire.");
             return;
         }
 
-        SetLit(true);
+        if (SetLit(true))
+            Inventory.Instance.UseWood(woodCost);
     }
 
-    void SetLit(bool lit)
+    bool SetLit(bool lit)
     {
-        isLit = lit;
-
         if (lit)
         {
             Camera mainCam = Camera.main;
             if (mainCam == null)
             {
                 Debug.LogError("Campfire: No camera tagged as 'MainCamera' found in the scene!");
-                return;
+                return false;
             }
 
             // Raycast downward from in front of camera to snap precisely to ground height
@@ -91,6 +96,8 @@ public class Campfire : MonoBehaviour
             {
                 spawnPos = hit.point;
             }
+
+            isLit = true;
 
             // Spawn campfire model
             if (fireModelPrefab != null)
@@ -128,19 +135,20 @@ public class Campfire : MonoBehaviour
             fireLight.color = new Color(1f, 0.55f, 0.15f);
             fireLight.range = safeRadius;
             fireLight.intensity = 2f;
+            return true;
         }
-        else
-        {
-            // Extinguish and cleanup
-            if (fireInstance != null)
-                Destroy(fireInstance);
 
-            if (fireLight != null)
-                Destroy(fireLight.gameObject);
+        isLit = false;
 
-            fireInstance = null;
-            fireLight = null;
-        }
+        if (fireInstance != null)
+            Destroy(fireInstance);
+
+        if (fireLight != null)
+            Destroy(fireLight.gameObject);
+
+        fireInstance = null;
+        fireLight = null;
+        return true;
     }
 
     void Cook()
@@ -157,16 +165,21 @@ public class Campfire : MonoBehaviour
             return;
         }
 
-        if (PlayerHealth.Instance != null)
-            PlayerHealth.Instance.Heal(15f);
+        Debug.Log("Meat cooked. Press Q to eat cooked meat.");
     }
 
     public static bool PlayerIsSafe()
     {
-        if (Instance == null || !Instance.isLit || Instance.fireInstance == null || Camera.main == null)
+        if (Instance == null || !Instance.isLit || Camera.main == null)
             return false;
 
-        float dist = Vector3.Distance(Instance.fireInstance.transform.position, Camera.main.transform.position);
+        Transform fireTransform = Instance.fireInstance != null
+            ? Instance.fireInstance.transform
+            : (Instance.fireLight != null ? Instance.fireLight.transform : null);
+        if (fireTransform == null)
+            return false;
+
+        float dist = Vector3.Distance(fireTransform.position, Camera.main.transform.position);
         return dist <= Instance.safeRadius;
     }
 }

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class Inventory : MonoBehaviour
 {
@@ -9,6 +10,7 @@ public class Inventory : MonoBehaviour
     public int wood;
     public bool hasPickaxe = true;
     public float meatSpoilSeconds = 90f;
+    public float cookedHealAmount = 20f;
 
     float spoilTimer;
 
@@ -16,10 +18,21 @@ public class Inventory : MonoBehaviour
     {
         Instance = this;
         spoilTimer = meatSpoilSeconds;
+        Overhunt.ResetProgress();
     }
 
     void Update()
     {
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+            return;
+
+        if (Keyboard.current != null &&
+            Keyboard.current.qKey.wasPressedThisFrame)
+        {
+            if (!EatCookedMeat())
+                Debug.Log("No cooked meat to eat. Cook raw meat on a fire first.");
+        }
+
         if (meat <= 0)
         {
             spoilTimer = meatSpoilSeconds;
@@ -63,6 +76,20 @@ public class Inventory : MonoBehaviour
         meat -= 1;
         cookedMeat += 1;
         spoilTimer = meatSpoilSeconds;
+        return true;
+    }
+
+    public bool EatCookedMeat()
+    {
+        if (cookedMeat <= 0)
+            return false;
+
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+            return false;
+
+        cookedMeat -= 1;
+        if (PlayerHealth.Instance != null)
+            PlayerHealth.Instance.Heal(cookedHealAmount);
         return true;
     }
 
