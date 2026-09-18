@@ -29,6 +29,9 @@ public class Animal : MonoBehaviour
     bool dead;
 
     public float fleeDuration = 8f;
+    public bool nocturnal;
+
+    bool present = true;
 
     static readonly int VerticalAnimation = Animator.StringToHash("Vert");
     static readonly int StateAnimation = Animator.StringToHash("State");
@@ -43,11 +46,19 @@ public class Animal : MonoBehaviour
         animalAnimator = GetComponentInChildren<Animator>();
         DisableImportedMovementControllers();
         PickWanderTarget();
+        SetPresent(IsPresent());
     }
 
     void Update()
     {
         if (dead)
+            return;
+
+        bool shouldBePresent = IsPresent();
+        if (shouldBePresent != present)
+            SetPresent(shouldBePresent);
+
+        if (!present)
             return;
 
         if (fleeing)
@@ -107,6 +118,7 @@ public class Animal : MonoBehaviour
         if (objectName.IndexOf("Legendary", System.StringComparison.OrdinalIgnoreCase) >= 0)
         {
             kind = AnimalKind.Legendary;
+            nocturnal = true;
             if (meatAmount < 10)
                 meatAmount = 15;
             return;
@@ -122,11 +134,46 @@ public class Animal : MonoBehaviour
             objectName.IndexOf("Large", System.StringComparison.OrdinalIgnoreCase) >= 0)
         {
             kind = AnimalKind.Large;
+            nocturnal = true;
             if (meatAmount <= 2)
                 meatAmount = 5;
             if (nightDamage <= 8f)
                 nightDamage = 14f;
+            return;
         }
+    }
+
+    public bool IsPresent()
+    {
+        if (kind == AnimalKind.Legendary)
+            nocturnal = true;
+
+        if (!nocturnal)
+            return true;
+
+        return DayNightCycle.Instance != null && DayNightCycle.Instance.IsNight;
+    }
+
+    void SetPresent(bool on)
+    {
+        present = on;
+        if (on)
+        {
+            transform.position = WorldGround.Snap(homePos);
+            previousPosition = transform.position;
+        }
+
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] is MeshRenderer && renderers[i].transform == transform)
+                continue;
+            renderers[i].enabled = on;
+        }
+
+        Collider[] colliders = GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < colliders.Length; i++)
+            colliders[i].enabled = on;
     }
 
     void FaceDirection(Vector3 direction)
@@ -267,7 +314,7 @@ public class Animal : MonoBehaviour
 
     public void Hit()
     {
-        if (dead)
+        if (dead || !present)
             return;
 
         dead = true;

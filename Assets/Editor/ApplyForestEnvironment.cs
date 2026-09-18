@@ -7,7 +7,7 @@ using UnityEngine.SceneManagement;
 public static class ApplyForestEnvironment
 {
     public const string RootName = "_NatureForest";
-    public const int LayoutVersion = 7;
+    public const int LayoutVersion = 8;
     const string DemoPath = "Assets/Pure Poly/Free Low Poly Nature Pack/Scenes/Demo_Terrain.unity";
 
     static readonly string[] KeepNames =
@@ -35,19 +35,16 @@ public static class ApplyForestEnvironment
             return;
 
         int applied = EditorPrefs.GetInt("HuntingGame.NatureGroundVersion", 0);
-        if (GameObject.Find(RootName) != null)
+        if (applied == LayoutVersion && GameObject.Find(RootName) != null)
+            return;
+
+        if (GameObject.Find(RootName) == null)
         {
-            if (applied == LayoutVersion)
-                return;
-            PlaceGameplayOnTerrain();
-            EditorPrefs.SetInt("HuntingGame.NatureGroundVersion", LayoutVersion);
-            EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene);
-            Debug.Log("Updated camp, player, and animal positions on the forest.");
+            Build();
             return;
         }
 
-        Build();
+        ImproveExistingForest();
     }
 
     [MenuItem("Tools/Hunting Game/Apply Forest Environment")]
@@ -61,10 +58,7 @@ public static class ApplyForestEnvironment
 
         if (GameObject.Find(RootName) != null)
         {
-            PlaceGameplayOnTerrain();
-            EditorPrefs.SetInt("HuntingGame.NatureGroundVersion", LayoutVersion);
-            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-            Debug.Log("Camp, player, and animals were placed on forest meadows.");
+            ImproveExistingForest();
             return;
         }
 
@@ -80,10 +74,27 @@ public static class ApplyForestEnvironment
             return;
         }
 
+        ImproveExistingForest();
+    }
+
+    static void ImproveExistingForest()
+    {
+        if (ForestTreesNeedRestore())
+        {
+            Build();
+            return;
+        }
+
         PlaceGameplayOnTerrain();
         EditorPrefs.SetInt("HuntingGame.NatureGroundVersion", LayoutVersion);
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-        Debug.Log("Camp, player, and animals were placed on forest meadows.");
+        Debug.Log("Opened camp and hunting clearings. Animals were placed on the forest.");
+    }
+
+    static bool ForestTreesNeedRestore()
+    {
+        GameObject trees = GameObject.Find("Trees");
+        return trees == null || trees.transform.childCount < 20;
     }
 
     public static void Build()
@@ -144,6 +155,7 @@ public static class ApplyForestEnvironment
     {
         DestroyIfFound(RootName);
         DestroyIfFound(NatureGroundBuilder.RootName);
+        DestroyLooseNaturePrefabs();
 
         UnparentGameplay();
         HideGeneratedVisuals();
@@ -217,7 +229,10 @@ public static class ApplyForestEnvironment
         }
 
         PlaceAnimals(meadows, camp);
-        SnapHarvestableTrees();
+        OpenClearing(camp, 13f);
+        Vector3 huntClearing = WorldGround.Snap(camp + new Vector3(-16f, 0f, 18f));
+        OpenClearing(huntClearing, 9f);
+        SnapGeneratedTreesOnly();
         HideMisnamedLegendaryTree();
     }
 
@@ -361,23 +376,6 @@ public static class ApplyForestEnvironment
         return best;
     }
 
-    static void SnapHarvestableTrees()
-    {
-        HarvestableTree[] trees = Object.FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude);
-        for (int i = 0; i < trees.Length; i++)
-        {
-            if (trees[i] == null)
-                continue;
-            if (trees[i].GetComponent<Animal>() != null)
-                continue;
-            if (trees[i].name.IndexOf("Legendary", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                continue;
-
-            Undo.RecordObject(trees[i].transform, "Snap tree to terrain");
-            trees[i].transform.position = WorldGround.Snap(trees[i].transform.position);
-        }
-    }
-
     static void UnparentGameplay()
     {
         Animal[] animals = Object.FindObjectsByType<Animal>(FindObjectsInactive.Include);
@@ -395,7 +393,71 @@ public static class ApplyForestEnvironment
                 continue;
             if (trees[i].GetComponent<Animal>() != null)
                 continue;
+            if (!IsGeneratedTree(trees[i].gameObject))
+                continue;
             Undo.SetTransformParent(trees[i].transform, null, "Unparent tree");
+        }
+    }
+
+    static bool IsGeneratedTree(GameObject go)
+    {
+        return go.name.IndexOf("Tree_Generated", System.StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    static void DestroyLooseNaturePrefabs()
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        GameObject[] roots = scene.GetRootGameObjects();
+        for (int i = 0; i < roots.Length; i++)
+        {
+            if (roots[i] == null)
+                continue;
+            if (!roots[i].name.StartsWith("PP_"))
+                continue;
+            Object.DestroyImmediate(roots[i]);
+        }
+    }
+
+    static void OpenClearing(Vector3 center, float radius)
+    {
+        HideGroupChildrenNear("Trees", center, radius);
+        HideGroupChildrenNear("Plants", center, radius);
+        HideGroupChildrenNear("Rocks", center, radius);
+        HideGroupChildrenNear("Mushrooms", center, radius);
+        HideGroupChildrenNear("Props", center, radius);
+    }
+
+    static void HideGroupChildrenNear(string groupName, Vector3 center, float radius)
+    {
+        GameObject group = GameObject.Find(groupName);
+        if (group == null)
+            return;
+
+        List<Transform> children = new List<Transform>();
+        for (int i = 0; i < group.transform.childCount; i++)
+            children.Add(group.transform.GetChild(i));
+
+        for (int i = 0; i < children.Count; i++)
+        {
+            if (Vector3.Distance(Flat(children[i].position), Flat(center)) >= radius)
+                continue;
+            Undo.RecordObject(children[i].gameObject, "Open forest clearing");
+            children[i].gameObject.SetActive(false);
+        }
+    }
+
+    static void SnapGeneratedTreesOnly()
+    {
+        HarvestableTree[] trees = Object.FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude);
+        for (int i = 0; i < trees.Length; i++)
+        {
+            if (trees[i] == null)
+                continue;
+            if (!IsGeneratedTree(trees[i].gameObject))
+                continue;
+
+            Undo.RecordObject(trees[i].transform, "Snap generated tree to terrain");
+            trees[i].transform.position = WorldGround.Snap(trees[i].transform.position);
         }
     }
 

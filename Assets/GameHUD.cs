@@ -34,6 +34,7 @@ public class GameHUD : MonoBehaviour
             "\nPickaxe: " + (pickaxe ? "Yes" : "No") +
             "   Fire nearby: " + (fire ? "Yes" : "No") +
             "\nF = fire   C = cook   Q = eat   E = chop tree" +
-            "\n1 = sell meat at camp   3 = buy pickaxe";
+            "\n1 = sell meat at camp   3 = buy pickaxe" +
+            "\nDeer/birds by day. Tiger and large animals only at night.";
     }
 }
