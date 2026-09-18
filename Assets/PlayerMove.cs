@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -5,6 +6,7 @@ public class PlayerMove : MonoBehaviour
 {
     public float speed = 5f;
     public float crouchSpeed = 2f;
+    public float jumpHeight = 1.4f;
     public float mouseSensitivity = 0.15f;
     public float gravity = -20f;
 
@@ -64,6 +66,13 @@ public class PlayerMove : MonoBehaviour
 
         if (controller.isGrounded && verticalSpeed < 0f)
             verticalSpeed = -2f;
+
+
+        if (controller.isGrounded && verticalSpeed < 0f)
+            verticalSpeed = -2f;
+
+        if (controller.isGrounded && Keyboard.current.spaceKey.wasPressedThisFrame)
+            verticalSpeed = Mathf.Sqrt(jumpHeight * -2f * gravity);
 
         verticalSpeed += gravity * Time.deltaTime;
 
