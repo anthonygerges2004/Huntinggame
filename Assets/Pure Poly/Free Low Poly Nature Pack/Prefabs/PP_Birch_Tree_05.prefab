@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 4894925909455266758}
   - component: {fileID: 7208770312383436556}
   - component: {fileID: 9154215057541871320}
+  - component: {fileID: 2094478071462926763}
   m_Layer: 0
   m_Name: PP_Birch_Tree_05
   m_TagString: Untagged
@@ -62,6 +63,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -83,9 +86,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!64 &9154215057541871320
 MeshCollider:
@@ -109,3 +114,17 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: -808811649734903215, guid: d721af70c8ba1ab4daa81f30de0dbb54, type: 3}
+--- !u!114 &2094478071462926763
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9154215057541871321}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 327d60a3648dd4c429c2c4ef503cc9e1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
+  woodAmount: 3
+  chopRange: 3
