@@ -43,6 +43,7 @@ Large animals leave tracks for a short time; the player can follow them instead 
 Overhunting: killing too many animals in one area makes that zone quieter and night more dangerous.
 The trader is a rival hunter who also wants the legendary animal if the player is too slow.
 Crouch / quiet movement: running and shooting alert wildlife more than slow movement.
+Hunt challenges: optional goals on the HUD, such as killing a bird while standing under a tree, hitting an animal from a set distance (20 meters or more), or killing a deer while crouched.
 Assumptions:
 Single-player, keyboard and mouse, Unity editor or Windows build.
 Placeholder models (capsules, simple trees) are allowed until better assets are added.
@@ -85,6 +86,7 @@ Tracks: large/legendary animals leave footprints that fade after a short time.
 Overhunting: too many kills in one area reduces spawns and makes night worse.
 Rival trader: the camp trader also hunts the legendary animal if the player delays.
 Stealth: crouch to stay quieter; running and shooting alert wildlife.
+Hunt challenges: short optional goals besides free hunting. A shade-bird challenge requires killing a bird while standing under a tree. A long-shot challenge requires hitting an animal from 20 meters or more. A quiet-deer challenge requires killing a deer while crouched. Progress is shown on the HUD.
 Success is a stable Play-mode demo of the full loop (hunt, loot, cook or sell, fire, night, trade) plus at least the three core special features (scatter, spoiling meat, legendary animal), even if models are placeholders.
 8. Individual Tasks (for Group Projects)
 Task Assignment

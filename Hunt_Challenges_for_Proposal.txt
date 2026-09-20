@@ -1,0 +1,23 @@
+Hunt challenges for the CSIS290 proposal
+========================================
+
+You will not find this in the Unity game. It belongs in the Word proposal.
+
+Where to paste in CSIS290_Hunting_Game_Project_Proposal.docx:
+
+Section 4. Motivation and Scope
+  under "Special features (what makes this hunt unique)"
+
+AND
+
+Section 7. Goals and Objectives
+  under "Special features"
+
+
+Copy this bullet:
+
+Hunt challenges: optional goals on the HUD, such as killing a bird while standing under a tree, hitting an animal from a set distance (20 meters or more), or killing a deer while crouched.
+
+Longer version for section 7:
+
+Hunt challenges: short optional goals besides free hunting. A shade-bird challenge requires killing a bird while standing under a tree. A long-shot challenge requires hitting an animal from 20 meters or more. A quiet-deer challenge requires killing a deer while crouched. Progress is shown on the HUD.

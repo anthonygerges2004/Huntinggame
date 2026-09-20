@@ -192,7 +192,7 @@ def add_architecture_table(doc):
         (
             "Special gameplay",
             "Alarm (birds scatter), MeatSpoil, Cooking, LegendaryAnimal, Tracks, Overhunt, RivalTrader, Stealth",
-            "Wildlife reacts to shots; meat goes bad unless cooked; rare legendary hunt; tracks; quiet movement",
+            "Wildlife reacts to shots; meat goes bad unless cooked; rare legendary hunt; tracks; quiet movement; hunt challenges",
         ),
         (
             "Engine / input",
@@ -465,6 +465,7 @@ def build():
     bullet(doc, "Overhunting: killing too many animals in one area makes that zone quieter and night more dangerous.")
     bullet(doc, "The trader is a rival hunter who also wants the legendary animal if the player is too slow.")
     bullet(doc, "Crouch / quiet movement: running and shooting alert wildlife more than slow movement.")
+    bullet(doc, "Hunt challenges: optional goals on the HUD, such as killing a bird while standing under a tree, hitting an animal from a set distance (20 meters or more), or killing a deer while crouched.")
     add_paragraph(doc, "Assumptions:", bold=True, space_before=6)
     bullet(doc, "Single-player, keyboard and mouse, Unity editor or Windows build.")
     bullet(doc, "Placeholder models (capsules, simple trees) are allowed until better assets are added.")
@@ -560,6 +561,7 @@ def build():
     bullet(doc, "Overhunting: too many kills in one area reduces spawns and makes night worse.")
     bullet(doc, "Rival trader: the camp trader also hunts the legendary animal if the player delays.")
     bullet(doc, "Stealth: crouch to stay quieter; running and shooting alert wildlife.")
+    bullet(doc, "Hunt challenges: short optional goals besides free hunting. A shade-bird challenge requires killing a bird while standing under a tree. A long-shot challenge requires hitting an animal from 20 meters or more. A quiet-deer challenge requires killing a deer while crouched. Progress is shown on the HUD.")
     add_paragraph(
         doc,
         "Success is a stable Play-mode demo of the full loop (hunt, loot, cook or sell, fire, night, trade) plus "
