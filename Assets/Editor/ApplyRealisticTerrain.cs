@@ -21,7 +21,7 @@ public static class ApplyRealisticTerrain
         "Assets/Realistic Terrain Collection/Terrains/Terrain5/Low Resolution_5.asset"
     };
 
-    static readonly string[] TreePrefabs =
+    static readonly string[] LowPolyTreePrefabs =
     {
         "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_02.prefab",
         "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_10.prefab",
@@ -111,7 +111,7 @@ public static class ApplyRealisticTerrain
         FrameCamp();
         EditorUtility.DisplayDialog(
             "Trees",
-            "Pink trees are removed.\nGreen Pure Poly trees are on the hills now.",
+            "Trees refreshed.\nIf Conifers [BOTD] is imported, those realistic pines are used.",
             "OK");
     }
 
@@ -294,7 +294,15 @@ public static class ApplyRealisticTerrain
     static void ScatterFoliage(Vector3 camp)
     {
         GameObject root = new GameObject(FoliageName);
-        ScatterPrefabs(root.transform, camp, TreePrefabs, 520, 16f, 420f, 0.85f, 1.55f, true);
+        string[] trees = ResolveTreePrefabs();
+        if (UsesConiferPack(trees))
+        {
+            GameObject marker = new GameObject("ConiferForest");
+            marker.transform.SetParent(root.transform, false);
+            ScatterPrefabs(root.transform, camp, trees, 120, 28f, 560f, 0.9f, 1.2f, true);
+        }
+        else
+            ScatterPrefabs(root.transform, camp, trees, 520, 16f, 420f, 0.85f, 1.55f, true);
         ScatterPrefabs(root.transform, camp, GrassPrefabs, 240, 4f, 220f, 0.75f, 1.45f, false);
         ScatterPrefabs(root.transform, camp, BushPrefabs, 40, 10f, 160f, 0.9f, 1.35f, false);
         ScatterPrefabs(root.transform, camp, RockPrefabs, 24, 18f, 240f, 0.7f, 1.4f, false);
@@ -515,16 +523,123 @@ public static class ApplyRealisticTerrain
         if (terrain == null)
             return;
 
-        ReplacePlaceholderTrees();
+        string[] trees = ResolveTreePrefabs();
+        bool conifers = UsesConiferPack(trees);
+        GameObject existing = GameObject.Find(FoliageName);
+        if (existing != null && conifers && ForestHasConifers(existing))
+        {
+            ForceFullMeshLod();
+            return;
+        }
+
+        if (existing != null && !conifers)
+        {
+            ForceFullMeshLod();
+            return;
+        }
+
+        if (!conifers)
+            ReplacePlaceholderTrees();
         ForceFullMeshLod();
 
-        GameObject existing = GameObject.Find(FoliageName);
         if (existing != null)
             Object.DestroyImmediate(existing);
 
         ScatterFoliage(FindCampWorld(terrain));
         ForceFullMeshLod();
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+    }
+
+    static bool ForestHasConifers(GameObject root)
+    {
+        for (int i = 0; i < root.transform.childCount; i++)
+        {
+            string name = root.transform.GetChild(i).name;
+            if (name.IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        }
+
+        return false;
+    }
+
+    static bool UsesConiferPack(string[] paths)
+    {
+        if (paths == null)
+            return false;
+        for (int i = 0; i < paths.Length; i++)
+        {
+            if (paths[i] != null &&
+                paths[i].IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+        }
+
+        return false;
+    }
+
+    static string[] ResolveTreePrefabs()
+    {
+        string[] conifers = FindConiferPrefabPaths();
+        if (conifers.Length > 0)
+            return conifers;
+        return LowPolyTreePrefabs;
+    }
+
+    static string[] FindConiferPrefabPaths()
+    {
+        var matches = new List<string>();
+        if (!System.IO.Directory.Exists("Assets"))
+            return new string[0];
+
+        string[] folders = System.IO.Directory.GetDirectories("Assets", "*", System.IO.SearchOption.AllDirectories);
+        for (int i = 0; i < folders.Length; i++)
+        {
+            string folder = folders[i].Replace('\\', '/');
+            if (folder.IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+            string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { folder });
+            for (int g = 0; g < guids.Length; g++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[g]);
+                string file = System.IO.Path.GetFileNameWithoutExtension(path);
+                if (file.IndexOf("Billboard", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+                if (file.IndexOf("Mobile", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+                if (file.IndexOf("Atlas", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+                if (!matches.Contains(path))
+                    matches.Add(path);
+            }
+        }
+
+        matches.Sort((a, b) => PrefabHeight(b).CompareTo(PrefabHeight(a)));
+        var tall = new List<string>();
+        for (int i = 0; i < matches.Count && tall.Count < 4; i++)
+        {
+            if (PrefabHeight(matches[i]) < 4f)
+                continue;
+            tall.Add(matches[i]);
+        }
+
+        return tall.ToArray();
+    }
+
+    static float PrefabHeight(string path)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (prefab == null)
+            return 0f;
+
+        Renderer[] renderers = prefab.GetComponentsInChildren<Renderer>(true);
+        float height = 0f;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null)
+                height = Mathf.Max(height, renderers[i].bounds.size.y);
+        }
+
+        return height;
     }
 
     static void ForceFullMeshLod()
@@ -539,7 +654,7 @@ public static class ApplyRealisticTerrain
 
     static void ReplacePlaceholderTrees()
     {
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TreePrefabs[0]);
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(LowPolyTreePrefabs[0]);
         if (prefab == null)
             return;
 

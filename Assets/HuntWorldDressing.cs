@@ -95,22 +95,22 @@ public class HuntWorldDressing : MonoBehaviour
         GameObject root = new GameObject(FoliageRootName);
         Vector3 camp = FindCamp();
 
-        ScatterPrefabs(
-            root.transform,
-            camp,
-            new[]
-            {
-                "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_02.prefab",
-                "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_10.prefab",
-                "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Birch_Tree_05.prefab",
-                "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Birch_Tree_06.prefab"
-            },
-            220,
-            16f,
-            380f,
-            0.85f,
-            1.5f,
-            true);
+        string[] treePrefabs = TreePrefabs();
+        bool conifers = false;
+        for (int i = 0; i < treePrefabs.Length; i++)
+        {
+            if (treePrefabs[i].IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                conifers = true;
+        }
+
+        if (conifers)
+        {
+            ScatterPrefabs(root.transform, camp, treePrefabs, 120, 28f, 560f, 0.9f, 1.2f, true);
+        }
+        else
+        {
+            ScatterPrefabs(root.transform, camp, treePrefabs, 220, 16f, 380f, 0.85f, 1.5f, true);
+        }
 
         ScatterPrefabs(
             root.transform,
@@ -226,61 +226,69 @@ public class HuntWorldDressing : MonoBehaviour
         }
     }
 
+    static string[] TreePrefabs()
+    {
+#if UNITY_EDITOR
+        var matches = new System.Collections.Generic.List<string>();
+        if (System.IO.Directory.Exists("Assets"))
+        {
+            string[] folders = System.IO.Directory.GetDirectories("Assets", "*", System.IO.SearchOption.AllDirectories);
+            for (int i = 0; i < folders.Length; i++)
+            {
+                string folder = folders[i].Replace('\\', '/');
+                if (folder.IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+
+                string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { folder });
+                for (int g = 0; g < guids.Length; g++)
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guids[g]);
+                    string file = System.IO.Path.GetFileNameWithoutExtension(path);
+                    if (file.IndexOf("Billboard", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
+                    if (file.IndexOf("Mobile", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
+                    if (!matches.Contains(path))
+                        matches.Add(path);
+                }
+            }
+        }
+
+        if (matches.Count > 0)
+            return matches.ToArray();
+#endif
+        return new[]
+        {
+            "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_02.prefab",
+            "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_10.prefab",
+            "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Birch_Tree_05.prefab",
+            "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Birch_Tree_06.prefab"
+        };
+    }
+
     static void ReplaceBrokenTreeMeshes()
     {
-        Mesh goodMesh = null;
-        Material[] goodMaterials = null;
-#if UNITY_EDITOR
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-            "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_02.prefab");
-        if (prefab != null)
-        {
-            MeshFilter goodFilter = prefab.GetComponentInChildren<MeshFilter>();
-            MeshRenderer goodRenderer = prefab.GetComponentInChildren<MeshRenderer>();
-            if (goodFilter != null)
-                goodMesh = goodFilter.sharedMesh;
-            if (goodRenderer != null)
-                goodMaterials = goodRenderer.sharedMaterials;
-        }
-#endif
-        if (goodMesh == null || goodMaterials == null || goodMaterials.Length == 0)
-            return;
-
-        HarvestableTree[] trees = Object.FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude);
-        for (int i = 0; i < trees.Length; i++)
-        {
-            HarvestableTree tree = trees[i];
-            if (tree == null || tree.GetComponent<Animal>() != null)
-                continue;
-
-            MeshFilter filter = tree.GetComponent<MeshFilter>();
-            MeshRenderer renderer = tree.GetComponent<MeshRenderer>();
-            if (filter == null || renderer == null)
-                continue;
-            if (filter.sharedMesh == goodMesh)
-                continue;
-
-            filter.sharedMesh = goodMesh;
-            renderer.sharedMaterials = goodMaterials;
-            renderer.forceMeshLod = 0;
-        }
-
         MeshRenderer[] renderers = Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Exclude);
         for (int i = 0; i < renderers.Length; i++)
         {
             MeshRenderer renderer = renderers[i];
             if (renderer == null)
                 continue;
+
+            renderer.forceMeshLod = 0;
+            Material[] current = renderer.sharedMaterials;
+            if (current == null || current.Length == 0 || current[0] == null)
+                continue;
+
             MeshFilter filter = renderer.GetComponent<MeshFilter>();
             if (filter == null || filter.sharedMesh == null)
                 continue;
-            if (filter.sharedMesh.subMeshCount <= renderer.sharedMaterials.Length)
+            if (filter.sharedMesh.subMeshCount <= current.Length)
                 continue;
 
             Material[] filled = new Material[filter.sharedMesh.subMeshCount];
-            Material[] current = renderer.sharedMaterials;
             for (int m = 0; m < filled.Length; m++)
-                filled[m] = m < current.Length && current[m] != null ? current[m] : goodMaterials[0];
+                filled[m] = m < current.Length && current[m] != null ? current[m] : current[0];
             renderer.sharedMaterials = filled;
         }
     }
