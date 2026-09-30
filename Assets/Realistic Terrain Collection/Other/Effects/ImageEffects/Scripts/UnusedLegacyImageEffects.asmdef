@@ -1,0 +1,14 @@
+{
+    "name": "UnusedLegacyImageEffects",
+    "rootNamespace": "",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": ["LEGACY_IMAGE_EFFECTS_UNUSED"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

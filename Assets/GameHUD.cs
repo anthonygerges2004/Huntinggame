@@ -18,6 +18,9 @@ public class GameHUD : MonoBehaviour
     void Start()
     {
         SetupLayout();
+        Canvas canvas = hudText != null ? hudText.canvas : Object.FindAnyObjectByType<Canvas>();
+        if (canvas != null)
+            MakeCrosshair(canvas);
     }
 
     void Update()
@@ -118,6 +121,7 @@ public class GameHUD : MonoBehaviour
         fireValue = MakeBox(board.transform, font, "Fire", boxW + gap, -(boxH + gap) * 2f, boxW, boxH, new Color(0.42f, 0.24f, 0.1f));
 
         MakeHint(board.transform, font, 0f, -(boxH + gap) * 3f, (boxW * 3f) + (gap * 2f), 52f);
+        MakeCrosshair(canvas);
 
         layoutReady = healthValue != null;
     }
@@ -203,5 +207,40 @@ public class GameHUD : MonoBehaviour
         tmp.overflowMode = TextOverflowModes.Overflow;
         tmp.raycastTarget = false;
         return tmp;
+    }
+
+    void MakeCrosshair(Canvas canvas)
+    {
+        Transform existing = canvas.transform.Find("AimPoint");
+        if (existing != null)
+            Destroy(existing.gameObject);
+
+        GameObject root = new GameObject("AimPoint", typeof(RectTransform));
+        root.transform.SetParent(canvas.transform, false);
+        RectTransform rootRect = root.GetComponent<RectTransform>();
+        rootRect.anchorMin = new Vector2(0.5f, 0.5f);
+        rootRect.anchorMax = new Vector2(0.5f, 0.5f);
+        rootRect.pivot = new Vector2(0.5f, 0.5f);
+        rootRect.anchoredPosition = Vector2.zero;
+        rootRect.sizeDelta = new Vector2(48f, 48f);
+
+        MakeAimBar(root.transform, new Vector2(28f, 4f));
+        MakeAimBar(root.transform, new Vector2(4f, 28f));
+        MakeAimBar(root.transform, new Vector2(6f, 6f));
+    }
+
+    void MakeAimBar(Transform parent, Vector2 size)
+    {
+        GameObject bar = new GameObject("Bar", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        bar.transform.SetParent(parent, false);
+        RectTransform rect = bar.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+        Image image = bar.GetComponent<Image>();
+        image.color = Color.white;
+        image.raycastTarget = false;
     }
 }

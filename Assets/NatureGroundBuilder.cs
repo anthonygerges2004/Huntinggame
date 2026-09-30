@@ -21,6 +21,10 @@ public static class NatureGroundBuilder
             return;
         if (GameObject.Find("_NatureForest") != null)
             return;
+        if (GameObject.Find("_RealisticTerrain") != null)
+            return;
+        if (Object.FindAnyObjectByType<Terrain>() != null)
+            return;
         if (GameObject.Find(RootName) != null)
             return;
 

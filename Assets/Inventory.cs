@@ -19,6 +19,9 @@ public class Inventory : MonoBehaviour
         Instance = this;
         spoilTimer = meatSpoilSeconds;
         Overhunt.ResetProgress();
+
+        if (GetComponent<HuntWorldDressing>() == null)
+            gameObject.AddComponent<HuntWorldDressing>();
     }
 
     void Update()

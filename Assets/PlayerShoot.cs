@@ -36,11 +36,12 @@ public class PlayerShoot : MonoBehaviour
 
     void OnGUI()
     {
-        float size = 8f;
+        float size = 12f;
+        float thick = 3f;
         float x = Screen.width * 0.5f;
         float y = Screen.height * 0.5f;
         GUI.color = Color.white;
-        GUI.DrawTexture(new Rect(x - size, y - 1f, size * 2f, 2f), Texture2D.whiteTexture);
-        GUI.DrawTexture(new Rect(x - 1f, y - size, 2f, size * 2f), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(x - size, y - thick * 0.5f, size * 2f, thick), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(x - thick * 0.5f, y - size, thick, size * 2f), Texture2D.whiteTexture);
     }
 }

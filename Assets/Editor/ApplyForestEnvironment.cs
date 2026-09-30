@@ -34,6 +34,9 @@ public static class ApplyForestEnvironment
         if (!scene.IsValid() || scene.name != "GetStarted_Scene")
             return;
 
+        if (ApplyRealisticTerrain.PackIsImported() || GameObject.Find(ApplyRealisticTerrain.RootName) != null)
+            return;
+
         int applied = EditorPrefs.GetInt("HuntingGame.NatureGroundVersion", 0);
         if (applied == LayoutVersion && GameObject.Find(RootName) != null)
             return;
@@ -197,20 +200,25 @@ public static class ApplyForestEnvironment
         root.transform.position += delta;
     }
 
-    static void PlaceGameplayOnTerrain()
+    public static void PlaceGameplayOnTerrain()
     {
-        Terrain terrain = Object.FindAnyObjectByType<Terrain>();
+        GameObject terrainOne = GameObject.Find("Terrain1");
+        Terrain terrain = terrainOne != null
+            ? terrainOne.GetComponent<Terrain>()
+            : Object.FindAnyObjectByType<Terrain>();
         if (terrain == null)
             return;
 
         UnparentGameplay();
-        HideGeneratedVisuals();
 
         List<Vector3> meadows = FindMeadowPoints(terrain);
         if (meadows.Count == 0)
             meadows.Add(WorldGround.Snap(new Vector3(0f, 0f, 6f)));
 
-        Vector3 camp = PickClosestMeadow(meadows, new Vector3(18f, 0f, -12f));
+        Vector3 size = terrain.terrainData.size;
+        Vector3 origin = terrain.transform.position;
+        Vector3 preferredCamp = origin + new Vector3(size.x * 0.45f, 0f, size.z * 0.45f);
+        Vector3 camp = PickClosestMeadow(meadows, preferredCamp);
         MoveNamed("Campfire", camp);
         MoveNamed("FCP_Campfire_Type1_Color1", camp);
         MoveNamed("FCP_Tent_Type1_Color1", camp + new Vector3(3.2f, 0f, -2.2f));
@@ -277,12 +285,14 @@ public static class ApplyForestEnvironment
         Vector3 origin = terrain.transform.position;
         Vector3 size = terrain.terrainData.size;
 
-        for (int x = 5; x <= 19; x++)
+        int steps = size.x > 800f ? 36 : 24;
+        int margin = size.x > 800f ? 6 : 5;
+        for (int x = margin; x <= steps - margin; x++)
         {
-            for (int z = 5; z <= 19; z++)
+            for (int z = margin; z <= steps - margin; z++)
             {
-                float wx = origin.x + size.x * (x / 24f);
-                float wz = origin.z + size.z * (z / 24f);
+                float wx = origin.x + size.x * (x / (float)steps);
+                float wz = origin.z + size.z * (z / (float)steps);
                 Vector3 point = WorldGround.Snap(new Vector3(wx, 0f, wz));
                 if (WorldGround.IsMeadow(point))
                     points.Add(point);
