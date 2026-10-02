@@ -99,13 +99,14 @@ public class HuntWorldDressing : MonoBehaviour
         bool conifers = false;
         for (int i = 0; i < treePrefabs.Length; i++)
         {
-            if (treePrefabs[i].IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            if (treePrefabs[i].IndexOf("RealisticTree", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                treePrefabs[i].IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 conifers = true;
         }
 
         if (conifers)
         {
-            ScatterPrefabs(root.transform, camp, treePrefabs, 120, 28f, 560f, 0.9f, 1.2f, true);
+            ScatterPrefabs(root.transform, camp, treePrefabs, 36, 18f, 260f, 0.95f, 1.35f, true);
         }
         else
         {
@@ -228,6 +229,10 @@ public class HuntWorldDressing : MonoBehaviour
 
     static string[] TreePrefabs()
     {
+        const string realistic = "Assets/RealisticTree/RealisticTree_LOD.prefab";
+        if (System.IO.File.Exists(realistic))
+            return new[] { realistic };
+
 #if UNITY_EDITOR
         var matches = new System.Collections.Generic.List<string>();
         if (System.IO.Directory.Exists("Assets"))

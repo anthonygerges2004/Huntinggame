@@ -105,13 +105,14 @@ public static class ApplyRealisticTerrain
 
         FixAllTerrains();
         EnsureGameObjectForest();
-        ReplacePlaceholderTrees();
+        if (!UsesRealisticTree(ResolveTreePrefabs()))
+            ReplacePlaceholderTrees();
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
         EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
         FrameCamp();
         EditorUtility.DisplayDialog(
             "Trees",
-            "Trees refreshed.\nIf Conifers [BOTD] is imported, those realistic pines are used.",
+            "The forest now uses Assets/RealisticTree/RealisticTree_LOD.prefab.",
             "OK");
     }
 
@@ -217,7 +218,10 @@ public static class ApplyRealisticTerrain
             ApplyAtmosphere();
             StretchViewDistance();
             FixAllTerrains();
-            ReplacePlaceholderTrees();
+            if (!UsesRealisticTree(ResolveTreePrefabs()))
+                ReplacePlaceholderTrees();
+            else
+                HideCartoonTrees();
             FrameAt(spawn);
 
             EditorPrefs.SetInt(PrefsKey, LayoutVersion);
@@ -295,11 +299,12 @@ public static class ApplyRealisticTerrain
     {
         GameObject root = new GameObject(FoliageName);
         string[] trees = ResolveTreePrefabs();
-        if (UsesConiferPack(trees))
+        if (UsesRealisticTree(trees))
         {
-            GameObject marker = new GameObject("ConiferForest");
+            GameObject marker = new GameObject("RealisticTreeForest");
             marker.transform.SetParent(root.transform, false);
-            ScatterPrefabs(root.transform, camp, trees, 120, 28f, 560f, 0.9f, 1.2f, true);
+            ScatterPrefabs(root.transform, camp, trees, 36, 18f, 260f, 0.95f, 1.35f, true);
+            HideCartoonTrees();
         }
         else
             ScatterPrefabs(root.transform, camp, trees, 520, 16f, 420f, 0.85f, 1.55f, true);
@@ -524,21 +529,22 @@ public static class ApplyRealisticTerrain
             return;
 
         string[] trees = ResolveTreePrefabs();
-        bool conifers = UsesConiferPack(trees);
+        bool realistic = UsesRealisticTree(trees);
         GameObject existing = GameObject.Find(FoliageName);
-        if (existing != null && conifers && ForestHasConifers(existing))
+        if (existing != null && realistic && ForestHasRealisticTrees(existing))
+        {
+            HideCartoonTrees();
+            ForceFullMeshLod();
+            return;
+        }
+
+        if (existing != null && !realistic)
         {
             ForceFullMeshLod();
             return;
         }
 
-        if (existing != null && !conifers)
-        {
-            ForceFullMeshLod();
-            return;
-        }
-
-        if (!conifers)
+        if (!realistic)
             ReplacePlaceholderTrees();
         ForceFullMeshLod();
 
@@ -548,28 +554,52 @@ public static class ApplyRealisticTerrain
         ScatterFoliage(FindCampWorld(terrain));
         ForceFullMeshLod();
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+        EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
     }
 
-    static bool ForestHasConifers(GameObject root)
+    static void HideCartoonTrees()
+    {
+        GameObject[] objects = Object.FindObjectsByType<GameObject>(FindObjectsInactive.Exclude);
+        for (int i = 0; i < objects.Length; i++)
+        {
+            GameObject go = objects[i];
+            if (go == null || !go.scene.IsValid())
+                continue;
+            if (go.transform.root.name == FoliageName)
+                continue;
+
+            string name = go.name;
+            bool cartoon = name == "Tree" ||
+                           name.StartsWith("Tree_") ||
+                           name.StartsWith("Tree_Generated");
+            if (!cartoon)
+                continue;
+
+            Undo.RecordObject(go, "Hide cartoon tree");
+            go.SetActive(false);
+        }
+    }
+
+    static bool ForestHasRealisticTrees(GameObject root)
     {
         for (int i = 0; i < root.transform.childCount; i++)
         {
             string name = root.transform.GetChild(i).name;
-            if (name.IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            if (name.IndexOf("RealisticTree", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
         }
 
         return false;
     }
 
-    static bool UsesConiferPack(string[] paths)
+    static bool UsesRealisticTree(string[] paths)
     {
         if (paths == null)
             return false;
         for (int i = 0; i < paths.Length; i++)
         {
             if (paths[i] != null &&
-                paths[i].IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                paths[i].IndexOf("RealisticTree", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
         }
 
@@ -578,6 +608,14 @@ public static class ApplyRealisticTerrain
 
     static string[] ResolveTreePrefabs()
     {
+        if (System.IO.File.Exists("Assets/RealisticTree/RealisticTree.obj"))
+        {
+            if (!System.IO.File.Exists(RealisticTreeSetup.PrefabPath))
+                RealisticTreeSetup.Setup();
+            if (System.IO.File.Exists(RealisticTreeSetup.PrefabPath))
+                return new[] { RealisticTreeSetup.PrefabPath };
+        }
+
         string[] conifers = FindConiferPrefabPaths();
         if (conifers.Length > 0)
             return conifers;
