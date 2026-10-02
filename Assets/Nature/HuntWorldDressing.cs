@@ -8,6 +8,7 @@ using UnityEditor;
 public class HuntWorldDressing : MonoBehaviour
 {
     const string FoliageRootName = "_HuntFoliage";
+    const string TreePrefab = "Assets/RealisticTree/RealisticTree_LOD.prefab";
 
     void OnEnable()
     {
@@ -22,49 +23,119 @@ public class HuntWorldDressing : MonoBehaviour
         Dress();
     }
 
-    static void FixPinkTreesNow()
+    static Material fallbackMaterial;
+
+    static Material FallbackMaterial()
     {
+        if (fallbackMaterial != null)
+            return fallbackMaterial;
+
         Shader unlit = Shader.Find("Universal Render Pipeline/Unlit");
-        MeshRenderer[] renderers = Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include);
-        for (int i = 0; i < renderers.Length; i++)
+        if (unlit == null)
+            unlit = Shader.Find("Universal Render Pipeline/Lit");
+        if (unlit == null)
+            return null;
+
+        fallbackMaterial = new Material(unlit);
+        fallbackMaterial.name = "Hunt_Fallback";
+        fallbackMaterial.color = new Color(0.32f, 0.42f, 0.18f, 1f);
+        if (fallbackMaterial.HasProperty("_BaseColor"))
+            fallbackMaterial.SetColor("_BaseColor", fallbackMaterial.color);
+        return fallbackMaterial;
+    }
+
+    static bool ShaderIsBroken(Material material)
+    {
+        if (material == null || material.shader == null)
+            return true;
+
+        string name = material.shader.name;
+        return name.Contains("Error") ||
+               name.StartsWith("Hidden/") ||
+               name == "Standard" ||
+               name.StartsWith("Standard ") ||
+               name.StartsWith("Legacy Shaders") ||
+               name.StartsWith("Nature/") ||
+               name.StartsWith("Particles/") ||
+               name.StartsWith("Mobile/");
+    }
+
+    static void RepairRenderer(Renderer renderer)
+    {
+        if (renderer == null)
+            return;
+
+        renderer.forceMeshLod = 0;
+
+        if (renderer.GetComponent<Animal>() != null && renderer is MeshRenderer meshRenderer)
         {
-            MeshRenderer renderer = renderers[i];
-            if (renderer == null)
-                continue;
+            meshRenderer.enabled = false;
+            return;
+        }
 
-            renderer.forceMeshLod = 0;
+        Material[] materials = renderer.sharedMaterials;
+        int slotCount = materials == null ? 0 : materials.Length;
+        MeshFilter filter = renderer.GetComponent<MeshFilter>();
+        if (filter != null && filter.sharedMesh != null)
+            slotCount = Mathf.Max(slotCount, filter.sharedMesh.subMeshCount);
+        SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
+        if (skinned != null && skinned.sharedMesh != null)
+            slotCount = Mathf.Max(slotCount, skinned.sharedMesh.subMeshCount);
+        if (slotCount == 0)
+            return;
 
-            Material[] materials = renderer.sharedMaterials;
-            if (materials == null || materials.Length == 0)
-                continue;
-
-            bool changed = false;
-            Material[] filled = materials;
-            MeshFilter filter = renderer.GetComponent<MeshFilter>();
-            if (filter != null && filter.sharedMesh != null && filter.sharedMesh.subMeshCount > materials.Length)
+        Material fallback = FallbackMaterial();
+        Material[] filled = new Material[slotCount];
+        bool changed = materials == null || materials.Length != slotCount;
+        for (int m = 0; m < slotCount; m++)
+        {
+            Material current = materials != null && m < materials.Length ? materials[m] : null;
+            if (ShaderIsBroken(current))
             {
-                filled = new Material[filter.sharedMesh.subMeshCount];
-                for (int m = 0; m < filled.Length; m++)
-                    filled[m] = m < materials.Length && materials[m] != null ? materials[m] : materials[0];
+                if (current != null && current.shader != null && fallback != null)
+                {
+                    Texture tex = current.HasProperty("_BaseMap") ? current.GetTexture("_BaseMap") : null;
+                    if (tex == null && current.HasProperty("_MainTex"))
+                        tex = current.GetTexture("_MainTex");
+                    current.shader = fallback.shader;
+                    if (tex != null)
+                    {
+                        current.SetTexture("_BaseMap", tex);
+                        current.SetTexture("_MainTex", tex);
+                    }
+                    filled[m] = current;
+                }
+                else
+                {
+                    filled[m] = fallback;
+                }
                 changed = true;
             }
-
-            if (unlit != null)
+            else
             {
-                for (int m = 0; m < filled.Length; m++)
-                {
-                    if (filled[m] != null && filled[m].shader != null &&
-                        (filled[m].shader.name.Contains("Error") || filled[m].shader.name.StartsWith("Nature/")))
-                    {
-                        filled[m].shader = unlit;
-                        changed = true;
-                    }
-                }
+                filled[m] = current;
             }
-
-            if (changed)
-                renderer.sharedMaterials = filled;
         }
+
+        if (changed)
+            renderer.sharedMaterials = filled;
+    }
+
+    static void FixPinkTreesNow()
+    {
+        Animal[] animals = Object.FindObjectsByType<Animal>(FindObjectsInactive.Include);
+        for (int i = 0; i < animals.Length; i++)
+        {
+            if (animals[i] == null)
+                continue;
+            MeshRenderer capsule = animals[i].GetComponent<MeshRenderer>();
+            if (capsule != null)
+                capsule.enabled = false;
+        }
+
+        Renderer[] renderers = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include);
+        for (int i = 0; i < renderers.Length; i++)
+            RepairRenderer(renderers[i]);
 
         Terrain[] terrains = Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude);
         for (int i = 0; i < terrains.Length; i++)
@@ -95,23 +166,7 @@ public class HuntWorldDressing : MonoBehaviour
         GameObject root = new GameObject(FoliageRootName);
         Vector3 camp = FindCamp();
 
-        string[] treePrefabs = TreePrefabs();
-        bool conifers = false;
-        for (int i = 0; i < treePrefabs.Length; i++)
-        {
-            if (treePrefabs[i].IndexOf("RealisticTree", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                treePrefabs[i].IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                conifers = true;
-        }
-
-        if (conifers)
-        {
-            ScatterPrefabs(root.transform, camp, treePrefabs, 36, 18f, 260f, 0.95f, 1.35f, true);
-        }
-        else
-        {
-            ScatterPrefabs(root.transform, camp, treePrefabs, 220, 16f, 380f, 0.85f, 1.5f, true);
-        }
+        ScatterPrefabs(root.transform, camp, new[] { TreePrefab }, 36, 18f, 260f, 0.95f, 1.35f, true);
 
         ScatterPrefabs(
             root.transform,
@@ -225,50 +280,6 @@ public class HuntWorldDressing : MonoBehaviour
             if (shader != null && (terrain.materialTemplate == null || terrain.materialTemplate.shader != shader))
                 terrain.materialTemplate = new Material(shader);
         }
-    }
-
-    static string[] TreePrefabs()
-    {
-        const string realistic = "Assets/RealisticTree/RealisticTree_LOD.prefab";
-        if (System.IO.File.Exists(realistic))
-            return new[] { realistic };
-
-#if UNITY_EDITOR
-        var matches = new System.Collections.Generic.List<string>();
-        if (System.IO.Directory.Exists("Assets"))
-        {
-            string[] folders = System.IO.Directory.GetDirectories("Assets", "*", System.IO.SearchOption.AllDirectories);
-            for (int i = 0; i < folders.Length; i++)
-            {
-                string folder = folders[i].Replace('\\', '/');
-                if (folder.IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) < 0)
-                    continue;
-
-                string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { folder });
-                for (int g = 0; g < guids.Length; g++)
-                {
-                    string path = AssetDatabase.GUIDToAssetPath(guids[g]);
-                    string file = System.IO.Path.GetFileNameWithoutExtension(path);
-                    if (file.IndexOf("Billboard", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                        continue;
-                    if (file.IndexOf("Mobile", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                        continue;
-                    if (!matches.Contains(path))
-                        matches.Add(path);
-                }
-            }
-        }
-
-        if (matches.Count > 0)
-            return matches.ToArray();
-#endif
-        return new[]
-        {
-            "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_02.prefab",
-            "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_10.prefab",
-            "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Birch_Tree_05.prefab",
-            "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Birch_Tree_06.prefab"
-        };
     }
 
     static void ReplaceBrokenTreeMeshes()

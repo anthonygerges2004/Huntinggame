@@ -17,6 +17,7 @@ public static class AnimalVisuals
 
         if (HasSkinnedModel(animal))
         {
+            FixAnimalShading(animal.gameObject);
             FitCollider(animal);
             return;
         }
@@ -34,7 +35,20 @@ public static class AnimalVisuals
         visual.transform.localScale = VisualScale(animal.kind);
 
         StripImportedControllers(visual);
+        FixAnimalShading(visual);
         FitCollider(animal);
+    }
+
+    static void FixAnimalShading(GameObject visual)
+    {
+        SkinnedMeshRenderer[] skinned = visual.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        for (int i = 0; i < skinned.Length; i++)
+        {
+            if (skinned[i] == null)
+                continue;
+            skinned[i].forceMeshLod = 0;
+            skinned[i].updateWhenOffscreen = true;
+        }
     }
 
     public static void AttachAllInScene()

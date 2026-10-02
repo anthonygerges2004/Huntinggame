@@ -21,14 +21,6 @@ public static class ApplyRealisticTerrain
         "Assets/Realistic Terrain Collection/Terrains/Terrain5/Low Resolution_5.asset"
     };
 
-    static readonly string[] LowPolyTreePrefabs =
-    {
-        "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_02.prefab",
-        "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Tree_10.prefab",
-        "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Birch_Tree_05.prefab",
-        "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Birch_Tree_06.prefab"
-    };
-
     static readonly string[] GrassPrefabs =
     {
         "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Grass_11.prefab",
@@ -105,8 +97,6 @@ public static class ApplyRealisticTerrain
 
         FixAllTerrains();
         EnsureGameObjectForest();
-        if (!UsesRealisticTree(ResolveTreePrefabs()))
-            ReplacePlaceholderTrees();
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
         EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
         FrameCamp();
@@ -218,10 +208,7 @@ public static class ApplyRealisticTerrain
             ApplyAtmosphere();
             StretchViewDistance();
             FixAllTerrains();
-            if (!UsesRealisticTree(ResolveTreePrefabs()))
-                ReplacePlaceholderTrees();
-            else
-                HideCartoonTrees();
+            HideCartoonTrees();
             FrameAt(spawn);
 
             EditorPrefs.SetInt(PrefsKey, LayoutVersion);
@@ -298,16 +285,10 @@ public static class ApplyRealisticTerrain
     static void ScatterFoliage(Vector3 camp)
     {
         GameObject root = new GameObject(FoliageName);
-        string[] trees = ResolveTreePrefabs();
-        if (UsesRealisticTree(trees))
-        {
-            GameObject marker = new GameObject("RealisticTreeForest");
-            marker.transform.SetParent(root.transform, false);
-            ScatterPrefabs(root.transform, camp, trees, 36, 18f, 260f, 0.95f, 1.35f, true);
-            HideCartoonTrees();
-        }
-        else
-            ScatterPrefabs(root.transform, camp, trees, 520, 16f, 420f, 0.85f, 1.55f, true);
+        GameObject marker = new GameObject("RealisticTreeForest");
+        marker.transform.SetParent(root.transform, false);
+        ScatterPrefabs(root.transform, camp, TreePrefabs(), 36, 18f, 260f, 0.95f, 1.35f, true);
+        HideCartoonTrees();
         ScatterPrefabs(root.transform, camp, GrassPrefabs, 240, 4f, 220f, 0.75f, 1.45f, false);
         ScatterPrefabs(root.transform, camp, BushPrefabs, 40, 10f, 160f, 0.9f, 1.35f, false);
         ScatterPrefabs(root.transform, camp, RockPrefabs, 24, 18f, 240f, 0.7f, 1.4f, false);
@@ -528,25 +509,13 @@ public static class ApplyRealisticTerrain
         if (terrain == null)
             return;
 
-        string[] trees = ResolveTreePrefabs();
-        bool realistic = UsesRealisticTree(trees);
         GameObject existing = GameObject.Find(FoliageName);
-        if (existing != null && realistic && ForestHasRealisticTrees(existing))
+        if (existing != null && ForestHasRealisticTrees(existing))
         {
             HideCartoonTrees();
             ForceFullMeshLod();
             return;
         }
-
-        if (existing != null && !realistic)
-        {
-            ForceFullMeshLod();
-            return;
-        }
-
-        if (!realistic)
-            ReplacePlaceholderTrees();
-        ForceFullMeshLod();
 
         if (existing != null)
             Object.DestroyImmediate(existing);
@@ -592,92 +561,11 @@ public static class ApplyRealisticTerrain
         return false;
     }
 
-    static bool UsesRealisticTree(string[] paths)
+    static string[] TreePrefabs()
     {
-        if (paths == null)
-            return false;
-        for (int i = 0; i < paths.Length; i++)
-        {
-            if (paths[i] != null &&
-                paths[i].IndexOf("RealisticTree", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-        }
-
-        return false;
-    }
-
-    static string[] ResolveTreePrefabs()
-    {
-        if (System.IO.File.Exists("Assets/RealisticTree/RealisticTree.obj"))
-        {
-            if (!System.IO.File.Exists(RealisticTreeSetup.PrefabPath))
-                RealisticTreeSetup.Setup();
-            if (System.IO.File.Exists(RealisticTreeSetup.PrefabPath))
-                return new[] { RealisticTreeSetup.PrefabPath };
-        }
-
-        string[] conifers = FindConiferPrefabPaths();
-        if (conifers.Length > 0)
-            return conifers;
-        return LowPolyTreePrefabs;
-    }
-
-    static string[] FindConiferPrefabPaths()
-    {
-        var matches = new List<string>();
-        if (!System.IO.Directory.Exists("Assets"))
-            return new string[0];
-
-        string[] folders = System.IO.Directory.GetDirectories("Assets", "*", System.IO.SearchOption.AllDirectories);
-        for (int i = 0; i < folders.Length; i++)
-        {
-            string folder = folders[i].Replace('\\', '/');
-            if (folder.IndexOf("Conifer", System.StringComparison.OrdinalIgnoreCase) < 0)
-                continue;
-
-            string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { folder });
-            for (int g = 0; g < guids.Length; g++)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guids[g]);
-                string file = System.IO.Path.GetFileNameWithoutExtension(path);
-                if (file.IndexOf("Billboard", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    continue;
-                if (file.IndexOf("Mobile", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    continue;
-                if (file.IndexOf("Atlas", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    continue;
-                if (!matches.Contains(path))
-                    matches.Add(path);
-            }
-        }
-
-        matches.Sort((a, b) => PrefabHeight(b).CompareTo(PrefabHeight(a)));
-        var tall = new List<string>();
-        for (int i = 0; i < matches.Count && tall.Count < 4; i++)
-        {
-            if (PrefabHeight(matches[i]) < 4f)
-                continue;
-            tall.Add(matches[i]);
-        }
-
-        return tall.ToArray();
-    }
-
-    static float PrefabHeight(string path)
-    {
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-        if (prefab == null)
-            return 0f;
-
-        Renderer[] renderers = prefab.GetComponentsInChildren<Renderer>(true);
-        float height = 0f;
-        for (int i = 0; i < renderers.Length; i++)
-        {
-            if (renderers[i] != null)
-                height = Mathf.Max(height, renderers[i].bounds.size.y);
-        }
-
-        return height;
+        if (!System.IO.File.Exists(RealisticTreeSetup.PrefabPath))
+            RealisticTreeSetup.Setup();
+        return new[] { RealisticTreeSetup.PrefabPath };
     }
 
     static void ForceFullMeshLod()
@@ -688,37 +576,12 @@ public static class ApplyRealisticTerrain
             if (renderers[i] != null)
                 renderers[i].forceMeshLod = 0;
         }
-    }
 
-    static void ReplacePlaceholderTrees()
-    {
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(LowPolyTreePrefabs[0]);
-        if (prefab == null)
-            return;
-
-        MeshFilter goodFilter = prefab.GetComponentInChildren<MeshFilter>();
-        MeshRenderer goodRenderer = prefab.GetComponentInChildren<MeshRenderer>();
-        if (goodFilter == null || goodRenderer == null)
-            return;
-
-        HarvestableTree[] trees = Object.FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude);
-        for (int i = 0; i < trees.Length; i++)
+        SkinnedMeshRenderer[] skinned = Object.FindObjectsByType<SkinnedMeshRenderer>(FindObjectsInactive.Exclude);
+        for (int i = 0; i < skinned.Length; i++)
         {
-            HarvestableTree tree = trees[i];
-            if (tree == null || tree.GetComponent<Animal>() != null)
-                continue;
-
-            MeshFilter filter = tree.GetComponent<MeshFilter>();
-            MeshRenderer renderer = tree.GetComponent<MeshRenderer>();
-            if (filter == null || renderer == null)
-                continue;
-            if (filter.sharedMesh == goodFilter.sharedMesh)
-                continue;
-
-            Undo.RecordObject(filter, "Swap tree mesh");
-            Undo.RecordObject(renderer, "Swap tree material");
-            filter.sharedMesh = goodFilter.sharedMesh;
-            renderer.sharedMaterials = goodRenderer.sharedMaterials;
+            if (skinned[i] != null)
+                skinned[i].forceMeshLod = 0;
         }
     }
 
@@ -738,11 +601,6 @@ public static class ApplyRealisticTerrain
         RenderSettings.fogMode = FogMode.Exponential;
         RenderSettings.fogDensity = 0.0016f;
         RenderSettings.fogColor = new Color(0.55f, 0.62f, 0.68f);
-
-        Material sky = AssetDatabase.LoadAssetAtPath<Material>(
-            "Assets/Realistic Terrain Collection/Other/Skybox_Textures/DawnDusk/Skybox.mat");
-        if (sky != null)
-            RenderSettings.skybox = sky;
     }
 
     static void StretchViewDistance()
