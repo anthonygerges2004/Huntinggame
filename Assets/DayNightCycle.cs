@@ -11,7 +11,12 @@ public class DayNightCycle : MonoBehaviour
     public float dayLengthSeconds = 90f;
     public bool IsNight { get; private set; }
 
+    public Color ambientSky = new Color(0.62f, 0.66f, 0.72f);
+    public Color ambientHorizon = new Color(0.52f, 0.52f, 0.48f);
+    public Color ambientGround = new Color(0.34f, 0.31f, 0.26f);
+
     float timeOfDay;
+    float ambientLevel = 1f;
     Material currentSkybox;
 
     void Awake()
@@ -19,6 +24,10 @@ public class DayNightCycle : MonoBehaviour
         Instance = this;
         if (sun == null)
             sun = FindAnyObjectByType<Light>();
+
+        // The sky images have a teal sea in their lower half, which tints shaded surfaces blue.
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+        RenderSettings.reflectionIntensity = 0.15f;
     }
 
     void Update()
@@ -52,7 +61,6 @@ public class DayNightCycle : MonoBehaviour
         {
             currentSkybox = targetSkybox;
             RenderSettings.skybox = currentSkybox;
-            DynamicGI.UpdateEnvironment();
         }
     }
 
@@ -96,9 +104,11 @@ public class DayNightCycle : MonoBehaviour
             sun.color = targetColor;
         }
 
-        // Smooth ambient light transition
-        float targetIntensity = IsNight ? 0.3f : 1f;
-        RenderSettings.ambientIntensity = Mathf.Lerp(RenderSettings.ambientIntensity, targetIntensity, Time.deltaTime * 0.3f);
+        float targetLevel = IsNight ? 0.3f : 1f;
+        ambientLevel = Mathf.Lerp(ambientLevel, targetLevel, Time.deltaTime * 0.3f);
+        RenderSettings.ambientSkyColor = ambientSky * ambientLevel;
+        RenderSettings.ambientEquatorColor = ambientHorizon * ambientLevel;
+        RenderSettings.ambientGroundColor = ambientGround * ambientLevel;
     }
 
     public string TimeLabel()

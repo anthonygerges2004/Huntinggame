@@ -13,6 +13,8 @@ public class Inventory : MonoBehaviour
     public float cookedHealAmount = 20f;
 
     float spoilTimer;
+    string notice;
+    float noticeUntil;
 
     void Awake()
     {
@@ -94,6 +96,20 @@ public class Inventory : MonoBehaviour
         if (PlayerHealth.Instance != null)
             PlayerHealth.Instance.Heal(cookedHealAmount);
         return true;
+    }
+
+    public void ShowNotice(string text)
+    {
+        notice = text;
+        noticeUntil = Time.time + 2f;
+    }
+
+    void OnGUI()
+    {
+        if (Time.time > noticeUntil || string.IsNullOrEmpty(notice))
+            return;
+
+        ScreenText.Centered(notice, Screen.height * 0.7f);
     }
 
     public float SpoilSecondsLeft()

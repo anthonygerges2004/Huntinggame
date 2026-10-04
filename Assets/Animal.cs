@@ -319,8 +319,7 @@ public class Animal : MonoBehaviour
 
         dead = true;
 
-        if (Inventory.Instance != null)
-            Inventory.Instance.AddMeat(meatAmount);
+        MeatPickup.Spawn(transform.position, meatAmount);
 
         WildlifeAlarm.NotifyShot(transform.position);
         Overhunt.RegisterKill();

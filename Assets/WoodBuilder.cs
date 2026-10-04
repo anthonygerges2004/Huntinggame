@@ -296,13 +296,18 @@ public class WoodBuilder : MonoBehaviour
         if (!IsBuilding)
             return;
 
+        float scale = ScreenText.Scale;
+        GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
+        float screenW = Screen.width / scale;
+        float screenH = Screen.height / scale;
+
         string[] names = { "Foundation", "Wall" };
         int[] costs = { foundationCost, wallCost };
         float w = 110f;
         float h = 46f;
         float gap = 8f;
-        float startX = (Screen.width - (w * 2f + gap)) * 0.5f;
-        float y = Screen.height - h - 40f;
+        float startX = (screenW - (w * 2f + gap)) * 0.5f;
+        float y = screenH - h - 40f;
 
         for (int i = 0; i < 2; i++)
         {
@@ -316,5 +321,6 @@ public class WoodBuilder : MonoBehaviour
 
         GUI.color = Color.white;
         GUI.Label(new Rect(startX - 120f, y + h + 6f, 520f, 20f), "Scroll: change   R: rotate   Click: place   Right click: remove   B: exit");
+        GUI.matrix = Matrix4x4.identity;
     }
 }

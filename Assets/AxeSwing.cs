@@ -48,8 +48,7 @@ public class AxeSwing : MonoBehaviour
         if (HasAxe || Instance != this)
             return;
 
-        GUI.color = Color.white;
-        GUI.Label(new Rect(Screen.width * 0.5f - 110f, 20f, 260f, 24f), "No axe! Go pick it up where it landed.");
+        ScreenText.Centered("No axe! Go pick it up where it landed.", Screen.height * 0.5f - 90f * ScreenText.Scale, 24);
     }
 
     void Start()

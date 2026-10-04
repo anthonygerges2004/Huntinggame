@@ -146,7 +146,6 @@ public class ThrownAxe : MonoBehaviour
         if (age < 0.4f || !InPickupRange())
             return;
 
-        GUI.color = Color.white;
-        GUI.Label(new Rect(Screen.width * 0.5f - 80f, Screen.height * 0.5f + 30f, 220f, 24f), "Press E to pick up axe");
+        ScreenText.Centered("Press E to pick up axe", Screen.height * 0.5f + 60f * ScreenText.Scale);
     }
 }
