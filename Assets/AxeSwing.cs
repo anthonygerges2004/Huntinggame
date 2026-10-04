@@ -7,9 +7,13 @@ using UnityEngine.InputSystem;
 
 public class AxeSwing : MonoBehaviour
 {
+    public static AxeSwing Instance;
+    public static bool HasAxe = true;
+
     [Header("Controls")]
     public bool swingOnE = true;
     public bool swingOnLeftClick = true;
+    public bool throwOnRightClick = true;
 
     [Header("Timing (seconds)")]
     public float windUpTime = 0.18f;
@@ -22,12 +26,35 @@ public class AxeSwing : MonoBehaviour
     public Vector3 windUpOffset = new Vector3(0f, 0.12f, -0.12f);
     public Vector3 strikeOffset = new Vector3(0f, -0.12f, 0.25f);
 
+    [Header("Throw")]
+    public float throwSpeed = 22f;
+    public float throwSpin = 18f;
+
     [Header("Hook your chop logic here")]
     public UnityEvent onStrike;
 
     Vector3 restPos;
     Quaternion restRot;
     bool swinging;
+    int pickupFrame = -1;
+
+    void Awake()
+    {
+        if (Instance != null && Instance != this)
+            return;
+
+        Instance = this;
+        HasAxe = true;
+    }
+
+    void OnGUI()
+    {
+        if (HasAxe || Instance != this)
+            return;
+
+        GUI.color = Color.white;
+        GUI.Label(new Rect(Screen.width * 0.5f - 110f, 20f, 260f, 24f), "No axe! Go pick it up where it landed.");
+    }
 
     void Start()
     {
@@ -37,7 +64,11 @@ public class AxeSwing : MonoBehaviour
 
     void Update()
     {
-        if (!swinging && SwingPressed()) StartCoroutine(Swing());
+        if (!HasAxe || swinging || Time.frameCount == pickupFrame)
+            return;
+
+        if (ThrowPressed()) StartCoroutine(Throw());
+        else if (SwingPressed()) StartCoroutine(Swing());
     }
 
     bool SwingPressed()
@@ -53,6 +84,17 @@ public class AxeSwing : MonoBehaviour
 #endif
     }
 
+    bool ThrowPressed()
+    {
+        if (!throwOnRightClick || WoodBuilder.IsBuilding) return false;
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) return false;
+#if ENABLE_INPUT_SYSTEM
+        return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
+#else
+        return Input.GetMouseButtonDown(1);
+#endif
+    }
+
     IEnumerator Swing()
     {
         swinging = true;
@@ -61,6 +103,51 @@ public class AxeSwing : MonoBehaviour
         onStrike.Invoke();                       // impact moment
         yield return Blend(strikeAngle, strikeOffset, 0f, Vector3.zero, recoverTime);
         swinging = false;
+    }
+
+    IEnumerator Throw()
+    {
+        swinging = true;
+        yield return Blend(0f, Vector3.zero, windUpAngle * 1.5f, windUpOffset * 1.5f, windUpTime);
+
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            GameObject flying = Instantiate(gameObject, transform.position, transform.rotation);
+            flying.name = "ThrownAxe";
+            flying.transform.localScale = transform.lossyScale;
+
+            AxeSwing copyScript = flying.GetComponent<AxeSwing>();
+            copyScript.enabled = false;
+            Destroy(copyScript);
+
+            ThrownAxe thrown = flying.AddComponent<ThrownAxe>();
+            Vector3 velocity = cam.transform.forward * throwSpeed + Vector3.up * 1.5f;
+            thrown.Launch(velocity, cam.transform.right * -throwSpin);
+
+            SetHeldVisible(false);
+            HasAxe = false;
+        }
+
+        transform.localRotation = restRot;
+        transform.localPosition = restPos;
+        swinging = false;
+    }
+
+    public void GiveBack()
+    {
+        HasAxe = true;
+        pickupFrame = Time.frameCount;
+        transform.localRotation = restRot;
+        transform.localPosition = restPos;
+        SetHeldVisible(true);
+    }
+
+    void SetHeldVisible(bool visible)
+    {
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].enabled = visible;
     }
 
     IEnumerator Blend(float a0, Vector3 o0, float a1, Vector3 o1, float time)
