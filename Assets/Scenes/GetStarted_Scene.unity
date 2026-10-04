@@ -167,6 +167,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &938207
 CapsuleCollider:
@@ -741,6 +742,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &37530746
 PrefabInstance:
@@ -1001,6 +1003,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!4 &39948008 stripped
 Transform:
@@ -1055,6 +1058,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &47653733
 CapsuleCollider:
@@ -1707,6 +1711,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &78490728
 PrefabInstance:
@@ -2260,6 +2265,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1 &90928839
 GameObject:
@@ -4110,6 +4116,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &184300512
 PrefabInstance:
@@ -5507,6 +5514,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &283178326
 PrefabInstance:
@@ -5634,6 +5642,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &286375258
 CapsuleCollider:
@@ -6582,6 +6591,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &314137251
 CapsuleCollider:
@@ -8133,6 +8143,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1 &386634714
 GameObject:
@@ -8318,6 +8329,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &391544993
 CapsuleCollider:
@@ -9188,6 +9200,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &434646126
 PrefabInstance:
@@ -10583,6 +10596,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &502118867
 PrefabInstance:
@@ -12151,6 +12165,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &595555936
 CapsuleCollider:
@@ -12647,6 +12662,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &654778544
 PrefabInstance:
@@ -12985,6 +13001,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &666409164
 PrefabInstance:
@@ -13323,6 +13340,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &675994915
 PrefabInstance:
@@ -14189,6 +14207,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &714533740
 PrefabInstance:
@@ -14394,6 +14413,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &716917043
 CapsuleCollider:
@@ -14523,6 +14543,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &720455320
 CapsuleCollider:
@@ -15097,6 +15118,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &776680690
 PrefabInstance:
@@ -15696,6 +15718,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &800010803
 CapsuleCollider:
@@ -15895,6 +15918,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &807334426
 PrefabInstance:
@@ -16130,6 +16154,118 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 2281465824791085765, guid: 0a05da670f749c448b0810711b942ccb, type: 3}
   m_PrefabInstance: {fileID: 819730795}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &821422732
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 821422736}
+  - component: {fileID: 821422735}
+  - component: {fileID: 821422734}
+  - component: {fileID: 821422733}
+  m_Layer: 0
+  m_Name: Wall
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!65 &821422733
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 821422732}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!23 &821422734
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 821422732}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &821422735
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 821422732}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!4 &821422736
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 821422732}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 96.83459, y: 212.69351, z: 681.8406}
+  m_LocalScale: {x: 3, y: 0.3, z: 3}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &829858533
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -16570,6 +16706,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &869546697
 PrefabInstance:
@@ -17508,6 +17645,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &924469331
 PrefabInstance:
@@ -18765,6 +18903,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1002510570
 PrefabInstance:
@@ -19544,6 +19683,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1036327443
 PrefabInstance:
@@ -19810,10 +19950,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 630785c3993df8a4198d2dc36c46bbe2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WoodBuilder
-  woodBlockPrefab: {fileID: 2651298474491056726, guid: ce214e4d63362c44389f960b852724a0, type: 3}
+  foundationPrefab: {fileID: 0}
+  foundationCost: 2
+  wallPrefab: {fileID: 0}
+  wallCost: 2
+  ghostMaterial: {fileID: 0}
   placeDistance: 4
-  blockSize: 1
-  woodCost: 1
+  gridSize: 3
 --- !u!1001 &1061791837
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -19917,6 +20060,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1066044806
 PrefabInstance:
@@ -20719,6 +20863,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1136101092
 PrefabInstance:
@@ -20924,6 +21069,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1146151876
 CapsuleCollider:
@@ -21108,6 +21254,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1 &1155434229
 GameObject:
@@ -21728,6 +21875,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1186725927
 PrefabInstance:
@@ -22823,6 +22971,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1262726469
 PrefabInstance:
@@ -22927,6 +23076,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1265914335
 PrefabInstance:
@@ -23031,6 +23181,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1 &1272012102
 GameObject:
@@ -23580,6 +23731,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1310006755
 PrefabInstance:
@@ -24591,6 +24743,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1382552394
 PrefabInstance:
@@ -25085,6 +25238,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1409040758
 CapsuleCollider:
@@ -25405,6 +25559,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1410748102
 PrefabInstance:
@@ -25669,6 +25824,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1426736759
 CapsuleCollider:
@@ -26227,7 +26383,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b0f569763c843f4448ba769a3fcb3bbc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MinimapFollow
-  player: {fileID: 0}
 --- !u!1001 &1467554440
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -26568,6 +26723,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1480001176
 CapsuleCollider:
@@ -26752,6 +26908,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1507720021
 PrefabInstance:
@@ -27635,6 +27792,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1552092586
 CapsuleCollider:
@@ -28423,6 +28581,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1583672704
 CapsuleCollider:
@@ -28778,6 +28937,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1614706154
 PrefabInstance:
@@ -29562,6 +29722,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1641650273
 PrefabInstance:
@@ -29822,6 +29983,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1646144128
 PrefabInstance:
@@ -30468,6 +30630,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1665201583
 CapsuleCollider:
@@ -31564,6 +31727,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1707540451
 CapsuleCollider:
@@ -33102,6 +33266,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!1001 &1808316004
 PrefabInstance:
@@ -33206,6 +33371,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &1809663716
 PrefabInstance:
@@ -33662,6 +33828,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1850372946
 CapsuleCollider:
@@ -34333,6 +34500,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1882002702
 CapsuleCollider:
@@ -34462,6 +34630,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1888250663
 CapsuleCollider:
@@ -35387,6 +35556,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &1939432574
 CapsuleCollider:
@@ -36257,6 +36427,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1001 &2013482141
 PrefabInstance:
@@ -37538,6 +37709,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &2070984842
 CapsuleCollider:
@@ -37776,6 +37948,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 3
 --- !u!136 &2078093972
 CapsuleCollider:
@@ -39273,6 +39446,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarvestableTree
   woodAmount: 3
+  hitsToFall: 3
   chopRange: 6
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
@@ -39338,3 +39512,4 @@ SceneRoots:
   - {fileID: 1459436641}
   - {fileID: 425865949}
   - {fileID: 698932587}
+  - {fileID: 821422736}

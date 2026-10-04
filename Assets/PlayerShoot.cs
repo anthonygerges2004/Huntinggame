@@ -25,9 +25,15 @@ public class PlayerShoot : MonoBehaviour
 
         WildlifeAlarm.NotifyShot(cam.transform.position);
 
+        if (WoodBuilder.IsBuilding)
+            return;
+
         Ray ray = new Ray(cam.transform.position, cam.transform.forward);
         if (Physics.Raycast(ray, out RaycastHit hit, range))
         {
+            if (hit.collider.GetComponentInParent<HarvestableTree>() != null)
+                return;
+
             Animal animal = hit.collider.GetComponentInParent<Animal>();
             if (animal != null)
                 animal.Hit();

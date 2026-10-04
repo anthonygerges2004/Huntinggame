@@ -1,11 +1,14 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class HarvestableTree : MonoBehaviour
 {
     public int woodAmount = 3;
+    public int hitsToFall = 3;
     public float chopRange = 6f;
 
+    int hits;
     bool chopped;
     static int chopFrame = -1;
 
@@ -24,13 +27,16 @@ public class HarvestableTree : MonoBehaviour
 
     void Update()
     {
-        if (chopped || Keyboard.current == null)
+        if (chopped || Mouse.current == null)
+            return;
+
+        if (WoodBuilder.IsBuilding)
             return;
 
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
 
-        if (!Keyboard.current.eKey.wasPressedThisFrame)
+        if (!Mouse.current.leftButton.wasPressedThisFrame)
             return;
 
         if (Time.frameCount == chopFrame)
@@ -46,6 +52,9 @@ public class HarvestableTree : MonoBehaviour
         if (cam == null)
             return;
 
+        if (WoodBuilder.LookedAtPiece(4f) != null)
+            return;
+
         HarvestableTree tree = FindLookedAtTree(cam);
         if (tree == null || tree.chopped)
             return;
@@ -56,10 +65,43 @@ public class HarvestableTree : MonoBehaviour
             return;
         }
 
-        Inventory.Instance.AddWood(tree.woodAmount);
-        tree.chopped = true;
-        Destroy(tree.gameObject);
-        Debug.Log("Chopped wood. +" + tree.woodAmount);
+        tree.Hit();
+    }
+
+    void Hit()
+    {
+        hits++;
+        transform.localRotation *= Quaternion.Euler(0f, 0f, hits % 2 == 0 ? 3f : -3f);
+
+        if (hits < hitsToFall)
+        {
+            Debug.Log("Chop " + hits + " of " + hitsToFall);
+            return;
+        }
+
+        chopped = true;
+        Inventory.Instance.AddWood(woodAmount);
+        Debug.Log("Tree fell. +" + woodAmount);
+        StartCoroutine(FallOver());
+    }
+
+    IEnumerator FallOver()
+    {
+        Collider[] colliders = GetComponentsInChildren<Collider>();
+        for (int i = 0; i < colliders.Length; i++)
+            colliders[i].enabled = false;
+
+        Quaternion start = transform.rotation;
+        Quaternion end = start * Quaternion.Euler(-80f, 0f, 0f);
+        float t = 0f;
+        while (t < 1f)
+        {
+            t += Time.deltaTime / 0.7f;
+            transform.rotation = Quaternion.Slerp(start, end, t);
+            yield return null;
+        }
+
+        Destroy(gameObject);
     }
 
     static HarvestableTree FindLookedAtTree(Camera cam)
