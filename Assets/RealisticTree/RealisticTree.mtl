@@ -1,0 +1,17 @@
+newmtl Bark
+Kd 1 1 1
+map_Kd Bark_albedo.png
+map_Bump Bark_normal.png
+
+newmtl Leaves
+Kd 1 1 1
+map_Kd Leaf_albedo.png
+
+newmtl LeavesMid
+Kd 1 1 1
+map_Kd Leaf_albedo.png
+
+newmtl LeavesInner
+Kd 1 1 1
+map_Kd Leaf_albedo.png
+
