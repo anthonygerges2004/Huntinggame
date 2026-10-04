@@ -13,8 +13,6 @@ public class DayNightCycle : MonoBehaviour
 
     float timeOfDay;
     Material currentSkybox;
-    Material nextSkybox;
-    float skyboxBlend = 0f;
 
     void Awake()
     {
@@ -40,17 +38,15 @@ public class DayNightCycle : MonoBehaviour
         if (skyboxDay == null || skyboxSunset == null || skyboxNight == null)
             return;
 
-        Material targetSkybox = null;
-
-        // Much longer transition periods for smooth visual transition
+        Material targetSkybox;
         if (timeOfDay < 0.2f)
             targetSkybox = skyboxDay;
         else if (timeOfDay < 0.5f)
-            targetSkybox = skyboxSunset; // Long sunset period (0.2 to 0.5)
+            targetSkybox = skyboxSunset;
         else if (timeOfDay < 0.7f)
-            targetSkybox = skyboxNight; // Night (0.5 to 0.7)
+            targetSkybox = skyboxNight;
         else
-            targetSkybox = skyboxSunset; // Long sunrise period (0.7 onwards)
+            targetSkybox = skyboxSunset;
 
         if (targetSkybox != currentSkybox)
         {

@@ -16214,7 +16214,7 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
+  m_ForceMeshLod: 0
   m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
@@ -16437,6 +16437,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AxeSwing
   swingOnE: 1
   swingOnLeftClick: 1
+  throwOnRightClick: 1
   windUpTime: 0.18
   strikeTime: 0.1
   recoverTime: 0.28
@@ -16444,9 +16445,8 @@ MonoBehaviour:
   strikeAngle: 65
   windUpOffset: {x: 0, y: 0.12, z: -0.12}
   strikeOffset: {x: 0, y: -0.12, z: 0.25}
-  onStrike:
-    m_PersistentCalls:
-      m_Calls: []
+  throwSpeed: 22
+  throwSpin: 18
 --- !u!1001 &861099207
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -19950,10 +19950,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 630785c3993df8a4198d2dc36c46bbe2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WoodBuilder
-  foundationPrefab: {fileID: 0}
   foundationCost: 2
-  wallPrefab: {fileID: 0}
   wallCost: 2
+  logMaterial: {fileID: 0}
+  plankMaterial: {fileID: 0}
   ghostMaterial: {fileID: 0}
   placeDistance: 4
   gridSize: 3
@@ -26383,6 +26383,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b0f569763c843f4448ba769a3fcb3bbc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MinimapFollow
+  target: {fileID: 1844861802}
+  height: 80
+  rotateWithPlayer: 1
 --- !u!1001 &1467554440
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -36776,7 +36779,7 @@ RectTransform:
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: -18, y: -18}
-  m_SizeDelta: {x: 180, y: 100}
+  m_SizeDelta: {x: 200, y: 200}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2038592178
 MonoBehaviour:

@@ -1,9 +1,0 @@
-newmtl Wood
-Kd 1 1 1
-map_Kd Wood_albedo.png
-map_Bump Wood_normal.png
-
-newmtl Steel
-Kd 1 1 1
-map_Kd Steel_albedo.png
-map_Bump Steel_normal.png

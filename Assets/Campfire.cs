@@ -36,12 +36,6 @@ public class Campfire : MonoBehaviour
 
         if (GetComponent<Trader>() == null)
             gameObject.AddComponent<Trader>();
-
-        // Fallback search if not assigned in Inspector
-        if (fireModelPrefab == null)
-        {
-            fireModelPrefab = Resources.Load<GameObject>("campfire");
-        }
     }
 
     void Update()

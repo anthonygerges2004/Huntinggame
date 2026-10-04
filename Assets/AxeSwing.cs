@@ -1,6 +1,5 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.Events;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -29,9 +28,6 @@ public class AxeSwing : MonoBehaviour
     [Header("Throw")]
     public float throwSpeed = 22f;
     public float throwSpin = 18f;
-
-    [Header("Hook your chop logic here")]
-    public UnityEvent onStrike;
 
     Vector3 restPos;
     Quaternion restRot;
@@ -100,7 +96,6 @@ public class AxeSwing : MonoBehaviour
         swinging = true;
         yield return Blend(0f, Vector3.zero, windUpAngle, windUpOffset, windUpTime);
         yield return Blend(windUpAngle, windUpOffset, strikeAngle, strikeOffset, strikeTime);
-        onStrike.Invoke();                       // impact moment
         yield return Blend(strikeAngle, strikeOffset, 0f, Vector3.zero, recoverTime);
         swinging = false;
     }
