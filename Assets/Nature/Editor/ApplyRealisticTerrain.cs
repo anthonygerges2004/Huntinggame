@@ -14,7 +14,7 @@ public static class ApplyRealisticTerrain
 
     static readonly string[] TerrainAssets =
     {
-        "Assets/Realistic Terrain Collection/Terrains/Terrain1/Medium Resolution_1.asset",
+        "Assets/Realistic Terrain Collection/Terrains/Terrain1/Low Resolution_1.asset",
         "Assets/Realistic Terrain Collection/Terrains/Terrain2/Low Resolution_2.asset",
         "Assets/Realistic Terrain Collection/Terrains/Terrain3/Low Resolution_3.asset",
         "Assets/Realistic Terrain Collection/Terrains/Terrain4/Low Resolution_4.asset",
@@ -355,7 +355,7 @@ public static class ApplyRealisticTerrain
         FixTerrainTrees(terrain);
     }
 
-    static void FixAllTerrains()
+    public static void FixAllTerrains()
     {
         Material mat = GetUrpTerrainMaterial();
         Terrain[] terrains = Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude);

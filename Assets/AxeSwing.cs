@@ -68,7 +68,7 @@ public class AxeSwing : MonoBehaviour
 
     bool SwingPressed()
     {
-        if (WoodBuilder.IsBuilding) return false;
+        if (WoodBuilder.IsBuilding || BirdChallenge.Active) return false;
 #if ENABLE_INPUT_SYSTEM
         var kb = Keyboard.current; var ms = Mouse.current;
         return (swingOnE && kb != null && kb.eKey.wasPressedThisFrame)
@@ -81,7 +81,7 @@ public class AxeSwing : MonoBehaviour
 
     bool ThrowPressed()
     {
-        if (!throwOnRightClick || WoodBuilder.IsBuilding) return false;
+        if (!throwOnRightClick || WoodBuilder.IsBuilding || BirdChallenge.Active) return false;
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;

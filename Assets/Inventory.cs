@@ -24,6 +24,10 @@ public class Inventory : MonoBehaviour
 
         if (GetComponent<HuntWorldDressing>() == null)
             gameObject.AddComponent<HuntWorldDressing>();
+        if (GetComponent<HuntChallenges>() == null)
+            gameObject.AddComponent<HuntChallenges>();
+        if (GetComponent<BirdChallenge>() == null)
+            gameObject.AddComponent<BirdChallenge>();
     }
 
     void Update()

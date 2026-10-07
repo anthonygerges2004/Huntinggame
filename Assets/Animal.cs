@@ -320,6 +320,7 @@ public class Animal : MonoBehaviour
         dead = true;
 
         MeatPickup.Spawn(transform.position, meatAmount);
+        HuntChallenges.ReportKill(this);
 
         WildlifeAlarm.NotifyShot(transform.position);
         Overhunt.RegisterKill();

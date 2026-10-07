@@ -29,6 +29,14 @@ public class PlayerShoot : MonoBehaviour
             return;
 
         Ray ray = new Ray(cam.transform.position, cam.transform.forward);
+
+        if (BirdChallenge.Active)
+        {
+            if (BirdChallenge.TryUseShot())
+                ShootChallengeBird(ray);
+            return;
+        }
+
         if (Physics.Raycast(ray, out RaycastHit hit, range))
         {
             if (hit.collider.GetComponentInParent<HarvestableTree>() != null)
@@ -38,6 +46,24 @@ public class PlayerShoot : MonoBehaviour
             if (animal != null)
                 animal.Hit();
         }
+    }
+
+    void ShootChallengeBird(Ray ray)
+    {
+        ChallengeBird closest = null;
+        float closestDistance = float.MaxValue;
+        foreach (RaycastHit hit in Physics.SphereCastAll(ray, 0.25f, range, ~0, QueryTriggerInteraction.Collide))
+        {
+            ChallengeBird bird = hit.collider.GetComponentInParent<ChallengeBird>();
+            if (bird != null && hit.distance < closestDistance)
+            {
+                closest = bird;
+                closestDistance = hit.distance;
+            }
+        }
+
+        if (closest != null)
+            closest.Hit();
     }
 
     void OnGUI()

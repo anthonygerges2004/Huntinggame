@@ -30,7 +30,7 @@ public class HarvestableTree : MonoBehaviour
         if (chopped || Mouse.current == null)
             return;
 
-        if (WoodBuilder.IsBuilding || !AxeSwing.HasAxe)
+        if (WoodBuilder.IsBuilding || !AxeSwing.HasAxe || BirdChallenge.Active)
             return;
 
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)

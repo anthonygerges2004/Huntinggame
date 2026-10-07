@@ -11,6 +11,7 @@ public class PlayerMove : MonoBehaviour
     public float gravity = -20f;
 
     public static bool IsCrouching;
+    public static bool Frozen;
 
     CharacterController controller;
     Transform cam;
@@ -51,6 +52,12 @@ public class PlayerMove : MonoBehaviour
         xRotation -= look.y;
         xRotation = Mathf.Clamp(xRotation, -80f, 80f);
         cam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+
+        if (Frozen)
+        {
+            IsCrouching = false;
+            return;
+        }
 
         IsCrouching = Keyboard.current.leftCtrlKey.isPressed;
 

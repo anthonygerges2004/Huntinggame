@@ -59,6 +59,9 @@ public class WoodBuilder : MonoBehaviour
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
 
+        if (BirdChallenge.Active)
+            return;
+
         if (Keyboard.current.bKey.wasPressedThisFrame)
         {
             IsBuilding = !IsBuilding;
