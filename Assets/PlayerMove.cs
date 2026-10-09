@@ -9,6 +9,8 @@ public class PlayerMove : MonoBehaviour
     public float jumpHeight = 1.4f;
     public float mouseSensitivity = 0.15f;
     public float gravity = -20f;
+    public float swimSpeed = 3f;
+    public float swimVerticalSpeed = 2f;
 
     public static bool IsCrouching;
     public static bool Frozen;
@@ -71,6 +73,12 @@ public class PlayerMove : MonoBehaviour
         if (move.sqrMagnitude > 1f)
             move.Normalize();
 
+        if (LakeWater.TryGetSwim(transform.position, out float surface))
+        {
+            Swim(move, surface);
+            return;
+        }
+
         if (controller.isGrounded && verticalSpeed < 0f)
             verticalSpeed = -2f;
 
@@ -85,6 +93,25 @@ public class PlayerMove : MonoBehaviour
 
         float currentSpeed = IsCrouching ? crouchSpeed : speed;
         Vector3 motion = move * currentSpeed;
+        motion.y = verticalSpeed;
+        controller.Move(motion * Time.deltaTime);
+    }
+
+    void Swim(Vector3 move, float surface)
+    {
+        IsCrouching = false;
+        float floatY = surface - 0.35f;
+        float y = transform.position.y;
+
+        float up = 0f;
+        if (Keyboard.current.spaceKey.isPressed && y < floatY) up += 1f;
+        if (Keyboard.current.leftCtrlKey.isPressed) up -= 1f;
+
+        verticalSpeed = up != 0f
+            ? up * swimVerticalSpeed
+            : Mathf.Clamp((floatY - y) * 2f, -swimVerticalSpeed, swimVerticalSpeed);
+
+        Vector3 motion = move * swimSpeed;
         motion.y = verticalSpeed;
         controller.Move(motion * Time.deltaTime);
     }
