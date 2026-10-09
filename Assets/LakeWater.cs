@@ -3,39 +3,30 @@ using UnityEngine;
 
 public class LakeWater : MonoBehaviour
 {
-    public static LakeWater Instance;
-
     public int fishCount = 40;
-    public float swimDepth = 1.4f;
     public float respawnSeconds = 20f;
 
     readonly List<LakeFish> fish = new List<LakeFish>();
-    Camera playerCam;
 
     public float SurfaceY => transform.position.y + transform.lossyScale.y;
     public float Radius => transform.lossyScale.x * 0.5f;
     public Vector3 Center => transform.position;
 
-    void Awake()
+    void OnEnable()
     {
-        Instance = this;
+        WaterBodies.Lakes.Add(this);
+    }
+
+    void OnDisable()
+    {
+        WaterBodies.Lakes.Remove(this);
     }
 
     void Start()
     {
-        PlayerMove move = FindAnyObjectByType<PlayerMove>();
-        if (move != null)
-            playerCam = move.GetComponentInChildren<Camera>();
-
         int count = Mathf.Clamp(Mathf.RoundToInt(Radius * 0.35f), 6, fishCount);
         for (int i = 0; i < count; i++)
             SpawnFish();
-    }
-
-    void OnDestroy()
-    {
-        if (Instance == this)
-            Instance = null;
     }
 
     public bool Inside(Vector3 position, float margin)
@@ -47,32 +38,8 @@ public class LakeWater : MonoBehaviour
 
     public float GroundY(Vector3 position)
     {
-        Terrain terrain = WorldGround.TerrainAt(position);
-        if (terrain == null)
-            return SurfaceY - 10f;
-        return terrain.SampleHeight(position) + terrain.transform.position.y;
-    }
-
-    public static bool TryGetSwim(Vector3 position, out float surfaceY)
-    {
-        surfaceY = 0f;
-        if (Instance == null)
-            return false;
-
-        surfaceY = Instance.SurfaceY;
-        if (!Instance.Inside(position, 0.5f) || position.y > surfaceY + 0.2f)
-            return false;
-
-        return Instance.GroundY(position) < surfaceY - Instance.swimDepth;
-    }
-
-    public static bool CameraUnderwater()
-    {
-        if (Instance == null || Instance.playerCam == null)
-            return false;
-
-        Vector3 p = Instance.playerCam.transform.position;
-        return p.y < Instance.SurfaceY && Instance.Inside(p, 0f) && Instance.GroundY(p) < p.y;
+        float ground = WaterBodies.GroundY(position);
+        return ground == float.MinValue ? SurfaceY - 10f : ground;
     }
 
     public bool RandomUnderwaterPoint(out Vector3 point)
@@ -91,7 +58,7 @@ public class LakeWater : MonoBehaviour
             return true;
         }
 
-        point = Center + Vector3.up * (SurfaceY - Center.y - 0.6f);
+        point = new Vector3(Center.x, SurfaceY - 0.6f, Center.z);
         return false;
     }
 
@@ -128,15 +95,5 @@ public class LakeWater : MonoBehaviour
         if (!RandomUnderwaterPoint(out Vector3 point))
             return;
         fish.Add(LakeFish.Spawn(this, point));
-    }
-
-    void OnGUI()
-    {
-        if (!CameraUnderwater())
-            return;
-
-        GUI.color = new Color(0.1f, 0.32f, 0.45f, 0.55f);
-        GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
-        GUI.color = Color.white;
     }
 }

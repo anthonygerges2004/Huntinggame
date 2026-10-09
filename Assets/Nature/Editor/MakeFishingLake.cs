@@ -5,20 +5,36 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+public class LakeSize
+{
+    public readonly float Water;
+    public readonly float Bowl;
+    public readonly float Beach;
+    public readonly float Outer;
+    public readonly float Sand;
+    public readonly float Depth;
+
+    public LakeSize(float water, float bowl, float beach, float outer, float sand, float depth)
+    {
+        Water = water;
+        Bowl = bowl;
+        Beach = beach;
+        Outer = outer;
+        Sand = sand;
+        Depth = depth;
+    }
+}
+
 public static class MakeFishingLake
 {
     const string DoneKey = "HuntingGame.FishingLakeMade";
-    const string Folder = "Assets/Nature/Lake";
+    internal const string Folder = "Assets/Nature/Lake";
     const string SandTexturePath = Folder + "/SandTexture.png";
     const string SandLayerPath = Folder + "/Sand.terrainlayer";
     const string WaterMatPath = Folder + "/WaterMat.mat";
 
-    const float WaterRadius = 150f;
-    const float BowlRadius = 136f;
-    const float BeachRadius = 154f;
-    const float OuterRadius = 175f;
-    const float SandRadius = 164f;
-    const float MaxDepth = 5f;
+    internal static readonly LakeSize Big = new LakeSize(150f, 136f, 154f, 175f, 164f, 5f);
+    internal static readonly LakeSize Medium = new LakeSize(90f, 80f, 93f, 110f, 101f, 4f);
     static readonly Color WaterColor = new Color(0.16f, 0.43f, 0.6f, 0.6f);
 
     [InitializeOnLoadMethod]
@@ -39,11 +55,13 @@ public static class MakeFishingLake
                 {
                     if (!EditorPrefs.GetBool(DoneKey, false))
                         Make();
+                    return;
                 }
-                else if (water.transform.localScale.x < WaterRadius * 2f - 1f)
-                {
+
+                if (water.transform.localScale.x < Big.Water * 2f - 1f)
                     MakeBigger();
-                }
+
+                MakeRiver.AutoRun();
             };
         };
     }
@@ -76,19 +94,18 @@ public static class MakeFishingLake
         Vector3 camp = CampPosition();
 
         Vector3 center;
-        if (!RemoveOldLake(oldCenter, oldOuter) || !FindLakeSpot(camp, oldCenter, out center))
-            center = KeepAway(oldCenter, oldRadius, camp);
+        if (!RemoveOldLake(oldCenter, oldOuter) || !FindLakeSpot(camp, oldCenter, Big, out center))
+            center = KeepAway(oldCenter, oldRadius, camp, Big);
 
-        float waterY = Shape(center, out string backup, out int cleared);
+        float waterY = Shape(center, Big, out string backup, out int cleared);
         Undo.RecordObject(water.transform, "Make Lake Bigger");
-        PlaceWater(water, center, waterY);
-        if (water.GetComponent<FishingSpot>() == null)
-            water.AddComponent<FishingSpot>();
+        PlaceWater(water, center, waterY, Big);
+        EnsureLakeComponents(water);
 
-        FinishScene(center);
+        FinishScene(center, Big);
         EditorUtility.DisplayDialog(
             "Lake",
-            "The lake is now " + Mathf.RoundToInt(WaterRadius * 2f) + " m wide and up to " + MaxDepth + " m deep.\n" +
+            "The lake is now " + Mathf.RoundToInt(Big.Water * 2f) + " m wide and up to " + Big.Depth + " m deep.\n" +
             "It is " + Mathf.RoundToInt(Vector3.Distance(Flat(camp), Flat(center))) + " m " + Direction(camp, center) +
             " of your camp, and " + Mathf.RoundToInt(Vector3.Distance(Flat(oldCenter), Flat(center))) +
             " m from where the old lake was.\n\n" +
@@ -97,15 +114,52 @@ public static class MakeFishingLake
             "OK");
     }
 
-    static float Shape(Vector3 center, out string backup, out int cleared)
+    [MenuItem("Tools/Hunting Game/Make Fishing Lake")]
+    static void Make()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            EditorUtility.DisplayDialog("Lake", "Press Stop first, then run this again.", "OK");
+            return;
+        }
+
+        if (GameObject.Find("Water") != null)
+        {
+            EditorUtility.DisplayDialog("Lake", "There is already a Water object in the scene.", "OK");
+            return;
+        }
+
+        Vector3 camp = CampPosition();
+        if (!FindLakeSpot(camp, camp, Big, out Vector3 center))
+        {
+            EditorUtility.DisplayDialog("Lake", "No terrain was found in the scene.", "OK");
+            return;
+        }
+
+        float waterY = Shape(center, Big, out string backup, out int cleared);
+        CreateWater("Water", center, waterY, Big);
+        FinishScene(center, Big);
+
+        float distance = Vector3.Distance(Flat(camp), Flat(center));
+        EditorUtility.DisplayDialog(
+            "Lake",
+            "A fishing lake was made " + Mathf.RoundToInt(distance) + " m " + Direction(camp, center) +
+            " of your camp, with a sand beach. It shows on the minimap when you get close.\n\n" +
+            (cleared > 0 ? cleared + " trees/bushes that stood in the lake were hidden.\n\n" : "") +
+            "In Play mode: walk to the shore, look at the water and press G.\n\n" +
+            "Terrain backup: " + backup,
+            "OK");
+    }
+
+    internal static float Shape(Vector3 center, LakeSize size, out string backup, out int cleared)
     {
         Undo.SetCurrentGroupName("Fishing Lake");
-        float waterY = WaterLevel(center);
+        float waterY = WaterLevel(center, size);
         backup = "";
 
         foreach (Terrain terrain in ActiveTerrains())
         {
-            if (!Touches(terrain, center, OuterRadius))
+            if (!Touches(terrain, center, size.Outer))
                 continue;
 
             TerrainData data = terrain.terrainData;
@@ -113,19 +167,20 @@ public static class MakeFishingLake
             backup += (backup.Length > 0 ? "\n" : "") + copy;
             Undo.RegisterCompleteObjectUndo(data, "Fishing Lake");
 
-            DigBowl(terrain, center, waterY);
-            PaintSand(terrain, center);
+            DigBowl(terrain, center, waterY, size);
+            Rect area = new Rect(center.x - size.Sand, center.z - size.Sand, size.Sand * 2f, size.Sand * 2f);
+            PaintSand(terrain, area, p => LakeSand(Vector3.Distance(Flat(p), Flat(center)), size));
             terrain.Flush();
             EditorUtility.SetDirty(data);
         }
 
         AssetDatabase.SaveAssets();
-        cleared = ClearFoliage(center);
-        MoveAnimalsOut(center);
+        cleared = HideFoliage(p => Vector3.Distance(Flat(p), Flat(center)) <= size.Outer + 1f);
+        MoveAnimalsOut(center, size);
         return waterY;
     }
 
-    static List<Terrain> ActiveTerrains()
+    internal static List<Terrain> ActiveTerrains()
     {
         List<Terrain> terrains = new List<Terrain>();
         foreach (Terrain t in Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude))
@@ -136,12 +191,17 @@ public static class MakeFishingLake
         return terrains;
     }
 
-    static bool Touches(Terrain terrain, Vector3 center, float radius)
+    internal static bool Touches(Terrain terrain, Vector3 center, float radius)
+    {
+        return Touches(terrain, new Rect(center.x - radius, center.z - radius, radius * 2f, radius * 2f));
+    }
+
+    internal static bool Touches(Terrain terrain, Rect area)
     {
         Vector3 o = terrain.transform.position;
         Vector3 s = terrain.terrainData.size;
-        return center.x + radius > o.x && center.x - radius < o.x + s.x &&
-               center.z + radius > o.z && center.z - radius < o.z + s.z;
+        return area.xMax > o.x && area.xMin < o.x + s.x &&
+               area.yMax > o.z && area.yMin < o.z + s.z;
     }
 
     // Puts the old lake's ground and paint back from the first backup made before any lake existed.
@@ -179,6 +239,15 @@ public static class MakeFishingLake
 
     static bool RestoreArea(Terrain terrain, Vector3 center, float radius)
     {
+        Rect area = new Rect(center.x - radius, center.z - radius, radius * 2f, radius * 2f);
+        return RestoreMasked(terrain, area, p => true, null, null);
+    }
+
+    // Inside the area, every point where mask is true gets its height and paint from the first backup.
+    // reshape(point, originalHeight) and sand(point) can then rebuild things that should stay, like another lake.
+    internal static bool RestoreMasked(Terrain terrain, Rect area, System.Func<Vector3, bool> mask,
+        System.Func<Vector3, float, float> reshape, System.Func<Vector3, float> sand)
+    {
         TerrainData data = terrain.terrainData;
         string assetPath = AssetDatabase.GetAssetPath(data);
         string backup = OldestBackup(Path.GetFileName(assetPath));
@@ -200,25 +269,52 @@ public static class MakeFishingLake
             Vector3 origin = terrain.transform.position;
 
             int res = data.heightmapResolution;
-            RectInt h = CellRect(center, radius, origin, data.size, res - 1, res);
+            float cellX = data.size.x / (res - 1);
+            float cellZ = data.size.z / (res - 1);
+            RectInt h = CellRect(area, origin, data.size, res - 1, res);
             if (h.width > 0 && h.height > 0)
-                data.SetHeights(h.x, h.y, original.GetHeights(h.x, h.y, h.width, h.height));
+            {
+                float[,] from = original.GetHeights(h.x, h.y, h.width, h.height);
+                float[,] to = data.GetHeights(h.x, h.y, h.width, h.height);
+                for (int j = 0; j < h.height; j++)
+                {
+                    for (int i = 0; i < h.width; i++)
+                    {
+                        Vector3 world = new Vector3(origin.x + (h.x + i) * cellX, 0f, origin.z + (h.y + j) * cellZ);
+                        if (!mask(world))
+                            continue;
+
+                        float height = origin.y + from[j, i] * original.size.y;
+                        if (reshape != null)
+                            height = reshape(world, height);
+                        to[j, i] = Mathf.Clamp01((height - origin.y) / data.size.y);
+                    }
+                }
+                data.SetHeights(h.x, h.y, to);
+            }
 
             if (original.alphamapResolution == data.alphamapResolution && original.alphamapLayers > 0)
             {
                 int ares = data.alphamapResolution;
-                RectInt a = CellRect(center, radius, origin, data.size, ares, ares);
+                RectInt a = CellRect(area, origin, data.size, ares, ares);
                 if (a.width > 0 && a.height > 0)
                 {
                     float[,,] from = original.GetAlphamaps(a.x, a.y, a.width, a.height);
                     float[,,] to = data.GetAlphamaps(a.x, a.y, a.width, a.height);
                     List<TerrainLayer> layers = new List<TerrainLayer>(data.terrainLayers);
                     TerrainLayer[] fromLayers = original.terrainLayers;
+                    int sandIndex = layers.IndexOf(AssetDatabase.LoadAssetAtPath<TerrainLayer>(SandLayerPath));
 
                     for (int j = 0; j < a.height; j++)
                     {
                         for (int i = 0; i < a.width; i++)
                         {
+                            Vector3 world = new Vector3(
+                                origin.x + (a.x + i + 0.5f) / ares * data.size.x, 0f,
+                                origin.z + (a.y + j + 0.5f) / ares * data.size.z);
+                            if (!mask(world))
+                                continue;
+
                             for (int l = 0; l < to.GetLength(2); l++)
                                 to[j, i, l] = 0f;
                             for (int l = 0; l < fromLayers.Length && l < from.GetLength(2); l++)
@@ -227,6 +323,13 @@ public static class MakeFishingLake
                                 if (index >= 0)
                                     to[j, i, index] += from[j, i, l];
                             }
+
+                            float amount = sand != null && sandIndex >= 0 ? Mathf.Clamp01(sand(world)) : 0f;
+                            if (amount <= 0f)
+                                continue;
+                            for (int l = 0; l < to.GetLength(2); l++)
+                                to[j, i, l] *= 1f - amount;
+                            to[j, i, sandIndex] += amount;
                         }
                     }
                     data.SetAlphamaps(a.x, a.y, to);
@@ -243,12 +346,12 @@ public static class MakeFishingLake
         }
     }
 
-    static RectInt CellRect(Vector3 center, float radius, Vector3 origin, Vector3 size, float cells, int count)
+    internal static RectInt CellRect(Rect area, Vector3 origin, Vector3 size, float cells, int count)
     {
-        int x0 = Mathf.Clamp(Mathf.FloorToInt((center.x - radius - origin.x) / size.x * cells), 0, count - 1);
-        int x1 = Mathf.Clamp(Mathf.CeilToInt((center.x + radius - origin.x) / size.x * cells), 0, count - 1);
-        int z0 = Mathf.Clamp(Mathf.FloorToInt((center.z - radius - origin.z) / size.z * cells), 0, count - 1);
-        int z1 = Mathf.Clamp(Mathf.CeilToInt((center.z + radius - origin.z) / size.z * cells), 0, count - 1);
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((area.xMin - origin.x) / size.x * cells), 0, count - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((area.xMax - origin.x) / size.x * cells), 0, count - 1);
+        int z0 = Mathf.Clamp(Mathf.FloorToInt((area.yMin - origin.z) / size.z * cells), 0, count - 1);
+        int z1 = Mathf.Clamp(Mathf.CeilToInt((area.yMax - origin.z) / size.z * cells), 0, count - 1);
         return new RectInt(x0, z0, x1 - x0 + 1, z1 - z0 + 1);
     }
 
@@ -266,19 +369,19 @@ public static class MakeFishingLake
     }
 
     // Used when there is no backup: grows the lake in place, pushed away from the camp and the world edge.
-    static Vector3 KeepAway(Vector3 center, float oldRadius, Vector3 camp)
+    static Vector3 KeepAway(Vector3 center, float oldRadius, Vector3 camp, LakeSize size)
     {
-        Vector3 wanted = KeepInsideWorld(center);
+        Vector3 wanted = KeepInsideWorld(center, size);
         Vector3 fromCamp = Flat(wanted - camp);
-        float needed = OuterRadius + 30f;
+        float needed = size.Outer + 30f;
         if (fromCamp.magnitude < needed)
             wanted = camp + (fromCamp.sqrMagnitude > 0.01f ? fromCamp.normalized : Vector3.forward) * needed;
 
-        float maxShift = Mathf.Max(0f, BeachRadius - oldRadius - 20f);
+        float maxShift = Mathf.Max(0f, size.Beach - oldRadius - 20f);
         return center + Vector3.ClampMagnitude(Flat(wanted - center), maxShift);
     }
 
-    static Vector3 KeepInsideWorld(Vector3 center)
+    static Vector3 KeepInsideWorld(Vector3 center, LakeSize size)
     {
         float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
         foreach (Terrain t in ActiveTerrains())
@@ -291,7 +394,7 @@ public static class MakeFishingLake
             maxZ = Mathf.Max(maxZ, o.z + s.z);
         }
 
-        float margin = OuterRadius + 10f;
+        float margin = size.Outer + 10f;
         Vector3 wanted = center;
         if (maxX - minX > margin * 2f)
             wanted.x = Mathf.Clamp(center.x, minX + margin, maxX - margin);
@@ -300,13 +403,18 @@ public static class MakeFishingLake
         return wanted;
     }
 
-    static float GroundHeight(Vector3 p)
+    internal static float GroundHeight(Vector3 p)
     {
         Terrain t = WorldGround.TerrainAt(p);
         return t != null ? t.SampleHeight(p) + t.transform.position.y : 0f;
     }
 
-    static void FinishScene(Vector3 center)
+    internal static void FinishScene(Vector3 center, LakeSize size)
+    {
+        FinishScene(center, size.Water * 1.1f);
+    }
+
+    internal static void FinishScene(Vector3 center, float viewSize)
     {
         EditorPrefs.SetBool(DoneKey, true);
         Scene scene = SceneManager.GetActiveScene();
@@ -315,47 +423,10 @@ public static class MakeFishingLake
 
         SceneView view = SceneView.lastActiveSceneView;
         if (view != null)
-            view.LookAt(center + Vector3.up * 10f, Quaternion.Euler(40f, 0f, 0f), 160f);
+            view.LookAt(center + Vector3.up * 10f, Quaternion.Euler(40f, 0f, 0f), viewSize);
     }
 
-    [MenuItem("Tools/Hunting Game/Make Fishing Lake")]
-    static void Make()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode)
-        {
-            EditorUtility.DisplayDialog("Lake", "Press Stop first, then run this again.", "OK");
-            return;
-        }
-
-        if (GameObject.Find("Water") != null)
-        {
-            EditorUtility.DisplayDialog("Lake", "There is already a Water object in the scene.", "OK");
-            return;
-        }
-
-        Vector3 camp = CampPosition();
-        if (!FindLakeSpot(camp, camp, out Vector3 center))
-        {
-            EditorUtility.DisplayDialog("Lake", "No terrain was found in the scene.", "OK");
-            return;
-        }
-
-        float waterY = Shape(center, out string backup, out int cleared);
-        CreateWater(center, waterY);
-        FinishScene(center);
-
-        float distance = Vector3.Distance(Flat(camp), Flat(center));
-        EditorUtility.DisplayDialog(
-            "Lake",
-            "A fishing lake was made " + Mathf.RoundToInt(distance) + " m " + Direction(camp, center) +
-            " of your camp, with a sand beach. It shows on the minimap when you get close.\n\n" +
-            (cleared > 0 ? cleared + " trees/bushes that stood in the lake were hidden.\n\n" : "") +
-            "In Play mode: walk to the shore, look at the water and press G.\n\n" +
-            "Terrain backup: " + backup,
-            "OK");
-    }
-
-    static Vector3 CampPosition()
+    internal static Vector3 CampPosition()
     {
         GameObject tent = GameObject.Find("FCP_Tent_Type1_Color1");
         if (tent != null)
@@ -365,18 +436,15 @@ public static class MakeFishingLake
     }
 
     // Searches every terrain; each 250 m from "near" counts like 1 m of bumpiness. The camp always stays dry.
-    static bool FindLakeSpot(Vector3 camp, Vector3 near, out Vector3 best)
+    static bool FindLakeSpot(Vector3 camp, Vector3 near, LakeSize size, out Vector3 best)
     {
         best = Vector3.zero;
         Terrain bestTerrain = null;
         float bestScore = float.MaxValue;
         const float step = 40f;
 
-        foreach (Terrain terrain in Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude))
+        foreach (Terrain terrain in ActiveTerrains())
         {
-            if (!terrain.enabled || terrain.terrainData == null)
-                continue;
-
             Vector3 o = terrain.transform.position;
             Vector3 s = terrain.terrainData.size;
             for (float x = o.x + step * 0.5f; x < o.x + s.x; x += step)
@@ -384,13 +452,13 @@ public static class MakeFishingLake
                 for (float z = o.z + step * 0.5f; z < o.z + s.z; z += step)
                 {
                     Vector3 candidate = new Vector3(x, 0f, z);
-                    if (!FarFromEdges(terrain, candidate))
+                    if (!FarFromEdges(terrain, candidate, size))
                         continue;
 
-                    if (Vector3.Distance(Flat(candidate), Flat(camp)) < OuterRadius + 40f)
+                    if (Vector3.Distance(Flat(candidate), Flat(camp)) < size.Outer + 40f)
                         continue;
 
-                    float score = HeightRange(candidate) + Vector3.Distance(Flat(candidate), Flat(near)) / 250f;
+                    float score = HeightRange(candidate, size) + Vector3.Distance(Flat(candidate), Flat(near)) / 250f;
                     if (score < bestScore)
                     {
                         bestScore = score;
@@ -402,11 +470,11 @@ public static class MakeFishingLake
         }
 
         if (bestTerrain != null)
-            best.y = bestTerrain.SampleHeight(best) + bestTerrain.transform.position.y;
+            best.y = GroundHeight(best);
         return bestTerrain != null;
     }
 
-    static string Direction(Vector3 from, Vector3 to)
+    internal static string Direction(Vector3 from, Vector3 to)
     {
         Vector3 d = Flat(to - from);
         string ns = d.z > Mathf.Abs(d.x) * 0.4f ? "north" : d.z < -Mathf.Abs(d.x) * 0.4f ? "south" : "";
@@ -415,19 +483,20 @@ public static class MakeFishingLake
     }
 
     // Keeps the lake out of the border band the terrain combine tool smooths.
-    static bool FarFromEdges(Terrain terrain, Vector3 p)
+    internal static bool FarFromEdges(Terrain terrain, Vector3 p, LakeSize size)
     {
         Vector3 o = terrain.transform.position;
         Vector3 s = terrain.terrainData.size;
-        return p.x > o.x + 450f && p.x < o.x + s.x - 450f &&
-               p.z > o.z + OuterRadius + 40f && p.z < o.z + s.z - OuterRadius - 40f;
+        float marginX = Mathf.Max(450f, size.Outer + 40f);
+        return p.x > o.x + marginX && p.x < o.x + s.x - marginX &&
+               p.z > o.z + size.Outer + 40f && p.z < o.z + s.z - size.Outer - 40f;
     }
 
-    static float HeightRange(Vector3 center)
+    internal static float HeightRange(Vector3 center, LakeSize size)
     {
         float min = float.MaxValue;
         float max = float.MinValue;
-        float r = OuterRadius;
+        float r = size.Outer;
         foreach (Vector3 p in RingPoints(center, new[] { 0f, r * 0.25f, r * 0.5f, r * 0.75f, r }))
         {
             float h = GroundHeight(p);
@@ -451,83 +520,84 @@ public static class MakeFishingLake
     }
 
     // Low parts of the rim are raised into a bank by DigBowl, so a low percentile is enough.
-    static float WaterLevel(Vector3 center)
+    internal static float WaterLevel(Vector3 center, LakeSize size)
     {
         List<float> rim = new List<float>();
-        foreach (Vector3 p in RingPoints(center, new[] { BeachRadius + 3f, BeachRadius + 8f, OuterRadius }))
+        foreach (Vector3 p in RingPoints(center, new[] { size.Beach + 3f, size.Beach + 8f, size.Outer }))
             rim.Add(GroundHeight(p));
         rim.Sort();
         return rim[Mathf.FloorToInt(rim.Count * 0.3f)] - 0.4f;
     }
 
-    static void DigBowl(Terrain terrain, Vector3 center, float waterY)
+    static void DigBowl(Terrain terrain, Vector3 center, float waterY, LakeSize size)
     {
         TerrainData data = terrain.terrainData;
         Vector3 origin = terrain.transform.position;
         int res = data.heightmapResolution;
+        Rect area = new Rect(center.x - size.Outer, center.z - size.Outer, size.Outer * 2f, size.Outer * 2f);
+        RectInt cells = CellRect(area, origin, data.size, res - 1, res);
         float cellX = data.size.x / (res - 1);
         float cellZ = data.size.z / (res - 1);
 
-        int x0 = Mathf.Clamp(Mathf.FloorToInt((center.x - OuterRadius - origin.x) / cellX), 0, res - 1);
-        int x1 = Mathf.Clamp(Mathf.CeilToInt((center.x + OuterRadius - origin.x) / cellX), 0, res - 1);
-        int z0 = Mathf.Clamp(Mathf.FloorToInt((center.z - OuterRadius - origin.z) / cellZ), 0, res - 1);
-        int z1 = Mathf.Clamp(Mathf.CeilToInt((center.z + OuterRadius - origin.z) / cellZ), 0, res - 1);
-        int w = x1 - x0 + 1;
-        int h = z1 - z0 + 1;
-
-        float[,] heights = data.GetHeights(x0, z0, w, h);
-        for (int j = 0; j < h; j++)
+        float[,] heights = data.GetHeights(cells.x, cells.y, cells.width, cells.height);
+        for (int j = 0; j < cells.height; j++)
         {
-            for (int i = 0; i < w; i++)
+            for (int i = 0; i < cells.width; i++)
             {
-                float worldX = origin.x + (x0 + i) * cellX;
-                float worldZ = origin.z + (z0 + j) * cellZ;
+                float worldX = origin.x + (cells.x + i) * cellX;
+                float worldZ = origin.z + (cells.y + j) * cellZ;
                 float d = new Vector2(worldX - center.x, worldZ - center.z).magnitude;
-                if (d > OuterRadius)
+                if (d > size.Outer)
                     continue;
 
                 float original = origin.y + heights[j, i] * data.size.y;
-                float shaped;
-                if (d <= BowlRadius)
-                {
-                    shaped = Mathf.Min(original, Profile(d, waterY));
-                }
-                else if (d <= BeachRadius)
-                {
-                    shaped = Profile(d, waterY);
-                }
-                else
-                {
-                    float s = Smooth((d - BeachRadius) / (OuterRadius - BeachRadius));
-                    shaped = Mathf.Lerp(waterY + 0.3f, original, s);
-                }
-
+                float shaped = LakeHeight(d, original, waterY, size);
                 heights[j, i] = Mathf.Clamp01((shaped - origin.y) / data.size.y);
             }
         }
 
-        data.SetHeights(x0, z0, heights);
+        data.SetHeights(cells.x, cells.y, heights);
     }
 
-    static float Profile(float d, float waterY)
+    // Ground height at distance d from a lake's centre, given the ground there before the lake was dug.
+    internal static float LakeHeight(float d, float original, float waterY, LakeSize size)
     {
-        if (d <= BowlRadius)
+        if (d > size.Outer)
+            return original;
+        if (d <= size.Bowl)
+            return Mathf.Min(original, Profile(d, waterY, size));
+        if (d <= size.Beach)
+            return Profile(d, waterY, size);
+
+        float s = Smooth((d - size.Beach) / (size.Outer - size.Beach));
+        return Mathf.Lerp(waterY + 0.3f, original, s);
+    }
+
+    internal static float LakeSand(float d, LakeSize size)
+    {
+        return 1f - Smooth((d - size.Beach) / (size.Sand - size.Beach));
+    }
+
+    static float Profile(float d, float waterY, LakeSize size)
+    {
+        if (d <= size.Bowl)
         {
-            float t = d / BowlRadius;
-            return waterY - 0.6f - (MaxDepth - 0.6f) * (1f - t * t);
+            float t = d / size.Bowl;
+            return waterY - 0.6f - (size.Depth - 0.6f) * (1f - t * t);
         }
 
-        float s = Smooth((d - BowlRadius) / (BeachRadius - BowlRadius));
+        float s = Smooth((d - size.Bowl) / (size.Beach - size.Bowl));
         return Mathf.Lerp(waterY - 0.6f, waterY + 0.3f, s);
     }
 
-    static float Smooth(float t)
+    internal static float Smooth(float t)
     {
         t = Mathf.Clamp01(t);
         return t * t * (3f - 2f * t);
     }
 
-    static void PaintSand(Terrain terrain, Vector3 center)
+    // amount(worldPoint) gives 0..1 sand for each paint texel inside the area.
+    internal static void PaintSand(Terrain terrain, Rect area, System.Func<Vector3, float> amount)
     {
         TerrainLayer sand = SandLayer();
         TerrainData data = terrain.terrainData;
@@ -562,23 +632,16 @@ public static class MakeFishingLake
         }
 
         Vector3 origin = terrain.transform.position;
-        int x0 = Mathf.Clamp(Mathf.FloorToInt((center.x - SandRadius - origin.x) / data.size.x * res), 0, res - 1);
-        int x1 = Mathf.Clamp(Mathf.CeilToInt((center.x + SandRadius - origin.x) / data.size.x * res), 0, res - 1);
-        int z0 = Mathf.Clamp(Mathf.FloorToInt((center.z - SandRadius - origin.z) / data.size.z * res), 0, res - 1);
-        int z1 = Mathf.Clamp(Mathf.CeilToInt((center.z + SandRadius - origin.z) / data.size.z * res), 0, res - 1);
-        int w = x1 - x0 + 1;
-        int h = z1 - z0 + 1;
-
-        float[,,] alpha = data.GetAlphamaps(x0, z0, w, h);
+        RectInt cells = CellRect(area, origin, data.size, res, res);
+        float[,,] alpha = data.GetAlphamaps(cells.x, cells.y, cells.width, cells.height);
         int count = alpha.GetLength(2);
-        for (int j = 0; j < h; j++)
+        for (int j = 0; j < cells.height; j++)
         {
-            for (int i = 0; i < w; i++)
+            for (int i = 0; i < cells.width; i++)
             {
-                float worldX = origin.x + (x0 + i + 0.5f) / res * data.size.x;
-                float worldZ = origin.z + (z0 + j + 0.5f) / res * data.size.z;
-                float d = new Vector2(worldX - center.x, worldZ - center.z).magnitude;
-                float sandAmount = 1f - Smooth((d - BeachRadius) / (SandRadius - BeachRadius));
+                float worldX = origin.x + (cells.x + i + 0.5f) / res * data.size.x;
+                float worldZ = origin.z + (cells.y + j + 0.5f) / res * data.size.z;
+                float sandAmount = Mathf.Clamp01(amount(new Vector3(worldX, 0f, worldZ)));
                 if (sandAmount <= 0f)
                     continue;
 
@@ -588,7 +651,7 @@ public static class MakeFishingLake
             }
         }
 
-        data.SetAlphamaps(x0, z0, alpha);
+        data.SetAlphamaps(cells.x, cells.y, alpha);
     }
 
     static TerrainLayer SandLayer()
@@ -625,7 +688,7 @@ public static class MakeFishingLake
         return layer;
     }
 
-    static Material WaterMaterial()
+    internal static Material WaterMaterial()
     {
         EnsureFolder();
         Material mat = AssetDatabase.LoadAssetAtPath<Material>(WaterMatPath);
@@ -652,28 +715,37 @@ public static class MakeFishingLake
         return mat;
     }
 
-    static void CreateWater(Vector3 center, float waterY)
+    internal static GameObject CreateWater(string name, Vector3 center, float waterY, LakeSize size)
     {
         GameObject water = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        water.name = "Water";
+        water.name = name;
         Object.DestroyImmediate(water.GetComponent<Collider>());
-        PlaceWater(water, center, waterY);
+        PlaceWater(water, center, waterY, size);
 
         MeshRenderer renderer = water.GetComponent<MeshRenderer>();
         renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
-        water.AddComponent<FishingSpot>();
+        EnsureLakeComponents(water);
         Undo.RegisterCreatedObjectUndo(water, "Make Fishing Lake");
+        return water;
     }
 
-    static void PlaceWater(GameObject water, Vector3 center, float waterY)
+    internal static void EnsureLakeComponents(GameObject water)
+    {
+        if (water.GetComponent<LakeWater>() == null)
+            Undo.AddComponent<LakeWater>(water);
+        if (water.GetComponent<FishingSpot>() == null)
+            Undo.AddComponent<FishingSpot>(water);
+    }
+
+    static void PlaceWater(GameObject water, Vector3 center, float waterY, LakeSize size)
     {
         water.transform.position = new Vector3(center.x, waterY - 0.01f, center.z);
-        water.transform.localScale = new Vector3(WaterRadius * 2f, 0.01f, WaterRadius * 2f);
+        water.transform.localScale = new Vector3(size.Water * 2f, 0.01f, size.Water * 2f);
         water.GetComponent<MeshRenderer>().sharedMaterial = WaterMaterial();
     }
 
-    static int ClearFoliage(Vector3 center)
+    internal static int HideFoliage(System.Func<Vector3, bool> inside)
     {
         HashSet<GameObject> targets = new HashSet<GameObject>();
         GameObject foliage = GameObject.Find("_HuntFoliage");
@@ -690,7 +762,7 @@ public static class MakeFishingLake
         {
             if (!go.activeSelf || go.GetComponent<Animal>() != null)
                 continue;
-            if (Vector3.Distance(Flat(go.transform.position), Flat(center)) > OuterRadius + 1f)
+            if (!inside(go.transform.position))
                 continue;
 
             Undo.RecordObject(go, "Make Fishing Lake");
@@ -700,21 +772,21 @@ public static class MakeFishingLake
         return cleared;
     }
 
-    static void MoveAnimalsOut(Vector3 center)
+    static void MoveAnimalsOut(Vector3 center, LakeSize size)
     {
         foreach (Animal animal in Object.FindObjectsByType<Animal>(FindObjectsInactive.Exclude))
         {
             Vector3 offset = Flat(animal.transform.position - center);
-            if (offset.magnitude > OuterRadius + 4f)
+            if (offset.magnitude > size.Outer + 4f)
                 continue;
 
             Vector3 dir = offset.sqrMagnitude > 0.01f ? offset.normalized : Vector3.forward;
             Undo.RecordObject(animal.transform, "Make Fishing Lake");
-            animal.transform.position = WorldGround.Snap(center + dir * (OuterRadius + 6f));
+            animal.transform.position = WorldGround.Snap(center + dir * (size.Outer + 6f));
         }
     }
 
-    static string BackupTerrain(TerrainData data)
+    internal static string BackupTerrain(TerrainData data)
     {
         string path = AssetDatabase.GetAssetPath(data);
         if (string.IsNullOrEmpty(path))
@@ -723,17 +795,18 @@ public static class MakeFishingLake
         string dir = Path.Combine(Path.GetTempPath(), "lake_backup_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss"));
         Directory.CreateDirectory(dir);
         string target = Path.Combine(dir, Path.GetFileName(path));
-        File.Copy(path, target, true);
+        if (!File.Exists(target))
+            File.Copy(path, target, true);
         return target;
     }
 
-    static void EnsureFolder()
+    internal static void EnsureFolder()
     {
         if (!AssetDatabase.IsValidFolder(Folder))
             AssetDatabase.CreateFolder("Assets/Nature", "Lake");
     }
 
-    static Vector3 Flat(Vector3 v)
+    internal static Vector3 Flat(Vector3 v)
     {
         v.y = 0f;
         return v;

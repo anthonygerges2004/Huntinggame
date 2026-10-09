@@ -97,12 +97,6 @@ public static class WorldGround
 
     public static bool InsideWater(Vector3 worldPosition)
     {
-        GameObject water = GameObject.Find("Water");
-        Terrain terrain = TerrainAt(worldPosition);
-        if (water == null || terrain == null)
-            return false;
-
-        float groundY = terrain.SampleHeight(worldPosition) + terrain.transform.position.y;
-        return groundY <= water.transform.position.y + 0.45f;
+        return WaterBodies.InsideWater(worldPosition);
     }
 }

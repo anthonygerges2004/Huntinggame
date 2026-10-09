@@ -105,7 +105,7 @@ public class FishingSpot : MonoBehaviour
     bool CanCast(out Vector3 point)
     {
         point = Vector3.zero;
-        if (LakeWater.TryGetSwim(player.position, out _))
+        if (WaterBodies.TryGetSwim(player.position, out _, out _))
             return false;
 
         Plane surface = new Plane(Vector3.up, new Vector3(0f, lake.SurfaceY, 0f));
@@ -169,7 +169,7 @@ public class FishingSpot : MonoBehaviour
             ScreenText.Centered(Biting ? "Fish on! Press G now!" : "Waiting for a bite...", y);
         else if (CanCast(out _))
             ScreenText.Centered("Press G to fish", y);
-        else if (LakeWater.TryGetSwim(player.position, out _))
+        else if (WaterBodies.TryGetSwim(player.position, out _, out _))
             ScreenText.Centered("Swimming:  Space = up   Ctrl = dive", Screen.height - 70f * ScreenText.Scale, 18);
     }
 }

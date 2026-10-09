@@ -73,9 +73,9 @@ public class PlayerMove : MonoBehaviour
         if (move.sqrMagnitude > 1f)
             move.Normalize();
 
-        if (LakeWater.TryGetSwim(transform.position, out float surface))
+        if (WaterBodies.TryGetSwim(transform.position, out float surface, out Vector3 current))
         {
-            Swim(move, surface);
+            Swim(move, surface, current);
             return;
         }
 
@@ -97,7 +97,7 @@ public class PlayerMove : MonoBehaviour
         controller.Move(motion * Time.deltaTime);
     }
 
-    void Swim(Vector3 move, float surface)
+    void Swim(Vector3 move, float surface, Vector3 current)
     {
         IsCrouching = false;
         float floatY = surface - 0.35f;
@@ -111,8 +111,18 @@ public class PlayerMove : MonoBehaviour
             ? up * swimVerticalSpeed
             : Mathf.Clamp((floatY - y) * 2f, -swimVerticalSpeed, swimVerticalSpeed);
 
-        Vector3 motion = move * swimSpeed;
+        Vector3 motion = move * swimSpeed + current;
         motion.y = verticalSpeed;
         controller.Move(motion * Time.deltaTime);
+    }
+
+    void OnGUI()
+    {
+        if (cam == null || !WaterBodies.Underwater(cam.position))
+            return;
+
+        GUI.color = new Color(0.1f, 0.32f, 0.45f, 0.55f);
+        GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
+        GUI.color = Color.white;
     }
 }
