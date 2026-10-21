@@ -177,7 +177,7 @@ public class GameHUD : MonoBehaviour
         MakeLabel(
             box.transform,
             font,
-            "F fire    C cook    Q eat    E chop    1 sell    3 pickaxe",
+            "F light/feed fire    C cook    Q eat    E chop    1 sell    3 pickaxe",
             12f,
             -14f,
             width - 24f,

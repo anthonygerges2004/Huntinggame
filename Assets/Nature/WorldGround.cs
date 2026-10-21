@@ -58,17 +58,33 @@ public static class WorldGround
 
     public static Vector3 Snap(Vector3 worldPosition)
     {
+        if (TryGetGround(worldPosition, out Vector3 point, out _))
+            return point;
+        return worldPosition;
+    }
+
+    public static bool TryGetGround(Vector3 worldPosition, out Vector3 point, out Vector3 normal)
+    {
+        point = worldPosition;
+        normal = Vector3.up;
+
         Terrain terrain = TerrainAt(worldPosition);
         if (terrain == null || terrain.terrainData == null)
-            return worldPosition;
+            return false;
 
         Vector3 origin = terrain.transform.position;
         Vector3 size = terrain.terrainData.size;
-        float x = Mathf.Clamp(worldPosition.x, origin.x + 8f, origin.x + size.x - 8f);
-        float z = Mathf.Clamp(worldPosition.z, origin.z + 8f, origin.z + size.z - 8f);
-        Vector3 point = new(x, 0f, z);
+        float x = Mathf.Clamp(worldPosition.x, origin.x, origin.x + size.x);
+        float z = Mathf.Clamp(worldPosition.z, origin.z, origin.z + size.z);
+        float nx = Mathf.InverseLerp(origin.x, origin.x + size.x, x);
+        float nz = Mathf.InverseLerp(origin.z, origin.z + size.z, z);
+        normal = terrain.terrainData.GetInterpolatedNormal(nx, nz).normalized;
+        if (normal.sqrMagnitude < 0.01f)
+            normal = Vector3.up;
+
+        point = new Vector3(x, 0f, z);
         point.y = terrain.SampleHeight(point) + origin.y;
-        return point;
+        return true;
     }
 
     public static bool IsMeadow(Vector3 worldPosition)

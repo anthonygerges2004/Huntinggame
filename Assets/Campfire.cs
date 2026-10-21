@@ -8,6 +8,8 @@ public class Campfire : MonoBehaviour
     [Header("Campfire Settings")]
     public float safeRadius = 8f;
     public int woodCost = 1;
+    [Tooltip("How long one wood keeps the fire burning.")]
+    public float secondsPerWood = 55f;
     public Key fireKey = Key.F;
     public Key cookKey = Key.C;
     public float spawnDistance = 3f;
@@ -21,6 +23,7 @@ public class Campfire : MonoBehaviour
 
     private Light fireLight;
     private GameObject fireInstance;
+    private float fuelSeconds;
 
     void Awake()
     {
@@ -51,12 +54,28 @@ public class Campfire : MonoBehaviour
 
         if (Keyboard.current[cookKey].wasPressedThisFrame)
             Cook();
+
+        if (isLit)
+            TickFuel();
+    }
+
+    void TickFuel()
+    {
+        fuelSeconds -= Time.deltaTime;
+        if (fuelSeconds > 0f)
+            return;
+
+        fuelSeconds = 0f;
+        SetLit(false, wentOutFromFuel: true);
     }
 
     void ToggleFire()
     {
         if (isLit)
         {
+            if (TryFeedFire())
+                return;
+
             SetLit(false);
             return;
         }
@@ -68,10 +87,34 @@ public class Campfire : MonoBehaviour
         }
 
         if (SetLit(true))
+        {
             Inventory.Instance.UseWood(woodCost);
+            AddFuelFromWood(woodCost);
+        }
     }
 
-    bool SetLit(bool lit)
+    bool TryFeedFire()
+    {
+        if (Inventory.Instance == null || Inventory.Instance.wood < woodCost)
+            return false;
+
+        if (!Inventory.Instance.UseWood(woodCost))
+            return false;
+
+        AddFuelFromWood(woodCost);
+        Inventory.Instance.ShowNotice("Added wood to the fire.");
+        return true;
+    }
+
+    void AddFuelFromWood(int woodPieces)
+    {
+        if (woodPieces <= 0 || secondsPerWood <= 0f)
+            return;
+
+        fuelSeconds += woodPieces * secondsPerWood;
+    }
+
+    bool SetLit(bool lit, bool wentOutFromFuel = false)
     {
         if (lit)
         {
@@ -82,13 +125,22 @@ public class Campfire : MonoBehaviour
                 return false;
             }
 
-            // Raycast downward from in front of camera to snap precisely to ground height
             Vector3 targetPoint = mainCam.transform.position + (mainCam.transform.forward * spawnDistance);
             Vector3 spawnPos = targetPoint;
+            Vector3 groundNormal = Vector3.up;
+            Quaternion spawnRot = Quaternion.identity;
 
-            if (Physics.Raycast(targetPoint + Vector3.up * 3f, Vector3.down, out RaycastHit hit, 10f))
+            if (WorldGround.TryGetGround(targetPoint, out Vector3 groundPoint, out Vector3 terrainNormal))
             {
-                spawnPos = hit.point;
+                spawnPos = groundPoint + terrainNormal * 0.02f;
+                groundNormal = terrainNormal;
+                spawnRot = Quaternion.FromToRotation(Vector3.up, groundNormal);
+            }
+            else if (Physics.Raycast(targetPoint + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 25f))
+            {
+                spawnPos = hit.point + hit.normal * 0.02f;
+                groundNormal = hit.normal;
+                spawnRot = Quaternion.FromToRotation(Vector3.up, groundNormal);
             }
 
             isLit = true;
@@ -96,7 +148,7 @@ public class Campfire : MonoBehaviour
             // Spawn campfire model
             if (fireModelPrefab != null)
             {
-                fireInstance = Instantiate(fireModelPrefab, spawnPos, Quaternion.identity);
+                fireInstance = Instantiate(fireModelPrefab, spawnPos, spawnRot);
                 fireInstance.name = "CampfireInstance";
                 fireInstance.SetActive(true);
 
@@ -128,11 +180,20 @@ public class Campfire : MonoBehaviour
             fireLight.type = LightType.Point;
             fireLight.color = new Color(1f, 0.55f, 0.15f);
             fireLight.range = safeRadius;
-            fireLight.intensity = 2f;
+            fireLight.intensity = 2.6f;
+
+            if (fireInstance != null)
+                CampfireFireEffects.Setup(fireInstance, fireLight, safeRadius);
+            else
+                CampfireFireEffects.Setup(lightObj, fireLight, safeRadius);
+
+            if (Inventory.Instance != null)
+                Inventory.Instance.ShowNotice("Campfire lit.");
             return true;
         }
 
         isLit = false;
+        fuelSeconds = 0f;
 
         if (fireInstance != null)
             Destroy(fireInstance);
@@ -142,8 +203,14 @@ public class Campfire : MonoBehaviour
 
         fireInstance = null;
         fireLight = null;
+
+        if (wentOutFromFuel && Inventory.Instance != null)
+            Inventory.Instance.ShowNotice("Fire went out. Press F with wood to relight.");
+
         return true;
     }
+
+    public float FuelSecondsRemaining => fuelSeconds;
 
     void Cook()
     {
