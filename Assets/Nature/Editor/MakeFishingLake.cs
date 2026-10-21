@@ -738,11 +738,38 @@ public static class MakeFishingLake
             Undo.AddComponent<FishingSpot>(water);
     }
 
-    static void PlaceWater(GameObject water, Vector3 center, float waterY, LakeSize size)
+    internal static void PlaceWater(GameObject water, Vector3 center, float waterY, LakeSize size)
     {
         water.transform.position = new Vector3(center.x, waterY - 0.01f, center.z);
         water.transform.localScale = new Vector3(size.Water * 2f, 0.01f, size.Water * 2f);
         water.GetComponent<MeshRenderer>().sharedMaterial = WaterMaterial();
+    }
+
+    internal static void BackupAllActiveTerrains()
+    {
+        foreach (Terrain terrain in ActiveTerrains())
+        {
+            if (terrain != null && terrain.terrainData != null)
+                BackupTerrain(terrain.terrainData);
+        }
+    }
+
+    // Re-dig the big lake on whatever terrains are in the scene now (no restore from old backup).
+    internal static bool RecarveExistingPrimaryLake()
+    {
+        GameObject water = GameObject.Find("Water");
+        if (water == null)
+            return false;
+
+        BackupAllActiveTerrains();
+        Vector3 center = water.transform.position;
+        float waterY = Shape(center, Big, out _, out _);
+        Undo.RecordObject(water.transform, "Recarve Lake");
+        PlaceWater(water, center, waterY, Big);
+        EnsureLakeComponents(water);
+        FinishScene(center, Big);
+        EditorPrefs.SetBool(DoneKey, true);
+        return true;
     }
 
     internal static int HideFoliage(System.Func<Vector3, bool> inside)

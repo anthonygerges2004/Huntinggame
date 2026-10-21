@@ -30,13 +30,14 @@ public static class CombineTerrains
         }
 
         string problem = CheckInARow(tiles);
-        if (problem != null)
-        {
-            EditorUtility.DisplayDialog("Terrain", problem + "\n\nNothing was changed.", "OK");
+        if (problem != null &&
+            !EditorUtility.DisplayDialog(
+                "Terrain",
+                problem + "\n\nClick OK to snap terrains into one row, then combine.",
+                "Snap And Combine", "Cancel"))
             return;
-        }
 
-        if (!EditorUtility.DisplayDialog(
+        if (problem == null && !EditorUtility.DisplayDialog(
                 "Terrain",
                 "Combine " + tiles.Count + " terrains into one?\n\nThe old terrains are only hidden, so " +
                 "Tools > Hunting Game > Split Terrain Back undoes this.",
@@ -45,6 +46,14 @@ public static class CombineTerrains
 
         try
         {
+            AlignTilesInRow(tiles);
+            string problemAfterAlign = CheckInARow(tiles, afterAlign: true);
+            if (problemAfterAlign != null)
+            {
+                EditorUtility.DisplayDialog("Terrain", problemAfterAlign + "\n\nNothing was changed.", "OK");
+                return;
+            }
+
             TerrainData data = BuildData(tiles, out Vector3 origin);
             GameObject combined = Terrain.CreateTerrainGameObject(data);
             combined.name = CombinedName;
@@ -108,20 +117,77 @@ public static class CombineTerrains
         SaveScene();
     }
 
+    [MenuItem("Tools/Hunting Game/Align Terrains In Row")]
+    public static void AlignFromMenu()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            EditorUtility.DisplayDialog("Terrain", "Press Stop first, then run this again.", "OK");
+            return;
+        }
+
+        List<Terrain> tiles = FindTiles();
+        if (tiles.Count < 2)
+        {
+            EditorUtility.DisplayDialog("Terrain", "Need at least 2 enabled terrains under " + ApplyRealisticTerrain.RootName + ".", "OK");
+            return;
+        }
+
+        AlignTilesInRow(tiles);
+        SaveScene();
+        EditorUtility.DisplayDialog("Terrain", "Moved " + tiles.Count + " terrains so they touch edge to edge.", "OK");
+    }
+
     static List<Terrain> FindTiles()
     {
         List<Terrain> tiles = new List<Terrain>();
-        foreach (Terrain t in Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude))
+        GameObject root = GameObject.Find(ApplyRealisticTerrain.RootName);
+        if (root != null)
         {
-            if (t.enabled && t.terrainData != null && t.name != CombinedName)
-                tiles.Add(t);
+            foreach (Terrain t in root.GetComponentsInChildren<Terrain>(true))
+            {
+                if (t.enabled && t.terrainData != null && t.name != CombinedName && t.gameObject.activeInHierarchy)
+                    tiles.Add(t);
+            }
+        }
+
+        if (tiles.Count == 0)
+        {
+            foreach (Terrain t in Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude))
+            {
+                if (t.enabled && t.terrainData != null && t.name != CombinedName)
+                    tiles.Add(t);
+            }
         }
 
         tiles.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
         return tiles;
     }
 
-    static string CheckInARow(List<Terrain> tiles)
+    static void AlignTilesInRow(List<Terrain> tiles)
+    {
+        if (tiles.Count == 0)
+            return;
+
+        Terrain first = tiles[0];
+        float y = first.transform.position.y;
+        float z = first.transform.position.z;
+        float x = first.transform.position.x;
+
+        Undo.RecordObject(first.transform, "Align Terrains");
+        first.transform.position = new Vector3(x, y, z);
+
+        for (int i = 1; i < tiles.Count; i++)
+        {
+            Terrain prev = tiles[i - 1];
+            Terrain tile = tiles[i];
+            x = prev.transform.position.x + prev.terrainData.size.x;
+            Undo.RecordObject(tile.transform, "Align Terrains");
+            tile.transform.position = new Vector3(x, y, z);
+        }
+    }
+
+    static string CheckInARow(List<Terrain> tiles, bool afterAlign = false)
     {
         if (GameObject.Find(CombinedName) != null)
             return "A combined terrain already exists.";
@@ -132,11 +198,25 @@ public static class CombineTerrains
             Terrain right = tiles[i];
             Vector3 pl = left.transform.position;
             Vector3 pr = right.transform.position;
-            bool touching = Mathf.Abs(pl.x + left.terrainData.size.x - pr.x) < 1f;
-            bool sameRow = Mathf.Abs(pl.z - pr.z) < 1f &&
-                           Mathf.Abs(left.terrainData.size.z - right.terrainData.size.z) < 1f;
+            float gap = pr.x - (pl.x + left.terrainData.size.x);
+            bool touching = Mathf.Abs(gap) < 1f;
+            bool sameRow = Mathf.Abs(pl.z - pr.z) < 1f;
             if (!touching || !sameRow)
-                return left.name + " and " + right.name + " are not side by side in one row.";
+            {
+                string detail = left.name + " and " + right.name + " are not side by side";
+                if (!touching)
+                    detail += " (gap along X is about " + Mathf.RoundToInt(gap) + " m)";
+                if (!sameRow)
+                    detail += " (different Z position)";
+                return detail + ".";
+            }
+
+            if (!afterAlign && Mathf.Abs(left.terrainData.size.z - right.terrainData.size.z) > 1f)
+            {
+                return left.name + " depth is " + Mathf.RoundToInt(left.terrainData.size.z) + " m but " +
+                       right.name + " depth is " + Mathf.RoundToInt(right.terrainData.size.z) +
+                       " m.\n\nThe combine tool can still merge them (Snap And Combine).";
+            }
         }
 
         return null;
@@ -146,7 +226,9 @@ public static class CombineTerrains
     {
         public Terrain terrain;
         public float x0;
+        public float z0;
         public float width;
+        public float depth;
         public float baseY;
         public float heightScale;
         public float[,] heights;
@@ -166,7 +248,9 @@ public static class CombineTerrains
             {
                 terrain = t,
                 x0 = t.transform.position.x,
+                z0 = t.transform.position.z,
                 width = d.size.x,
+                depth = d.size.z,
                 baseY = t.transform.position.y,
                 heightScale = d.size.y,
                 res = d.heightmapResolution
@@ -177,9 +261,17 @@ public static class CombineTerrains
             maxY = Mathf.Max(maxY, tile.baseY + tile.heightScale);
         }
 
-        origin = new Vector3(tiles[0].x0, minY, terrains[0].transform.position.z);
+        float minZ = float.MaxValue;
+        float maxZ = float.MinValue;
+        for (int i = 0; i < tiles.Count; i++)
+        {
+            minZ = Mathf.Min(minZ, tiles[i].z0);
+            maxZ = Mathf.Max(maxZ, tiles[i].z0 + tiles[i].depth);
+        }
+
+        origin = new Vector3(tiles[0].x0, minY, minZ);
         float totalX = tiles[tiles.Count - 1].x0 + tiles[tiles.Count - 1].width - origin.x;
-        float sizeZ = terrains[0].terrainData.size.z;
+        float sizeZ = Mathf.Max(1f, maxZ - minZ);
         float sizeY = Mathf.Max(1f, maxY - minY);
 
         List<TerrainLayer> layers = new List<TerrainLayer>();
@@ -203,11 +295,11 @@ public static class CombineTerrains
         float[,] heights = new float[HeightResolution, HeightResolution];
         for (int j = 0; j < HeightResolution; j++)
         {
-            float v = j / (float)(HeightResolution - 1);
+            float worldZ = origin.z + sizeZ * j / (HeightResolution - 1);
             for (int i = 0; i < HeightResolution; i++)
             {
                 float worldX = origin.x + totalX * i / (HeightResolution - 1);
-                float h = BlendedHeight(tiles, worldX, v);
+                float h = BlendedHeight(tiles, worldX, worldZ);
                 heights[j, i] = Mathf.Clamp01((h - minY) / sizeY);
             }
         }
@@ -245,24 +337,24 @@ public static class CombineTerrains
     }
 
     // Near a border both tiles fade to the same edge height, so there is no cliff where they meet.
-    static float BlendedHeight(List<Tile> tiles, float worldX, float v)
+    static float BlendedHeight(List<Tile> tiles, float worldX, float worldZ)
     {
         int k = TileIndex(tiles, worldX);
         Tile tile = tiles[k];
         float u = (worldX - tile.x0) / tile.width;
-        float h = WorldHeight(tile, u, v);
+        float h = WorldHeight(tile, u, worldZ);
 
         if (k < tiles.Count - 1)
         {
             float distance = tile.x0 + tile.width - worldX;
-            float edge = (WorldHeight(tile, 1f, v) + WorldHeight(tiles[k + 1], 0f, v)) * 0.5f;
+            float edge = (WorldHeight(tile, 1f, worldZ) + WorldHeight(tiles[k + 1], 0f, worldZ)) * 0.5f;
             h = Mathf.Lerp(h, edge, Weight(distance));
         }
 
         if (k > 0)
         {
             float distance = worldX - tile.x0;
-            float edge = (WorldHeight(tiles[k - 1], 1f, v) + WorldHeight(tile, 0f, v)) * 0.5f;
+            float edge = (WorldHeight(tiles[k - 1], 1f, worldZ) + WorldHeight(tile, 0f, worldZ)) * 0.5f;
             h = Mathf.Lerp(h, edge, Weight(distance));
         }
 
@@ -275,10 +367,11 @@ public static class CombineTerrains
         return w * w * (3f - 2f * w);
     }
 
-    static float WorldHeight(Tile tile, float u, float v)
+    static float WorldHeight(Tile tile, float u, float worldZ)
     {
+        float localV = tile.depth > 0.01f ? (worldZ - tile.z0) / tile.depth : 0f;
         float fx = Mathf.Clamp01(u) * (tile.res - 1);
-        float fz = Mathf.Clamp01(v) * (tile.res - 1);
+        float fz = Mathf.Clamp01(localV) * (tile.res - 1);
         int x0 = Mathf.Min((int)fx, tile.res - 2);
         int z0 = Mathf.Min((int)fz, tile.res - 2);
         float tx = fx - x0;
@@ -375,8 +468,7 @@ public static class CombineTerrains
         terrain.basemapDistance = from.basemapDistance;
         terrain.shadowCastingMode = from.shadowCastingMode;
         terrain.drawInstanced = false;
-        terrain.treeDistance = 0f;
-        terrain.detailObjectDistance = 0f;
+        GameCulling.ApplyToTerrain(terrain);
         terrain.groupingID = from.groupingID;
     }
 

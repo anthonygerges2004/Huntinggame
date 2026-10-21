@@ -79,6 +79,59 @@ public static class MakeRiver
         Build(lakeA);
     }
 
+    // Re-dig second lake + river using existing Water2 position and River path (for terrain swaps).
+    internal static bool RecarveExistingRiverSystem()
+    {
+        GameObject lakeA = GameObject.Find("Water");
+        GameObject lakeB = GameObject.Find("Water2");
+        GameObject riverObj = GameObject.Find("River");
+        if (lakeA == null)
+            return false;
+
+        if (lakeB == null && riverObj == null)
+            return true;
+
+        RiverWater riverWater = riverObj != null ? riverObj.GetComponent<RiverWater>() : null;
+        Vector3[] path = riverWater != null && riverWater.points != null && riverWater.points.Length >= 2
+            ? riverWater.points
+            : null;
+
+        MakeFishingLake.EnsureLakeComponents(lakeA);
+        Vector3 a = lakeA.transform.position;
+        float radiusA = lakeA.transform.localScale.x * 0.5f;
+        float levelA = a.y + lakeA.transform.localScale.y;
+        LakeSize sizeB = MakeFishingLake.Medium;
+
+        MakeFishingLake.BackupAllActiveTerrains();
+
+        Vector3 b = lakeB != null ? lakeB.transform.position : a;
+        float levelB = levelA;
+        if (lakeB != null)
+        {
+            levelB = MakeFishingLake.Shape(b, sizeB, out _, out _);
+            Undo.RecordObject(lakeB.transform, "Recarve second lake");
+            MakeFishingLake.PlaceWater(lakeB, b, levelB, sizeB);
+            MakeFishingLake.EnsureLakeComponents(lakeB);
+        }
+
+        if (path == null)
+            return lakeB != null;
+
+        List<Vector2> lakes = new List<Vector2> { new Vector2(a.x, a.z), new Vector2(b.x, b.z) };
+        List<float> lakeBeaches = new List<float> { radiusA + 4f, sizeB.Beach };
+        CarveRiver(path, lakes, lakeBeaches);
+
+        if (riverObj != null)
+            Undo.DestroyObjectImmediate(riverObj);
+        CreateRiverObject(path);
+        MakeFishingLake.HideFoliage(p => DistanceToRiver(path, p) <= SandRadius + 2f);
+        MoveAnimalsOut(path);
+        MakeFishingLake.FinishScene((a + b) * 0.5f, Vector3.Distance(a, b) * 0.7f);
+        EditorPrefs.SetBool(DoneKey, true);
+        EditorPrefs.SetBool(RouteKey, true);
+        return true;
+    }
+
     static void Build(GameObject lakeA)
     {
         MakeFishingLake.EnsureLakeComponents(lakeA);
