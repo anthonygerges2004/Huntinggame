@@ -28,6 +28,8 @@ public class Inventory : MonoBehaviour
             gameObject.AddComponent<HuntChallenges>();
         if (GetComponent<BirdChallenge>() == null)
             gameObject.AddComponent<BirdChallenge>();
+        if (GetComponent<FoliageDistanceCull>() == null)
+            gameObject.AddComponent<FoliageDistanceCull>();
     }
 
     void Update()

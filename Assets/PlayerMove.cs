@@ -1,4 +1,3 @@
-using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -78,10 +77,6 @@ public class PlayerMove : MonoBehaviour
             Swim(move, surface, current);
             return;
         }
-
-        if (controller.isGrounded && verticalSpeed < 0f)
-            verticalSpeed = -2f;
-
 
         if (controller.isGrounded && verticalSpeed < 0f)
             verticalSpeed = -2f;

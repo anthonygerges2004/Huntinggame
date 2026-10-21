@@ -334,8 +334,8 @@ public static class ApplyRealisticTerrain
                 instance.AddComponent<HarvestableTree>();
 
             MeshRenderer renderer = instance.GetComponentInChildren<MeshRenderer>();
-            if (renderer != null)
-                renderer.forceMeshLod = 0;
+            if (renderer != null && renderer.GetComponentInParent<LODGroup>() == null)
+                renderer.forceMeshLod = -1;
         }
     }
 
@@ -344,10 +344,7 @@ public static class ApplyRealisticTerrain
         if (terrain == null)
             return;
 
-        terrain.heightmapPixelError = 5f;
-        terrain.basemapDistance = 2000f;
-        terrain.treeDistance = 0f;
-        terrain.detailObjectDistance = 180f;
+        GameCulling.ApplyToTerrain(terrain);
         terrain.drawInstanced = false;
         terrain.shadowCastingMode = ShadowCastingMode.TwoSided;
         terrain.materialTemplate = GetUrpTerrainMaterial();
@@ -496,8 +493,7 @@ public static class ApplyRealisticTerrain
             data.detailPrototypes = new DetailPrototype[0];
         }
 
-        terrain.treeDistance = 0f;
-        terrain.detailObjectDistance = 0f;
+        GameCulling.ApplyToTerrain(terrain);
         terrain.Flush();
         EditorUtility.SetDirty(data);
         EditorUtility.SetDirty(terrain);
@@ -605,15 +601,11 @@ public static class ApplyRealisticTerrain
 
     static void StretchViewDistance()
     {
+        GameCulling.ApplyForActiveScene();
         GameObject player = GameObject.Find("Player");
-        if (player == null)
-            return;
-        Camera cam = player.GetComponentInChildren<Camera>();
+        Camera cam = player != null ? player.GetComponentInChildren<Camera>() : null;
         if (cam != null)
-        {
-            cam.farClipPlane = 8000f;
             cam.nearClipPlane = 0.1f;
-        }
     }
 
     static void FrameCamp()

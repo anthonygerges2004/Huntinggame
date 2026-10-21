@@ -7,7 +7,7 @@ public class MinimapFollow : MonoBehaviour
     public float height = 80f;
     public bool rotateWithPlayer = true;
 
-        void LateUpdate()
+    void LateUpdate()
     {
         if(target == null)
         {

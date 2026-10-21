@@ -65,7 +65,8 @@ public class HuntWorldDressing : MonoBehaviour
         if (renderer == null)
             return;
 
-        renderer.forceMeshLod = 0;
+        if (renderer.GetComponentInParent<LODGroup>() == null)
+            renderer.forceMeshLod = -1;
 
         if (renderer.GetComponent<Animal>() != null && renderer is MeshRenderer meshRenderer)
         {
@@ -137,19 +138,13 @@ public class HuntWorldDressing : MonoBehaviour
         for (int i = 0; i < renderers.Length; i++)
             RepairRenderer(renderers[i]);
 
-        Terrain[] terrains = Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude);
-        for (int i = 0; i < terrains.Length; i++)
-        {
-            if (terrains[i] == null)
-                continue;
-            terrains[i].treeDistance = 0f;
-            terrains[i].detailObjectDistance = 0f;
-        }
+        GameCulling.ApplyForActiveScene();
     }
 
     public static void Dress()
     {
         FixTerrainShaders();
+        GameCulling.ApplyForActiveScene();
         ReplaceBrokenTreeMeshes();
 
         if (GameObject.Find(FoliageRootName) != null)
@@ -160,7 +155,6 @@ public class HuntWorldDressing : MonoBehaviour
             return;
 
         SnapCampAndWildlife();
-        StretchView();
         ApplyFog();
 
         GameObject root = new GameObject(FoliageRootName);
@@ -253,17 +247,6 @@ public class HuntWorldDressing : MonoBehaviour
         }
     }
 
-    static void StretchView()
-    {
-        GameObject player = GameObject.Find("Player");
-        if (player == null)
-            return;
-
-        Camera cam = player.GetComponentInChildren<Camera>();
-        if (cam != null)
-            cam.farClipPlane = 8000f;
-    }
-
     static void FixTerrainShaders()
     {
         Shader shader = Shader.Find("Universal Render Pipeline/Terrain/Lit");
@@ -275,8 +258,6 @@ public class HuntWorldDressing : MonoBehaviour
                 continue;
 
             terrain.drawInstanced = false;
-            terrain.treeDistance = 0f;
-            terrain.detailObjectDistance = 0f;
             if (shader != null && (terrain.materialTemplate == null || terrain.materialTemplate.shader != shader))
                 terrain.materialTemplate = new Material(shader);
         }
@@ -291,7 +272,8 @@ public class HuntWorldDressing : MonoBehaviour
             if (renderer == null)
                 continue;
 
-            renderer.forceMeshLod = 0;
+            if (renderer.GetComponentInParent<LODGroup>() == null)
+                renderer.forceMeshLod = -1;
             Material[] current = renderer.sharedMaterials;
             if (current == null || current.Length == 0 || current[0] == null)
                 continue;
