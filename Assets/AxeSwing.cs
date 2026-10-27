@@ -59,7 +59,7 @@ public class AxeSwing : MonoBehaviour
 
     void Update()
     {
-        if (!HasAxe || swinging || Time.frameCount == pickupFrame)
+        if (Instance != this || !HasAxe || swinging || Time.frameCount == pickupFrame)
             return;
 
         if (ThrowPressed()) StartCoroutine(Throw());
@@ -114,6 +114,10 @@ public class AxeSwing : MonoBehaviour
             AxeSwing copyScript = flying.GetComponent<AxeSwing>();
             copyScript.enabled = false;
             Destroy(copyScript);
+
+            Renderer[] flyingRenderers = flying.GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < flyingRenderers.Length; i++)
+                flyingRenderers[i].enabled = true;
 
             ThrownAxe thrown = flying.AddComponent<ThrownAxe>();
             Vector3 velocity = cam.transform.forward * throwSpeed + Vector3.up * 1.5f;
