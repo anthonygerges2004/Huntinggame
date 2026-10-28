@@ -10,6 +10,10 @@ public class HuntChallenges : MonoBehaviour
     bool shadeBird;
     bool longShot;
     bool quietDeer;
+
+    public bool ShadeBirdDone => shadeBird;
+    public bool LongShotDone => longShot;
+    public bool QuietDeerDone => quietDeer;
     Transform player;
 
     void Awake()
@@ -73,33 +77,4 @@ public class HuntChallenges : MonoBehaviour
             Inventory.Instance.ShowNotice("Challenge complete: " + challenge + "!");
     }
 
-    void OnGUI()
-    {
-        float scale = ScreenText.Scale;
-        GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
-
-        float w = 270f;
-        float h = 122f;
-        float x = Screen.width / scale - w - 18f;
-        float y = 240f;
-
-        GUI.color = new Color(0f, 0f, 0f, 0.6f);
-        GUI.DrawTexture(new Rect(x, y, w, h), Texture2D.whiteTexture);
-        GUI.color = Color.white;
-        GUI.Label(new Rect(x + 10f, y + 6f, w, 20f), "HUNT CHALLENGES");
-
-        Line(x, y + 30f, shadeBird, "Kill a bird under a tree");
-        Line(x, y + 52f, longShot, "Hit an animal from 20 m+");
-        Line(x, y + 74f, quietDeer, "Kill a deer while crouching");
-        Line(x, y + 96f, BirdChallenge.Won, "Win the bird challenge (cage)");
-
-        GUI.color = Color.white;
-        GUI.matrix = Matrix4x4.identity;
-    }
-
-    void Line(float x, float y, bool done, string text)
-    {
-        GUI.color = done ? new Color(0.55f, 1f, 0.55f) : Color.white;
-        GUI.Label(new Rect(x + 10f, y, 260f, 20f), (done ? "[X]  " : "[  ]  ") + text);
-    }
 }

@@ -146,6 +146,7 @@ public class HuntWorldDressing : MonoBehaviour
         FixTerrainShaders();
         GameCulling.ApplyForActiveScene();
         ReplaceBrokenTreeMeshes();
+        ArrangeCamp();
 
         if (GameObject.Find(FoliageRootName) != null)
             return;
@@ -221,8 +222,59 @@ public class HuntWorldDressing : MonoBehaviour
         return WorldGround.Snap(new Vector3(48f, 0f, 57f));
     }
 
+    static void ArrangeCamp()
+    {
+        GameObject fire = GameObject.Find("Campfire");
+        if (fire == null)
+            fire = GameObject.Find("FCP_Campfire_Type1_Color1");
+        if (fire == null)
+            return;
+
+        WorldGround.TryGetGround(fire.transform.position, out Vector3 center, out Vector3 slope);
+        fire.transform.position = center;
+        fire.transform.rotation = Quaternion.identity;
+
+        Vector3 uphill = new Vector3(slope.x, 0f, slope.z);
+        if (uphill.sqrMagnitude < 0.0001f)
+            uphill = Vector3.forward;
+        uphill.Normalize();
+        Vector3 downhill = -uphill;
+        Vector3 across = Vector3.Cross(Vector3.up, uphill).normalized;
+
+        PlaceCamp("FCP_Campfire_Type1_Color1", center, Vector3.zero, false);
+        PlaceCamp("FCP_Tent_Type1_Color1", center + uphill * 5.4f, center, true);
+        PlaceCamp("FCP_Bench_Type1_Color1", center + across * -2.8f + downhill * 0.8f, center, true);
+        PlaceCamp("FCP_Bench_Type1_Color1_1", center + across * 2.8f + downhill * 0.8f, center, true);
+        PlaceCamp("FCP_FlagBunting_Type1_Color1", center + downhill * 4.6f, center + downhill * 8f, false);
+        PlaceCamp("FCP_FlagBunting_Type1_Color1_1", center + downhill * 4.6f, center + downhill * 8f, false);
+    }
+
+    static void PlaceCamp(string objectName, Vector3 worldPos, Vector3 lookAt, bool sitOnSlope)
+    {
+        GameObject go = GameObject.Find(objectName);
+        if (go == null)
+            return;
+
+        WorldGround.TryGetGround(worldPos, out Vector3 point, out Vector3 normal);
+        go.transform.position = point;
+
+        Vector3 forward = lookAt - point;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.05f)
+            forward = Vector3.forward;
+        forward.Normalize();
+
+        Vector3 up = sitOnSlope ? Vector3.Slerp(Vector3.up, normal, 0.65f) : Vector3.up;
+        forward = Vector3.ProjectOnPlane(forward, up);
+        if (forward.sqrMagnitude < 0.01f)
+            forward = Vector3.forward;
+        go.transform.rotation = Quaternion.LookRotation(forward.normalized, up);
+    }
+
     static void SnapCampAndWildlife()
     {
+        ArrangeCamp();
+
         string[] campNames =
         {
             "Campfire", "FCP_Campfire_Type1_Color1", "FCP_Tent_Type1_Color1",

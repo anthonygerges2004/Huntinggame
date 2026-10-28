@@ -71,15 +71,7 @@ public class WoodBuilder : MonoBehaviour
         }
 
         if (!IsBuilding)
-        {
-            if (AxeSwing.HasAxe && Mouse.current.leftButton.wasPressedThisFrame)
-            {
-                BuildPiece piece = LookedAtPiece(4f);
-                if (piece != null)
-                    piece.Hit();
-            }
             return;
-        }
 
         if (Mouse.current.rightButton.wasPressedThisFrame)
         {

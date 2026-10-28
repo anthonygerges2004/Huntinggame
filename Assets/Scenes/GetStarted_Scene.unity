@@ -38977,6 +38977,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
   speed: 5
+  runSpeed: 8.5
   crouchSpeed: 2
   jumpHeight: 1.4
   mouseSensitivity: 0.15
@@ -39033,6 +39034,16 @@ MonoBehaviour:
   - {fileID: 1512343744}
   transitionSpeed: 10
   startInFirstPerson: 0
+  thirdPersonPitch: 14
+  cameraPadding: 0.35
+  followDistance: 4.4
+  lookHeight: 1.2
+  minPitch: -20
+  maxPitch: 50
+  minDistance: 2.2
+  maxDistance: 7
+  zoomSpeed: 0.012
+  followSmooth: 0.08
 --- !u!1 &1846889690
 GameObject:
   m_ObjectHideFlags: 0

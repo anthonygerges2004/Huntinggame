@@ -1,9 +1,11 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+[DefaultExecutionOrder(-50)]
 public class PlayerMove : MonoBehaviour
 {
     public float speed = 5f;
+    public float runSpeed = 8.5f;
     public float crouchSpeed = 2f;
     public float jumpHeight = 1.4f;
     public float mouseSensitivity = 0.15f;
@@ -14,15 +16,27 @@ public class PlayerMove : MonoBehaviour
     public static bool IsCrouching;
     public static bool Frozen;
 
+    public float LookPitch => xRotation;
+
     CharacterController controller;
     Transform cam;
+    CameraViewSwitcher views;
     float xRotation;
     float verticalSpeed;
 
     void Start()
     {
         controller = GetComponent<CharacterController>();
-        cam = GetComponentInChildren<Camera>().transform;
+        views = GetComponent<CameraViewSwitcher>();
+        Camera found = GetComponentInChildren<Camera>();
+        if (found == null)
+            found = Camera.main;
+        cam = found != null ? found.transform : null;
+        if (GetComponent<PlayerBodyAnimation>() == null)
+            gameObject.AddComponent<PlayerBodyAnimation>();
+        if (GetComponent<PlayerHunterLook>() == null)
+            gameObject.AddComponent<PlayerHunterLook>();
+        xRotation = 12f;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
@@ -50,9 +64,11 @@ public class PlayerMove : MonoBehaviour
         Vector2 look = Mouse.current.delta.ReadValue() * mouseSensitivity;
         transform.Rotate(0f, look.x, 0f);
 
+        bool firstPerson = views == null || views.IsFirstPerson;
         xRotation -= look.y;
-        xRotation = Mathf.Clamp(xRotation, -80f, 80f);
-        cam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+        xRotation = Mathf.Clamp(xRotation, firstPerson ? -80f : -20f, firstPerson ? 80f : 50f);
+        if (firstPerson && cam != null)
+            cam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
 
         if (Frozen)
         {
@@ -61,6 +77,7 @@ public class PlayerMove : MonoBehaviour
         }
 
         IsCrouching = Keyboard.current.leftCtrlKey.isPressed;
+        bool running = !IsCrouching && Keyboard.current.leftShiftKey.isPressed;
 
         Vector2 moveInput = Vector2.zero;
         if (Keyboard.current.aKey.isPressed) moveInput.x -= 1f;
@@ -86,7 +103,7 @@ public class PlayerMove : MonoBehaviour
 
         verticalSpeed += gravity * Time.deltaTime;
 
-        float currentSpeed = IsCrouching ? crouchSpeed : speed;
+        float currentSpeed = IsCrouching ? crouchSpeed : (running ? runSpeed : speed);
         Vector3 motion = move * currentSpeed;
         motion.y = verticalSpeed;
         controller.Move(motion * Time.deltaTime);

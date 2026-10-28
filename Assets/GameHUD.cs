@@ -14,6 +14,11 @@ public class GameHUD : MonoBehaviour
     TMP_Text woodValue;
     TMP_Text pickaxeValue;
     TMP_Text fireValue;
+    TMP_Text challengeCount;
+    TMP_Text challengeBird;
+    TMP_Text challengeShot;
+    TMP_Text challengeDeer;
+    TMP_Text challengeCage;
 
     void Start()
     {
@@ -69,6 +74,30 @@ public class GameHUD : MonoBehaviour
         fireValue.color = fire
             ? new Color(0.55f, 1f, 0.55f)
             : new Color(1f, 0.72f, 0.35f);
+
+        bool bird = HuntChallenges.Instance != null && HuntChallenges.Instance.ShadeBirdDone;
+        bool shot = HuntChallenges.Instance != null && HuntChallenges.Instance.LongShotDone;
+        bool deer = HuntChallenges.Instance != null && HuntChallenges.Instance.QuietDeerDone;
+        bool cage = BirdChallenge.Won;
+        int done = (bird ? 1 : 0) + (shot ? 1 : 0) + (deer ? 1 : 0) + (cage ? 1 : 0);
+
+        if (challengeCount != null)
+            challengeCount.text = done + " / 4";
+        SetChallenge(challengeBird, bird, "Kill a bird under a tree");
+        SetChallenge(challengeShot, shot, "Hit an animal from 20 m");
+        SetChallenge(challengeDeer, deer, "Kill a deer while crouching");
+        SetChallenge(challengeCage, cage, "Win the bird challenge");
+    }
+
+    void SetChallenge(TMP_Text label, bool done, string task)
+    {
+        if (label == null)
+            return;
+
+        label.text = (done ? "Done" : "Open") + "    " + task;
+        label.color = done
+            ? new Color(0.55f, 1f, 0.55f)
+            : new Color(0.86f, 0.86f, 0.86f);
     }
 
     void SetupLayout()
@@ -91,6 +120,10 @@ public class GameHUD : MonoBehaviour
         Transform existing = canvas.transform.Find("HudBoard");
         if (existing != null)
             Destroy(existing.gameObject);
+
+        Transform oldChallenges = canvas.transform.Find("ChallengePanel");
+        if (oldChallenges != null)
+            Destroy(oldChallenges.gameObject);
 
         hudText.enabled = false;
         hudText.raycastTarget = false;
@@ -121,6 +154,7 @@ public class GameHUD : MonoBehaviour
         fireValue = MakeBox(board.transform, font, "Fire", boxW + gap, -(boxH + gap) * 2f, boxW, boxH, new Color(0.42f, 0.24f, 0.1f));
 
         MakeHint(board.transform, font, 0f, -(boxH + gap) * 3f, (boxW * 3f) + (gap * 2f), 52f);
+        MakeChallengePanel(canvas.transform, font);
         MakeCrosshair(canvas);
 
         layoutReady = healthValue != null;
@@ -158,6 +192,32 @@ public class GameHUD : MonoBehaviour
         return MakeLabel(box.transform, font, "0", 10f, -32f, width - 20f, 32f, 26f, Color.white);
     }
 
+    void MakeChallengePanel(Transform parent, TMP_FontAsset font)
+    {
+        GameObject panel = new GameObject("ChallengePanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        panel.transform.SetParent(parent, false);
+
+        RectTransform panelRect = panel.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(1f, 1f);
+        panelRect.anchorMax = new Vector2(1f, 1f);
+        panelRect.pivot = new Vector2(1f, 1f);
+        panelRect.anchoredPosition = new Vector2(-18f, -18f);
+        panelRect.sizeDelta = new Vector2(340f, 176f);
+
+        Image background = panel.GetComponent<Image>();
+        background.color = new Color(0.05f, 0.05f, 0.05f, 0.78f);
+        background.raycastTarget = false;
+
+        MakeLabel(panel.transform, font, "Challenges", 14f, -10f, 180f, 24f, 18f, Color.white);
+        challengeCount = MakeLabel(panel.transform, font, "0 / 4", 190f, -10f, 136f, 24f, 18f, new Color(0.85f, 0.85f, 0.85f));
+        challengeCount.alignment = TextAlignmentOptions.Right;
+
+        challengeBird = MakeLabel(panel.transform, font, "Open    Kill a bird under a tree", 14f, -42f, 312f, 26f, 16f, new Color(0.86f, 0.86f, 0.86f));
+        challengeShot = MakeLabel(panel.transform, font, "Open    Hit an animal from 20 m", 14f, -72f, 312f, 26f, 16f, new Color(0.86f, 0.86f, 0.86f));
+        challengeDeer = MakeLabel(panel.transform, font, "Open    Kill a deer while crouching", 14f, -102f, 312f, 26f, 16f, new Color(0.86f, 0.86f, 0.86f));
+        challengeCage = MakeLabel(panel.transform, font, "Open    Win the bird challenge", 14f, -132f, 312f, 26f, 16f, new Color(0.86f, 0.86f, 0.86f));
+    }
+
     void MakeHint(Transform parent, TMP_FontAsset font, float x, float y, float width, float height)
     {
         GameObject box = new GameObject("ControlsBox", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -177,7 +237,7 @@ public class GameHUD : MonoBehaviour
         MakeLabel(
             box.transform,
             font,
-            "F light/feed fire    C cook    Q eat    E chop    1 sell    3 pickaxe",
+            "E or left click chops    Right click throws the axe",
             12f,
             -14f,
             width - 24f,

@@ -10,10 +10,14 @@ public class PlayerShoot : MonoBehaviour
     void Start()
     {
         cam = GetComponentInChildren<Camera>();
+        if (cam == null)
+            cam = Camera.main;
     }
 
     void Update()
     {
+        if (cam == null)
+            cam = Camera.main;
         if (cam == null || Mouse.current == null)
             return;
 

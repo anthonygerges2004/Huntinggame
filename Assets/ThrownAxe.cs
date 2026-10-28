@@ -1,9 +1,8 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public class ThrownAxe : MonoBehaviour
 {
-    public float pickupRange = 2.5f;
+    public float pickupRange = 3.5f;
 
     Rigidbody body;
     bool landed;
@@ -119,17 +118,29 @@ public class ThrownAxe : MonoBehaviour
             return;
         }
 
-        if (age < 0.4f || !InPickupRange())
+        if (age < 0.45f || !InPickupRange())
             return;
 
-        if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
-            ReturnToPlayer();
+        ReturnToPlayer();
     }
 
     bool InPickupRange()
     {
+        Vector3 from = PlayerPickupPoint();
+        Vector3 to = transform.position;
+        from.y = 0f;
+        to.y = 0f;
+        return Vector3.Distance(from, to) <= pickupRange;
+    }
+
+    static Vector3 PlayerPickupPoint()
+    {
+        if (PlayerHealth.Instance != null)
+            return PlayerHealth.Instance.transform.position;
+        if (CameraViewSwitcher.Instance != null)
+            return CameraViewSwitcher.Instance.transform.position;
         Camera cam = Camera.main;
-        return cam != null && Vector3.Distance(cam.transform.position, transform.position) <= pickupRange;
+        return cam != null ? cam.transform.position : Vector3.zero;
     }
 
     void ReturnToPlayer()
@@ -146,6 +157,6 @@ public class ThrownAxe : MonoBehaviour
         if (age < 0.4f || !InPickupRange())
             return;
 
-        ScreenText.Centered("Press E to pick up axe", Screen.height * 0.5f + 60f * ScreenText.Scale);
+        ScreenText.Centered("Walk over the axe to pick it up", Screen.height * 0.5f + 60f * ScreenText.Scale);
     }
 }
