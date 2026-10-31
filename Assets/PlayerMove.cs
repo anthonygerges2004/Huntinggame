@@ -10,6 +10,9 @@ public class PlayerMove : MonoBehaviour
     public float gravity = -20f;
     public float swimSpeed = 3f;
     public float swimVerticalSpeed = 2f;
+    public float sprintMultiplier = 2.2f;
+    public float sprintDurationSeconds = 10f;
+    public float sprintRechargeSeconds = 15f;
 
     public static bool IsCrouching;
     public static bool Frozen;
@@ -18,11 +21,13 @@ public class PlayerMove : MonoBehaviour
     Transform cam;
     float xRotation;
     float verticalSpeed;
+    float sprintRemaining;
 
     void Start()
     {
         controller = GetComponent<CharacterController>();
         cam = GetComponentInChildren<Camera>().transform;
+        sprintRemaining = sprintDurationSeconds;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
@@ -41,11 +46,17 @@ public class PlayerMove : MonoBehaviour
         if (Keyboard.current == null || Mouse.current == null)
             return;
 
-        if (Keyboard.current.escapeKey.wasPressedThisFrame)
+        if (Inventory.IsOpen)
         {
+            UpdateSprint(false);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            IsCrouching = false;
+            return;
         }
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
 
         Vector2 look = Mouse.current.delta.ReadValue() * mouseSensitivity;
         transform.Rotate(0f, look.x, 0f);
@@ -56,6 +67,7 @@ public class PlayerMove : MonoBehaviour
 
         if (Frozen)
         {
+            UpdateSprint(false);
             IsCrouching = false;
             return;
         }
@@ -72,8 +84,10 @@ public class PlayerMove : MonoBehaviour
         if (move.sqrMagnitude > 1f)
             move.Normalize();
 
-        if (WaterBodies.TryGetSwim(transform.position, out float surface, out Vector3 current))
+        bool isSwimming = WaterBodies.TryGetSwim(transform.position, out float surface, out Vector3 current);
+        if (isSwimming)
         {
+            UpdateSprint(false);
             Swim(move, surface, current);
             return;
         }
@@ -86,10 +100,29 @@ public class PlayerMove : MonoBehaviour
 
         verticalSpeed += gravity * Time.deltaTime;
 
+        bool sprinting = !IsCrouching
+            && move.sqrMagnitude > 0.01f
+            && Keyboard.current.leftShiftKey.isPressed
+            && sprintRemaining > 0f;
+        UpdateSprint(sprinting);
+
         float currentSpeed = IsCrouching ? crouchSpeed : speed;
+        if (sprinting)
+            currentSpeed *= sprintMultiplier;
+
         Vector3 motion = move * currentSpeed;
         motion.y = verticalSpeed;
         controller.Move(motion * Time.deltaTime);
+    }
+
+    void UpdateSprint(bool sprinting)
+    {
+        if (sprinting)
+            sprintRemaining -= Time.deltaTime;
+        else
+            sprintRemaining += Time.deltaTime * (sprintDurationSeconds / Mathf.Max(0.01f, sprintRechargeSeconds));
+
+        sprintRemaining = Mathf.Clamp(sprintRemaining, 0f, sprintDurationSeconds);
     }
 
     void Swim(Vector3 move, float surface, Vector3 current)

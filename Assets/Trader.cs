@@ -47,23 +47,14 @@ public class Trader : MonoBehaviour
         if (Inventory.Instance == null)
             return;
 
-        if (Inventory.Instance.cookedMeat > 0)
+        if (!Inventory.Instance.RemoveOneSellableMeat())
         {
-            Inventory.Instance.cookedMeat -= 1;
-            Inventory.Instance.AddWood(meatSellPriceWood);
-            Debug.Log("Sold cooked meat for wood.");
+            Debug.Log("No meat to sell.");
             return;
         }
 
-        if (Inventory.Instance.meat > 0)
-        {
-            Inventory.Instance.meat -= 1;
-            Inventory.Instance.AddWood(meatSellPriceWood);
-            Debug.Log("Sold raw meat for wood.");
-            return;
-        }
-
-        Debug.Log("No meat to sell.");
+        Inventory.Instance.AddWood(meatSellPriceWood);
+        Debug.Log("Sold meat for wood.");
     }
 
     void SellWoodForPickaxeHint()

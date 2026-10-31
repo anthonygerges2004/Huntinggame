@@ -59,6 +59,18 @@ public class AxeSwing : MonoBehaviour
 
     void Update()
     {
+        if (Inventory.IsOpen)
+        {
+            if (swinging)
+            {
+                StopAllCoroutines();
+                swinging = false;
+                transform.localRotation = restRot;
+                transform.localPosition = restPos;
+            }
+            return;
+        }
+
         if (!HasAxe || swinging || Time.frameCount == pickupFrame)
             return;
 
@@ -68,7 +80,7 @@ public class AxeSwing : MonoBehaviour
 
     bool SwingPressed()
     {
-        if (WoodBuilder.IsBuilding || BirdChallenge.Active) return false;
+        if (Inventory.IsOpen || WoodBuilder.IsBuilding || BirdChallenge.Active) return false;
 #if ENABLE_INPUT_SYSTEM
         var kb = Keyboard.current; var ms = Mouse.current;
         return (swingOnE && kb != null && kb.eKey.wasPressedThisFrame)
@@ -81,7 +93,7 @@ public class AxeSwing : MonoBehaviour
 
     bool ThrowPressed()
     {
-        if (!throwOnRightClick || WoodBuilder.IsBuilding || BirdChallenge.Active) return false;
+        if (Inventory.IsOpen || !throwOnRightClick || WoodBuilder.IsBuilding || BirdChallenge.Active) return false;
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;

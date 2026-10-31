@@ -55,11 +55,11 @@ public class FishingSpot : MonoBehaviour
             return;
         }
 
-        bool gPressed = Keyboard.current.gKey.wasPressedThisFrame;
+        bool rPressed = Keyboard.current.rKey.wasPressedThisFrame;
 
         if (!fishing)
         {
-            if (gPressed && CanCast(out Vector3 point))
+            if (rPressed && CanCast(out Vector3 point))
                 StartFishing(point);
             return;
         }
@@ -77,7 +77,7 @@ public class FishingSpot : MonoBehaviour
         float bob = Biting ? -0.12f : Mathf.Sin(Time.time * 3f) * 0.03f;
         bobber.transform.position = castPoint + Vector3.up * bob;
 
-        if (gPressed)
+        if (rPressed)
         {
             if (Biting)
             {
@@ -98,7 +98,7 @@ public class FishingSpot : MonoBehaviour
         if (Biting && Time.time > biteStart + biteWindow)
         {
             StopFishing();
-            Notice("The fish got away. Press G to try again.");
+            Notice("The fish got away. Press R to try again.");
         }
     }
 
@@ -166,9 +166,9 @@ public class FishingSpot : MonoBehaviour
 
         float y = Screen.height * 0.5f + 60f * ScreenText.Scale;
         if (fishing)
-            ScreenText.Centered(Biting ? "Fish on! Press G now!" : "Waiting for a bite...", y);
+            ScreenText.Centered(Biting ? "Fish on! Press R now!" : "Waiting for a bite...", y);
         else if (CanCast(out _))
-            ScreenText.Centered("Press G to fish", y);
+            ScreenText.Centered("Press R to fish", y);
         else if (WaterBodies.TryGetSwim(player.position, out _, out _))
             ScreenText.Centered("Swimming:  Space = up   Ctrl = dive", Screen.height - 70f * ScreenText.Scale, 18);
     }
