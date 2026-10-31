@@ -17,7 +17,8 @@ public class BuildPiece : MonoBehaviour
         hits++;
         if (hits < hitsToBreak)
         {
-            Debug.Log("Hit " + hits + " of " + hitsToBreak);
+            if (Inventory.Instance != null)
+                Inventory.Instance.ShowNotice("Wood " + hits + " / " + hitsToBreak);
             StartCoroutine(Shake());
             return;
         }
@@ -32,8 +33,10 @@ public class BuildPiece : MonoBehaviour
 
         broken = true;
         if (Inventory.Instance != null)
+        {
             Inventory.Instance.AddWood(refund);
-        Debug.Log("Broke " + name + ". +" + refund + " wood");
+            Inventory.Instance.ShowNotice("Wood broken. +" + refund + " wood");
+        }
         Destroy(gameObject);
     }
 

@@ -1,6 +1,5 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public class HarvestableTree : MonoBehaviour
 {
@@ -10,7 +9,6 @@ public class HarvestableTree : MonoBehaviour
 
     int hits;
     bool chopped;
-    static int chopFrame = -1;
 
     void Start()
     {
@@ -25,63 +23,59 @@ public class HarvestableTree : MonoBehaviour
             chopRange = 6f;
     }
 
-    void Update()
-    {
-        if (chopped || Mouse.current == null)
-            return;
-
-        if (WoodBuilder.IsBuilding || !AxeSwing.HasAxe || BirdChallenge.Active)
-            return;
-
-        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
-            return;
-
-        if (!Mouse.current.leftButton.wasPressedThisFrame)
-            return;
-
-        if (Time.frameCount == chopFrame)
-            return;
-
-        chopFrame = Time.frameCount;
-        TryChopLookedAtTree();
-    }
-
-    static void TryChopLookedAtTree()
+    public static bool IsLookingAtTree()
     {
         Camera cam = Camera.main;
-        if (cam == null)
-            return;
+        return cam != null && FindLookedAtTree(cam) != null;
+    }
 
-        if (WoodBuilder.LookedAtPiece(4f) != null)
-            return;
+    public static HarvestableTree AimedTree()
+    {
+        Camera cam = Camera.main;
+        return cam == null ? null : FindLookedAtTree(cam);
+    }
 
-        HarvestableTree tree = FindLookedAtTree(cam);
-        if (tree == null || tree.chopped)
+    public bool InChopRange()
+    {
+        Camera cam = Camera.main;
+        if (cam == null || chopped)
+            return false;
+
+        Vector3 point = transform.position + Vector3.up * 1.5f;
+        return Vector3.Distance(cam.transform.position, point) <= chopRange + 1.5f;
+    }
+
+    public static void ChopLookedAtTree()
+    {
+        HarvestableTree tree = AimedTree();
+        if (tree != null)
+            tree.Chop();
+    }
+
+    public void Chop()
+    {
+        if (chopped)
             return;
 
         if (Inventory.Instance == null || !Inventory.Instance.hasPickaxe)
         {
-            Debug.Log("You need a pickaxe to chop wood.");
+            if (Inventory.Instance != null)
+                Inventory.Instance.ShowNotice("Buy a pickaxe at the trader, then chop.");
             return;
         }
 
-        tree.Hit();
-    }
-
-    void Hit()
-    {
         hits++;
-        transform.localRotation *= Quaternion.Euler(0f, 0f, hits % 2 == 0 ? 3f : -3f);
+        transform.localRotation *= Quaternion.Euler(0f, 0f, hits % 2 == 0 ? 8f : -8f);
 
         if (hits < hitsToFall)
         {
-            Debug.Log("Chop " + hits + " of " + hitsToFall);
+            Inventory.Instance.ShowNotice("Chop " + hits + " / " + hitsToFall);
             return;
         }
 
         chopped = true;
         Inventory.Instance.AddWood(woodAmount);
-        Debug.Log("Tree fell. +" + woodAmount);
+        Inventory.Instance.ShowNotice("Tree down. +" + woodAmount + " wood");
         StartCoroutine(FallOver());
     }
 

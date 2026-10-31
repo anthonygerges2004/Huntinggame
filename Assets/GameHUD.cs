@@ -14,7 +14,6 @@ public class GameHUD : MonoBehaviour
     TMP_Text woodValue;
     TMP_Text pickaxeValue;
     TMP_Text fireValue;
-    GameObject hintRoot;
 
     void Start()
     {
@@ -61,10 +60,9 @@ public class GameHUD : MonoBehaviour
         woodValue.text = wood.ToString();
         pickaxeValue.text = pickaxe ? "Yes" : "No";
         fireValue.text = fire ? "Safe" : "None";
-        fireValue.color = Color.white;
-
-        if (hintRoot != null)
-            hintRoot.SetActive(!Inventory.IsOpen);
+        fireValue.color = fire
+            ? new Color(0.55f, 1f, 0.55f)
+            : new Color(1f, 0.72f, 0.35f);
     }
 
     void SetupLayout()
@@ -87,10 +85,6 @@ public class GameHUD : MonoBehaviour
         Transform existing = canvas.transform.Find("HudBoard");
         if (existing != null)
             Destroy(existing.gameObject);
-
-        Transform existingHint = canvas.transform.Find("ControlsHint");
-        if (existingHint != null)
-            Destroy(existingHint.gameObject);
 
         hudText.enabled = false;
         hudText.raycastTarget = false;
@@ -123,7 +117,7 @@ public class GameHUD : MonoBehaviour
         pickaxeValue = MakeBox(board.transform, font, "Pickaxe", startX + (boxW + gap) * 5f, -8f, boxW, boxH, new Color(0.5f, 0.61f, 0.75f));
         fireValue = MakeBox(board.transform, font, "Fire", startX + (boxW + gap) * 6f, -8f, boxW, boxH, new Color(0.95f, 0.51f, 0.26f));
 
-        MakeBottomHint(canvas, font);
+        MakeHint(board.transform, font, 0f, -(boxH + gap) * 3f, (boxW * 3f) + (gap * 2f), 52f);
         MakeCrosshair(canvas);
 
         layoutReady = healthValue != null;
@@ -159,6 +153,34 @@ public class GameHUD : MonoBehaviour
 
         MakeLabel(box.transform, font, label, 8f, -8f, width - 16f, 16f, 11f, Color.white);
         return MakeLabel(box.transform, font, "0", 8f, -22f, width - 16f, 22f, 18f, Color.white);
+    }
+
+    void MakeHint(Transform parent, TMP_FontAsset font, float x, float y, float width, float height)
+    {
+        GameObject box = new GameObject("ControlsBox", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        box.transform.SetParent(parent, false);
+
+        RectTransform boxRect = box.GetComponent<RectTransform>();
+        boxRect.anchorMin = new Vector2(0f, 1f);
+        boxRect.anchorMax = new Vector2(0f, 1f);
+        boxRect.pivot = new Vector2(0f, 1f);
+        boxRect.anchoredPosition = new Vector2(x, y);
+        boxRect.sizeDelta = new Vector2(width, height);
+
+        Image background = box.GetComponent<Image>();
+        background.color = new Color(0.05f, 0.05f, 0.05f, 0.72f);
+        background.raycastTarget = false;
+
+        MakeLabel(
+            box.transform,
+            font,
+            "F light/feed fire    C cook    Q eat    E chop    1 sell    3 pickaxe",
+            12f,
+            -14f,
+            width - 24f,
+            28f,
+            16f,
+            new Color(0.85f, 0.85f, 0.85f));
     }
 
     TMP_Text MakeLabel(Transform parent, TMP_FontAsset font, string text, float x, float y, float width, float height, float size, Color color)

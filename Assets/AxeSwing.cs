@@ -32,6 +32,7 @@ public class AxeSwing : MonoBehaviour
     Vector3 restPos;
     Quaternion restRot;
     bool swinging;
+    bool showChopHint;
     int pickupFrame = -1;
 
     void Awake()
@@ -45,10 +46,17 @@ public class AxeSwing : MonoBehaviour
 
     void OnGUI()
     {
-        if (HasAxe || Instance != this)
+        if (Instance != this)
             return;
 
-        ScreenText.Centered("No axe! Go pick it up where it landed.", Screen.height * 0.5f - 90f * ScreenText.Scale, 24);
+        if (!HasAxe)
+        {
+            ScreenText.Centered("No axe. Walk over it to pick it up.", Screen.height * 0.5f - 90f * ScreenText.Scale, 24);
+            return;
+        }
+
+        if (showChopHint)
+            ScreenText.Centered("Left click or E to chop", Screen.height * 0.62f, 22);
     }
 
     void Start()
@@ -105,39 +113,116 @@ public class AxeSwing : MonoBehaviour
     IEnumerator Swing()
     {
         swinging = true;
-        yield return Blend(0f, Vector3.zero, windUpAngle, windUpOffset, windUpTime);
-        yield return Blend(windUpAngle, windUpOffset, strikeAngle, strikeOffset, strikeTime);
+        PlayerBodyAnimation.PlayChop();
+        BuildPiece piece = WoodBuilder.LookedAtPiece(4f);
+        HarvestableTree tree = piece == null ? HarvestableTree.AimedTree() : null;
+
+        yield return Blend(0f, Vector3.zero, windUpAngle, windUpOffset, PlayerBodyAnimation.ChopWindup);
+        yield return Blend(windUpAngle, windUpOffset, strikeAngle, strikeOffset, PlayerBodyAnimation.ChopStrike);
+
+        if (piece != null)
+            piece.Hit();
+        else if (tree != null && tree.InChopRange())
+            tree.Chop();
+        else
+            StrikeWhatYouLookAt();
+
         yield return Blend(strikeAngle, strikeOffset, 0f, Vector3.zero, recoverTime);
         swinging = false;
+    }
+
+    static void StrikeWhatYouLookAt()
+    {
+        BuildPiece piece = WoodBuilder.LookedAtPiece(4f);
+        if (piece != null)
+        {
+            piece.Hit();
+            return;
+        }
+
+        HarvestableTree.ChopLookedAtTree();
     }
 
     IEnumerator Throw()
     {
         swinging = true;
-        yield return Blend(0f, Vector3.zero, windUpAngle * 1.5f, windUpOffset * 1.5f, windUpTime);
+        PlayerBodyAnimation.PlayThrow();
+        Vector3 backOffset = windUpOffset;
+        float backAngle = windUpAngle;
+        yield return Blend(0f, Vector3.zero, backAngle, backOffset, PlayerBodyAnimation.ThrowCock);
+        yield return new WaitForSeconds(PlayerBodyAnimation.ThrowHold);
+        float throwAngle = strikeAngle * 0.45f;
+        yield return Blend(backAngle, backOffset, throwAngle, strikeOffset * 0.5f, PlayerBodyAnimation.ThrowSnap);
 
-        Camera cam = Camera.main;
-        if (cam != null)
-        {
-            GameObject flying = Instantiate(gameObject, transform.position, transform.rotation);
-            flying.name = "ThrownAxe";
-            flying.transform.localScale = transform.lossyScale;
+        Transform held = HeldVisual();
+        Vector3 origin = held.position;
+        Quaternion rot = held.rotation;
+        Vector3 scale = held.lossyScale;
+        Vector3 throwDir = ThrowDirection();
+        Vector3 throwRight = Vector3.Cross(Vector3.up, throwDir);
+        if (throwRight.sqrMagnitude < 0.0001f)
+            throwRight = transform.right;
+        throwRight.Normalize();
 
-            AxeSwing copyScript = flying.GetComponent<AxeSwing>();
-            copyScript.enabled = false;
-            Destroy(copyScript);
+        GameObject flying = Instantiate(held.gameObject);
+        flying.name = "ThrownAxe";
+        flying.transform.SetParent(null);
+        flying.transform.SetPositionAndRotation(origin, rot);
+        flying.transform.localScale = scale;
 
-            ThrownAxe thrown = flying.AddComponent<ThrownAxe>();
-            Vector3 velocity = cam.transform.forward * throwSpeed + Vector3.up * 1.5f;
-            thrown.Launch(velocity, cam.transform.right * -throwSpin);
+        AxeSwing[] swings = flying.GetComponentsInChildren<AxeSwing>(true);
+        for (int i = 0; i < swings.Length; i++)
+            Destroy(swings[i]);
 
-            SetHeldVisible(false);
-            HasAxe = false;
-        }
+        HandAxeGrip[] grips = flying.GetComponentsInChildren<HandAxeGrip>(true);
+        for (int i = 0; i < grips.Length; i++)
+            Destroy(grips[i]);
+
+        Renderer[] flyingRenderers = flying.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < flyingRenderers.Length; i++)
+            flyingRenderers[i].enabled = true;
+
+        ThrownAxe thrown = flying.GetComponent<ThrownAxe>();
+        if (thrown == null)
+            thrown = flying.AddComponent<ThrownAxe>();
+
+        origin += throwDir * 0.4f + Vector3.up * 0.12f;
+        flying.transform.SetPositionAndRotation(origin, rot);
+        thrown.Launch(throwDir * throwSpeed + Vector3.up * 2.8f, throwRight * -throwSpin + throwDir * 5f);
+
+        SetHeldVisible(false);
+        HasAxe = false;
+        if (Inventory.Instance != null)
+            Inventory.Instance.ShowNotice("Axe thrown. Walk over it to pick it up.");
 
         transform.localRotation = restRot;
         transform.localPosition = restPos;
         swinging = false;
+    }
+
+    Transform HeldVisual()
+    {
+        if (CameraViewSwitcher.Instance != null && !CameraViewSwitcher.Instance.IsFirstPerson
+            && HandAxeGrip.Instance != null)
+            return HandAxeGrip.Instance.transform;
+        return transform;
+    }
+
+    Vector3 ThrowDirection()
+    {
+        if (CameraViewSwitcher.Instance != null && CameraViewSwitcher.Instance.IsFirstPerson)
+        {
+            Camera cam = Camera.main;
+            if (cam != null)
+                return cam.transform.forward;
+        }
+
+        PlayerMove move = CameraViewSwitcher.Instance != null
+            ? CameraViewSwitcher.Instance.GetComponent<PlayerMove>()
+            : null;
+        float pitch = move != null ? move.LookPitch : 0f;
+        Transform body = move != null ? move.transform : transform.root;
+        return Quaternion.Euler(pitch, body.eulerAngles.y, 0f) * Vector3.forward;
     }
 
     public void GiveBack()
@@ -147,6 +232,15 @@ public class AxeSwing : MonoBehaviour
         transform.localRotation = restRot;
         transform.localPosition = restPos;
         SetHeldVisible(true);
+        if (HandAxeGrip.Instance != null)
+            SetRenderers(HandAxeGrip.Instance.gameObject, true);
+    }
+
+    static void SetRenderers(GameObject root, bool visible)
+    {
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].enabled = visible;
     }
 
     void SetHeldVisible(bool visible)
@@ -167,5 +261,13 @@ public class AxeSwing : MonoBehaviour
         }
         transform.localRotation = restRot * Quaternion.Euler(a1, 0f, 0f);
         transform.localPosition = restPos + o1;
+    }
+
+    static bool LookingAtWood()
+    {
+        if (WoodBuilder.LookedAtPiece(4f) != null)
+            return true;
+
+        return HarvestableTree.IsLookingAtTree();
     }
 }

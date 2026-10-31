@@ -33,6 +33,9 @@ public class CampfireFireEffects : MonoBehaviour
         fireLight.range = baseRange;
         fireLight.shadows = LightShadows.None;
 
+        if (transform.Find("Flames") != null)
+            return;
+
         BuildLogRing();
         CreateFlames(transform);
         CreateSmoke(transform);
@@ -202,7 +205,7 @@ public class CampfireFireEffects : MonoBehaviour
         go.transform.SetParent(parent, false);
         go.transform.localPosition = new Vector3(0f, 0.12f, 0f);
 
-        ParticleSystem ps = go.AddComponent<ParticleSystem>();
+        ParticleSystem ps = AddStoppedParticles(go);
         var main = ps.main;
         main.duration = 2f;
         main.loop = true;
@@ -254,6 +257,16 @@ public class CampfireFireEffects : MonoBehaviour
         var renderer = go.GetComponent<ParticleSystemRenderer>();
         renderer.material = mat;
         renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        ps.Play(true);
+    }
+
+    static ParticleSystem AddStoppedParticles(GameObject go)
+    {
+        ParticleSystem ps = go.AddComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var main = ps.main;
+        main.playOnAwake = false;
+        return ps;
     }
 
     static void CreateSmoke(Transform parent)
@@ -315,8 +328,9 @@ public class CampfireFireEffects : MonoBehaviour
         go.transform.SetParent(parent, false);
         go.transform.localPosition = new Vector3(0f, localY, 0f);
 
-        ParticleSystem ps = go.AddComponent<ParticleSystem>();
+        ParticleSystem ps = AddStoppedParticles(go);
         var main = ps.main;
+        main.duration = 5f;
         main.loop = true;
         main.startLifetime = new ParticleSystem.MinMaxCurve(lifetimeMin, lifetimeMax);
         main.startSpeed = new ParticleSystem.MinMaxCurve(speedMin, speedMax);
@@ -344,12 +358,14 @@ public class CampfireFireEffects : MonoBehaviour
         var velocity = ps.velocityOverLifetime;
         velocity.enabled = true;
         velocity.space = ParticleSystemSimulationSpace.Local;
-        velocity.y = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+        AnimationCurve rise = new AnimationCurve(
             new Keyframe(0f, 1f),
             new Keyframe(0.35f, 0.75f),
-            new Keyframe(1f, 0.25f)));
-        velocity.x = new ParticleSystem.MinMaxCurve(-0.08f, 0.08f);
-        velocity.z = new ParticleSystem.MinMaxCurve(-0.08f, 0.08f);
+            new Keyframe(1f, 0.25f));
+        AnimationCurve still = AnimationCurve.Constant(0f, 1f, 0f);
+        velocity.x = new ParticleSystem.MinMaxCurve(1f, still);
+        velocity.y = new ParticleSystem.MinMaxCurve(1f, rise);
+        velocity.z = new ParticleSystem.MinMaxCurve(1f, still);
 
         var rotation = ps.rotationOverLifetime;
         rotation.enabled = true;
@@ -366,6 +382,7 @@ public class CampfireFireEffects : MonoBehaviour
         renderer.material = mat;
         renderer.renderMode = ParticleSystemRenderMode.Billboard;
         renderer.sortingFudge = -4f;
+        ps.Play(true);
     }
 
     static void ApplySmokeColorOverLifetime(ParticleSystem ps, float alphaPeak, bool warmCore)
@@ -434,11 +451,8 @@ public class CampfireFireEffects : MonoBehaviour
     {
         var noise = ps.noise;
         noise.enabled = true;
-        noise.separateAxes = true;
+        noise.separateAxes = false;
         noise.strength = warmCore ? 0.28f : 0.42f;
-        noise.strengthX = warmCore ? 0.22f : 0.35f;
-        noise.strengthY = warmCore ? 0.12f : 0.18f;
-        noise.strengthZ = warmCore ? 0.22f : 0.35f;
         noise.frequency = warmCore ? 0.55f : 0.35f;
         noise.scrollSpeed = warmCore ? 0.35f : 0.22f;
         noise.damping = true;
@@ -456,8 +470,9 @@ public class CampfireFireEffects : MonoBehaviour
         go.transform.SetParent(parent, false);
         go.transform.localPosition = new Vector3(0f, 0.2f, 0f);
 
-        ParticleSystem ps = go.AddComponent<ParticleSystem>();
+        ParticleSystem ps = AddStoppedParticles(go);
         var main = ps.main;
+        main.duration = 2f;
         main.loop = true;
         main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 1.1f);
         main.startSpeed = new ParticleSystem.MinMaxCurve(1.2f, 2.4f);
@@ -477,5 +492,6 @@ public class CampfireFireEffects : MonoBehaviour
         var renderer = go.GetComponent<ParticleSystemRenderer>();
         renderer.material = mat;
         renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        ps.Play(true);
     }
 }
