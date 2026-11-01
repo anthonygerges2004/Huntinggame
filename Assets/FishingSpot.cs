@@ -109,7 +109,7 @@ public class FishingSpot : MonoBehaviour
             return false;
 
         Plane surface = new Plane(Vector3.up, new Vector3(0f, lake.SurfaceY, 0f));
-        Ray ray = new Ray(cam.transform.position, cam.transform.forward);
+        Ray ray = PlayerView.AimRay();
         if (!surface.Raycast(ray, out float distance) || distance > castRange)
             return false;
 

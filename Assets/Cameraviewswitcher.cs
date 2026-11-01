@@ -70,6 +70,9 @@ public class CameraViewSwitcher : MonoBehaviour
 
     private void Update()
     {
+        if (Inventory.IsOpen)
+            return;
+
         if (Keyboard.current != null && Keyboard.current.vKey.wasPressedThisFrame)
         {
             isFirstPerson = !isFirstPerson;

@@ -71,9 +71,15 @@ public class ThrownAxe : MonoBehaviour
             return;
 
         Collider mine = GetComponent<BoxCollider>();
+        if (mine == null)
+            return;
+
         Collider[] player = PlayerHealth.Instance.GetComponentsInChildren<Collider>(true);
         for (int i = 0; i < player.Length; i++)
-            Physics.IgnoreCollision(mine, player[i]);
+        {
+            if (player[i] != null)
+                Physics.IgnoreCollision(mine, player[i]);
+        }
     }
 
     void OnCollisionEnter(Collision collision)

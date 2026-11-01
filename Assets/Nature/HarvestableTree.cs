@@ -25,24 +25,21 @@ public class HarvestableTree : MonoBehaviour
 
     public static bool IsLookingAtTree()
     {
-        Camera cam = Camera.main;
-        return cam != null && FindLookedAtTree(cam) != null;
+        return FindLookedAtTree() != null;
     }
 
     public static HarvestableTree AimedTree()
     {
-        Camera cam = Camera.main;
-        return cam == null ? null : FindLookedAtTree(cam);
+        return FindLookedAtTree();
     }
 
     public bool InChopRange()
     {
-        Camera cam = Camera.main;
-        if (cam == null || chopped)
+        if (chopped)
             return false;
 
         Vector3 point = transform.position + Vector3.up * 1.5f;
-        return Vector3.Distance(cam.transform.position, point) <= chopRange + 1.5f;
+        return Vector3.Distance(PlayerView.Position(), point) <= chopRange + 1.5f;
     }
 
     public static void ChopLookedAtTree()
@@ -98,13 +95,13 @@ public class HarvestableTree : MonoBehaviour
         Destroy(gameObject);
     }
 
-    static HarvestableTree FindLookedAtTree(Camera cam)
+    static HarvestableTree FindLookedAtTree()
     {
         HarvestableTree[] trees = Object.FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude);
         HarvestableTree best = null;
         float bestDistance = 999f;
-        Vector3 origin = cam.transform.position;
-        Vector3 forward = cam.transform.forward;
+        Vector3 origin = PlayerView.AimOrigin();
+        Vector3 forward = PlayerView.AimDirection();
 
         for (int i = 0; i < trees.Length; i++)
         {

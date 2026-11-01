@@ -172,11 +172,17 @@ public class AxeSwing : MonoBehaviour
 
         AxeSwing[] swings = flying.GetComponentsInChildren<AxeSwing>(true);
         for (int i = 0; i < swings.Length; i++)
+        {
+            swings[i].enabled = false;
             Destroy(swings[i]);
+        }
 
         HandAxeGrip[] grips = flying.GetComponentsInChildren<HandAxeGrip>(true);
         for (int i = 0; i < grips.Length; i++)
+        {
+            grips[i].enabled = false;
             Destroy(grips[i]);
+        }
 
         Renderer[] flyingRenderers = flying.GetComponentsInChildren<Renderer>(true);
         for (int i = 0; i < flyingRenderers.Length; i++)

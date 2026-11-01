@@ -59,7 +59,7 @@ public class WoodBuilder : MonoBehaviour
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
 
-        if (BirdChallenge.Active)
+        if (BirdChallenge.Active || Inventory.IsOpen)
             return;
 
         if (Keyboard.current.bKey.wasPressedThisFrame)
@@ -122,8 +122,7 @@ public class WoodBuilder : MonoBehaviour
 
     public static BuildPiece LookedAtPiece(float range)
     {
-        Transform cam = Camera.main.transform;
-        Ray ray = new Ray(cam.position, cam.forward);
+        Ray ray = PlayerView.AimRay();
         if (!Physics.Raycast(ray, out RaycastHit hit, range, ~0, QueryTriggerInteraction.Ignore))
             return null;
         return hit.collider.GetComponentInParent<BuildPiece>();
@@ -134,8 +133,7 @@ public class WoodBuilder : MonoBehaviour
         position = Vector3.zero;
         rotation = Quaternion.identity;
 
-        Transform cam = Camera.main.transform;
-        Ray ray = new Ray(cam.position, cam.forward);
+        Ray ray = PlayerView.AimRay();
         if (!Physics.Raycast(ray, out RaycastHit hit, placeDistance, ~0, QueryTriggerInteraction.Ignore))
             return false;
 
@@ -151,7 +149,8 @@ public class WoodBuilder : MonoBehaviour
             return true;
         }
 
-        float yaw = Mathf.Round((cam.eulerAngles.y + extraYaw) / 90f) * 90f;
+        float lookYaw = PlayerView.Body() != null ? PlayerView.Body().eulerAngles.y : 0f;
+        float yaw = Mathf.Round((lookYaw + extraYaw) / 90f) * 90f;
         bool facingZ = Mathf.Abs(Mathf.Sin(yaw * Mathf.Deg2Rad)) < 0.5f;
         rotation = Quaternion.Euler(0f, facingZ ? 0f : 90f, 0f);
 

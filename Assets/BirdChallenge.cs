@@ -26,6 +26,7 @@ public class BirdChallenge : MonoBehaviour
     CharacterController controller;
     Vector3 cagePoint;
     Vector3 seatPoint;
+    Vector3 lookDir;
     Vector3 returnPoint;
     readonly List<Vector3> polePerches = new List<Vector3>();
     readonly List<Vector3> perches = new List<Vector3>();
@@ -48,6 +49,7 @@ public class BirdChallenge : MonoBehaviour
     {
         yield return null;
         yield return null;
+        yield return null;
 
         PlayerMove move = FindAnyObjectByType<PlayerMove>();
         if (move == null)
@@ -59,17 +61,7 @@ public class BirdChallenge : MonoBehaviour
         GameObject tent = GameObject.Find("FCP_Tent_Type1_Color1");
         Vector3 camp = WorldGround.Snap(tent != null ? tent.transform.position : player.position);
 
-        cagePoint = FindSpot(camp, 12f, Vector3.zero);
-        Vector3 awayFromCamp = Flat(cagePoint - camp).normalized;
-        if (awayFromCamp.sqrMagnitude < 0.01f)
-            awayFromCamp = Vector3.forward;
-
-        BuildCage(cagePoint, camp);
-
-        Vector3 rockPoint = FindSpot(cagePoint, 5f, awayFromCamp);
-        seatPoint = BuildRock(rockPoint);
-
-        BuildPoles(awayFromCamp);
+        PlaceArena(camp);
         ready = true;
     }
 
@@ -151,15 +143,9 @@ public class BirdChallenge : MonoBehaviour
 
         CollectPerches();
 
-        Vector3 center = Vector3.zero;
-        foreach (Vector3 p in perches)
-            center += p;
-        center /= perches.Count;
-
         Teleport(seatPoint + Vector3.up * 1.05f);
-        Vector3 look = Flat(center - seatPoint);
-        if (look.sqrMagnitude > 0.01f)
-            player.rotation = Quaternion.LookRotation(look);
+        if (lookDir.sqrMagnitude > 0.01f)
+            player.rotation = Quaternion.LookRotation(lookDir);
         PlayerMove.Frozen = true;
 
         for (int i = 0; i < birdsAtOnce; i++)
@@ -274,9 +260,13 @@ public class BirdChallenge : MonoBehaviour
         List<HarvestableTree> trees = new List<HarvestableTree>();
         foreach (HarvestableTree tree in FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude))
         {
-            float d = Flat(tree.transform.position - seatPoint).magnitude;
-            if (d >= 10f && d <= 45f)
-                trees.Add(tree);
+            Vector3 delta = Flat(tree.transform.position - seatPoint);
+            float d = delta.magnitude;
+            if (d < 16f || d > 40f)
+                continue;
+            if (Vector3.Dot(delta.normalized, lookDir) < 0.35f)
+                continue;
+            trees.Add(tree);
         }
 
         trees.Sort((a, b) =>
@@ -288,7 +278,8 @@ public class BirdChallenge : MonoBehaviour
         {
             if (added >= 6)
                 break;
-            if (TryTreePerch(tree, out Vector3 perch))
+            if (TryTreePerch(tree, out Vector3 perch) &&
+                HasSight(seatPoint + Vector3.up * 1.6f, perch))
             {
                 perches.Add(perch);
                 added++;
@@ -320,9 +311,12 @@ public class BirdChallenge : MonoBehaviour
         if (height < 3f)
             return false;
 
-        float radius = Mathf.Min(bounds.extents.x, bounds.extents.z);
-        Vector3 toSeat = Flat(seatPoint - trunk).normalized;
-        perch = trunk + toSeat * radius * 0.7f + Vector3.up * height * 0.55f;
+        float radius = Mathf.Max(bounds.extents.x, bounds.extents.z);
+        Vector3 toSeat = Flat(seatPoint - trunk);
+        if (toSeat.sqrMagnitude < 0.01f)
+            return false;
+        toSeat.Normalize();
+        perch = trunk + toSeat * (radius + 0.9f) + Vector3.up * height * 0.42f;
         return true;
     }
 
@@ -336,37 +330,172 @@ public class BirdChallenge : MonoBehaviour
             controller.enabled = true;
     }
 
-    static Vector3 FindSpot(Vector3 from, float distance, Vector3 preferred)
+    void PlaceArena(Vector3 camp)
     {
-        Vector3 fallback = WorldGround.Snap(from + (preferred.sqrMagnitude > 0.01f ? preferred : Vector3.forward) * distance);
-        float startAngle = preferred.sqrMagnitude > 0.01f ? Mathf.Atan2(preferred.z, preferred.x) : 0f;
+        HarvestableTree[] trees = Object.FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude);
+        Vector3 bestCage = WorldGround.Snap(camp + Vector3.right * 20f);
+        Vector3 bestRock = WorldGround.Snap(bestCage + Vector3.right * 6f);
+        Vector3 bestLook = Vector3.right;
+        float bestScore = -999f;
 
-        for (int i = 0; i < 12; i++)
+        float[] distances = { 16f, 18f, 20f, 22f, 24f, 26f };
+        float[] angles = { 0f, 14f, -14f, 26f, -26f, 40f, -40f, 55f, -55f, 75f, -75f };
+
+        for (int d = 0; d < distances.Length; d++)
         {
-            float step = (i % 2 == 0 ? 1f : -1f) * ((i + 1) / 2) * 30f * Mathf.Deg2Rad;
-            float angle = startAngle + step;
-            Vector3 candidate = WorldGround.Snap(from + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * distance);
-            if (WorldGround.IsMeadow(candidate))
-                return candidate;
+            for (int a = 0; a < angles.Length; a++)
+            {
+                float rad = angles[a] * Mathf.Deg2Rad;
+                Vector3 outward = new Vector3(Mathf.Cos(rad), 0f, Mathf.Sin(rad));
+                Vector3 cage = WorldGround.Snap(camp + outward * distances[d]);
+                if (!WorldGround.IsMeadow(cage) || Clearance(cage, trees) < 8f)
+                    continue;
+                if (!HasSight(camp + Vector3.up * 1.7f, cage + Vector3.up * 1.7f))
+                    continue;
+
+                Vector3 rock = WorldGround.Snap(cage + outward * 6f);
+                if (!WorldGround.IsMeadow(rock) || Clearance(rock, trees) < 9f)
+                    continue;
+                if (Clearance(rock - outward * 5f, trees) < 6f)
+                    continue;
+                if (NearestInCone(rock, outward, 0f, 14f, 0.6f, trees) < 14f)
+                    continue;
+
+                int visible = CountInCone(rock, outward, 16f, 40f, 0.35f, trees);
+                float score = Clearance(rock, trees) * 0.25f
+                              + visible * 3.5f
+                              + (cage.x - camp.x) * 0.2f
+                              - Mathf.Abs(angles[a]) * 0.05f
+                              - Mathf.Abs(distances[d] - 20f) * 0.12f;
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestCage = cage;
+                    bestRock = rock;
+                    bestLook = outward;
+                }
+            }
         }
 
-        return fallback;
+        if (bestScore < 0f)
+        {
+            Vector3 point = WorldGround.Snap(camp + Vector3.right * 22f);
+            for (int i = 0; i < 10; i++)
+            {
+                Vector3 rock = WorldGround.Snap(point + Vector3.right * 6f);
+                if (WorldGround.IsMeadow(point) &&
+                    Clearance(point, trees) >= 9f &&
+                    Clearance(rock, trees) >= 9f &&
+                    NearestInCone(rock, Vector3.right, 0f, 14f, 0.6f, trees) >= 14f)
+                    break;
+                point = WorldGround.Snap(point + Vector3.right * 3.5f);
+            }
+            bestCage = point;
+            bestRock = WorldGround.Snap(point + Vector3.right * 6f);
+            bestLook = Vector3.right;
+        }
+
+        lookDir = bestLook.sqrMagnitude > 0.01f ? bestLook.normalized : Vector3.right;
+        cagePoint = bestCage;
+        BuildCage(cagePoint, camp);
+        seatPoint = BuildRock(bestRock);
+        BuildPoles(lookDir);
+    }
+
+    static float Clearance(Vector3 point, HarvestableTree[] trees)
+    {
+        float best = 80f;
+        for (int i = 0; i < trees.Length; i++)
+        {
+            if (trees[i] == null)
+                continue;
+            float d = Flat(trees[i].transform.position - point).magnitude;
+            if (d < best)
+                best = d;
+        }
+        return best;
+    }
+
+    static float NearestInCone(Vector3 from, Vector3 look, float minRange, float maxRange, float minDot, HarvestableTree[] trees)
+    {
+        float nearest = 99f;
+        for (int i = 0; i < trees.Length; i++)
+        {
+            if (trees[i] == null)
+                continue;
+            Vector3 delta = Flat(trees[i].transform.position - from);
+            float d = delta.magnitude;
+            if (d < minRange || d > maxRange)
+                continue;
+            if (Vector3.Dot(delta.normalized, look) < minDot)
+                continue;
+            if (d < nearest)
+                nearest = d;
+        }
+        return nearest;
+    }
+
+    static int CountInCone(Vector3 from, Vector3 look, float minRange, float maxRange, float minDot, HarvestableTree[] trees)
+    {
+        int count = 0;
+        for (int i = 0; i < trees.Length; i++)
+        {
+            if (trees[i] == null)
+                continue;
+            Vector3 delta = Flat(trees[i].transform.position - from);
+            float d = delta.magnitude;
+            if (d < minRange || d > maxRange)
+                continue;
+            if (Vector3.Dot(delta.normalized, look) < minDot)
+                continue;
+            if (HasSight(from + Vector3.up * 1.6f, trees[i].transform.position + Vector3.up * 3f))
+                count++;
+        }
+        return count;
+    }
+
+    static bool HasSight(Vector3 from, Vector3 to)
+    {
+        Vector3 delta = to - from;
+        float dist = delta.magnitude;
+        if (dist < 0.2f)
+            return true;
+
+        RaycastHit[] hits = Physics.RaycastAll(from, delta / dist, dist, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider hit = hits[i].collider;
+            if (hit == null || hit is TerrainCollider)
+                continue;
+            Transform root = hit.transform.root;
+            if (root.name.Contains("BirdChallenge") || root.GetComponent<PlayerMove>() != null)
+                continue;
+            if (hit.GetComponentInParent<HarvestableTree>() == null &&
+                !root.name.Contains("Tree"))
+                continue;
+            return false;
+        }
+        return true;
     }
 
     void BuildPoles(Vector3 forward)
     {
         Material log = Resources.Load<Material>("Building/LogMat");
         GameObject root = new GameObject("BirdChallengePerches");
+        HarvestableTree[] trees = Object.FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude);
         float baseAngle = Mathf.Atan2(forward.z, forward.x);
 
         for (int i = 0; i < poleCount; i++)
         {
-            float spread = poleCount <= 1 ? 0f : Mathf.Lerp(-70f, 70f, i / (float)(poleCount - 1));
+            float spread = poleCount <= 1 ? 0f : Mathf.Lerp(-42f, 42f, i / (float)(poleCount - 1));
             float angle = baseAngle + spread * Mathf.Deg2Rad;
-            float radius = 15f + (i % 3) * 3.5f;
-            Vector3 ground = WorldGround.Snap(seatPoint + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius);
-            float height = 4.5f + (i % 2) * 1.5f;
+            float radius = 16f + (i % 3) * 3f;
+            Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Vector3 ground = WorldGround.Snap(seatPoint + offset * radius);
+            for (int n = 0; n < 4 && Clearance(ground, trees) < 5f; n++)
+                ground = WorldGround.Snap(ground + forward * 3f);
 
+            float height = 4.5f + (i % 2) * 1.5f;
             Transform pole = new GameObject("Perch").transform;
             pole.SetParent(root.transform, false);
             pole.position = ground;
@@ -415,8 +544,8 @@ public class BirdChallenge : MonoBehaviour
         inside.localPosition = new Vector3(0f, 0.16f, 0f);
         ChallengeBird.BuildVisual(inside, out _, out _);
 
-        Part(cage, PrimitiveType.Cylinder, log, new Vector3(0.75f, 2.4f, 0.75f), Quaternion.identity, new Vector3(0.07f, 0.8f, 0.07f));
-        Part(cage, PrimitiveType.Cube, flagMat, new Vector3(0.75f, 2.95f, 1.2f), Quaternion.identity, new Vector3(0.04f, 0.45f, 0.85f));
+        Part(cage, PrimitiveType.Cylinder, log, new Vector3(0.75f, 3.1f, 0.75f), Quaternion.identity, new Vector3(0.07f, 1.5f, 0.07f));
+        Part(cage, PrimitiveType.Cube, flagMat, new Vector3(0.75f, 4.35f, 1.25f), Quaternion.identity, new Vector3(0.04f, 0.55f, 1.0f));
     }
 
     Vector3 BuildRock(Vector3 position)

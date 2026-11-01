@@ -2,10 +2,6 @@ using UnityEngine;
 
 public class ChallengeBird : MonoBehaviour
 {
-    static Material bodyMat;
-    static Material wingMat;
-    static Material beakMat;
-
     BirdChallenge owner;
     Transform wingLeft;
     Transform wingRight;
@@ -41,46 +37,7 @@ public class ChallengeBird : MonoBehaviour
 
     public static void BuildVisual(Transform parent, out Transform wingLeft, out Transform wingRight)
     {
-        if (bodyMat == null)
-        {
-            bodyMat = MakeMaterial(new Color(0.45f, 0.3f, 0.18f));
-            wingMat = MakeMaterial(new Color(0.28f, 0.19f, 0.11f));
-            beakMat = MakeMaterial(new Color(0.95f, 0.62f, 0.15f));
-        }
-
-        Part(parent, PrimitiveType.Sphere, bodyMat, new Vector3(0f, 0.15f, 0f), new Vector3(0.32f, 0.28f, 0.48f));
-        Part(parent, PrimitiveType.Sphere, bodyMat, new Vector3(0f, 0.33f, 0.2f), new Vector3(0.22f, 0.22f, 0.22f));
-        Part(parent, PrimitiveType.Cube, beakMat, new Vector3(0f, 0.32f, 0.35f), new Vector3(0.06f, 0.06f, 0.14f));
-        Part(parent, PrimitiveType.Cube, wingMat, new Vector3(0f, 0.17f, -0.3f), new Vector3(0.16f, 0.03f, 0.22f));
-
-        wingLeft = WingPivot(parent, -1f);
-        wingRight = WingPivot(parent, 1f);
-    }
-
-    static Transform WingPivot(Transform parent, float side)
-    {
-        Transform pivot = new GameObject("Wing").transform;
-        pivot.SetParent(parent, false);
-        pivot.localPosition = new Vector3(0.12f * side, 0.22f, 0f);
-        Part(pivot, PrimitiveType.Cube, wingMat, new Vector3(0.2f * side, 0f, 0f), new Vector3(0.38f, 0.03f, 0.26f));
-        return pivot;
-    }
-
-    static void Part(Transform parent, PrimitiveType type, Material mat, Vector3 pos, Vector3 scale)
-    {
-        GameObject part = GameObject.CreatePrimitive(type);
-        Object.Destroy(part.GetComponent<Collider>());
-        part.transform.SetParent(parent, false);
-        part.transform.localPosition = pos;
-        part.transform.localScale = scale;
-        part.GetComponent<Renderer>().sharedMaterial = mat;
-    }
-
-    static Material MakeMaterial(Color color)
-    {
-        Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        mat.SetColor("_BaseColor", color);
-        return mat;
+        BirdVisual.Build(parent, FlyerKind.Sparrow, out wingLeft, out wingRight);
     }
 
     public void FlyTo(int perchIndex, Vector3 perch)

@@ -24,15 +24,18 @@ public class PlayerShoot : MonoBehaviour
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
 
+        if (Inventory.IsOpen)
+            return;
+
         if (!Mouse.current.leftButton.wasPressedThisFrame)
             return;
 
-        WildlifeAlarm.NotifyShot(cam.transform.position);
+        WildlifeAlarm.NotifyShot(PlayerView.Position());
 
         if (WoodBuilder.IsBuilding)
             return;
 
-        Ray ray = new Ray(cam.transform.position, cam.transform.forward);
+        Ray ray = PlayerView.AimRay();
 
         if (BirdChallenge.Active)
         {
@@ -41,8 +44,10 @@ public class PlayerShoot : MonoBehaviour
             return;
         }
 
-        if (Physics.Raycast(ray, out RaycastHit hit, range))
+        if (Physics.Raycast(ray, out RaycastHit hit, range, ~0, QueryTriggerInteraction.Ignore))
         {
+            if (hit.transform.IsChildOf(transform))
+                return;
             if (hit.collider.GetComponentInParent<HarvestableTree>() != null)
                 return;
 

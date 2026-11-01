@@ -15,6 +15,14 @@ public static class AnimalVisuals
         HidePlaceholderMesh(animal);
         NormalizeParentScale(animal);
 
+        if (animal.kind == AnimalKind.Bird)
+        {
+            if (animal.transform.Find(BirdVisual.BodyName) == null)
+                BirdVisual.Build(animal.transform, animal.flyer, out _, out _);
+            FitCollider(animal);
+            return;
+        }
+
         if (HasSkinnedModel(animal))
         {
             FixAnimalShading(animal.gameObject);
@@ -144,9 +152,11 @@ public static class AnimalVisuals
         switch (animal.kind)
         {
             case AnimalKind.Bird:
-                capsule.radius = 0.28f;
-                capsule.height = 0.9f;
-                capsule.center = new Vector3(0f, 0.45f, 0f);
+                float radius = BirdVisual.ColliderRadius(animal.flyer);
+                capsule.radius = radius;
+                capsule.height = radius * 2.2f;
+                capsule.center = new Vector3(0f, 0.12f, 0f);
+                capsule.direction = 2;
                 break;
             case AnimalKind.Large:
                 capsule.radius = 0.55f;

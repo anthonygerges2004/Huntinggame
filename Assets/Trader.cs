@@ -26,10 +26,10 @@ public class Trader : MonoBehaviour
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
 
-        if (Keyboard.current == null || Camera.main == null)
+        if (Keyboard.current == null)
             return;
 
-        if (Vector3.Distance(transform.position, Camera.main.transform.position) > tradeRange)
+        if (Vector3.Distance(transform.position, PlayerView.Position()) > tradeRange)
             return;
 
         if (Keyboard.current.digit1Key.wasPressedThisFrame)
@@ -49,17 +49,17 @@ public class Trader : MonoBehaviour
 
         if (!Inventory.Instance.RemoveOneSellableMeat())
         {
-            Debug.Log("No meat to sell.");
+            Notice("No meat to sell.");
             return;
         }
 
         Inventory.Instance.AddWood(meatSellPriceWood);
-        Debug.Log("Sold meat for wood.");
+        Notice("Sold meat for wood.");
     }
 
     void SellWoodForPickaxeHint()
     {
-        Debug.Log("Press 1 to sell meat. Press 3 to buy a pickaxe for 5 wood.");
+        Notice("Press 1 to sell meat. Press 3 to buy a pickaxe for 5 wood.");
     }
 
     void BuyPickaxe()
@@ -69,18 +69,26 @@ public class Trader : MonoBehaviour
 
         if (Inventory.Instance.hasPickaxe)
         {
-            Debug.Log("You already have a pickaxe.");
+            Notice("You already have a pickaxe.");
             return;
         }
 
         if (!Inventory.Instance.UseWood(5))
         {
-            Debug.Log("Need 5 wood to buy a pickaxe.");
+            Notice("Need 5 wood to buy a pickaxe.");
             return;
         }
 
         Inventory.Instance.hasPickaxe = true;
-        Debug.Log("Bought a pickaxe.");
+        Notice("Bought a pickaxe.");
+    }
+
+    static void Notice(string text)
+    {
+        if (Inventory.Instance != null)
+            Inventory.Instance.ShowNotice(text);
+        else
+            Debug.Log(text);
     }
 
     void TryRivalClaim()

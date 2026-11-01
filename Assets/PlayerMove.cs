@@ -31,7 +31,13 @@ public class PlayerMove : MonoBehaviour
     void Start()
     {
         controller = GetComponent<CharacterController>();
+        views = GetComponent<CameraViewSwitcher>();
+        if (GetComponent<PlayerBodyAnimation>() == null)
+            gameObject.AddComponent<PlayerBodyAnimation>();
+        if (GetComponent<PlayerHunterLook>() == null)
+            gameObject.AddComponent<PlayerHunterLook>();
         cam = GetComponentInChildren<Camera>().transform;
+        sprintRemaining = sprintDurationSeconds;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
@@ -107,7 +113,10 @@ public class PlayerMove : MonoBehaviour
 
         verticalSpeed += gravity * Time.deltaTime;
 
-        float currentSpeed = IsCrouching ? crouchSpeed : speed;
+        bool sprinting = running && move.sqrMagnitude > 0.0001f && sprintRemaining > 0f;
+        UpdateSprint(sprinting);
+
+        float currentSpeed = IsCrouching ? crouchSpeed : (sprinting ? runSpeed : speed);
         Vector3 motion = move * currentSpeed;
         motion.y = verticalSpeed;
         controller.Move(motion * Time.deltaTime);

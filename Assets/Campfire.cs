@@ -118,14 +118,7 @@ public class Campfire : MonoBehaviour
     {
         if (lit)
         {
-            Camera mainCam = Camera.main;
-            if (mainCam == null)
-            {
-                Debug.LogError("Campfire: No camera tagged as 'MainCamera' found in the scene!");
-                return false;
-            }
-
-            Vector3 targetPoint = mainCam.transform.position + (mainCam.transform.forward * spawnDistance);
+            Vector3 targetPoint = PlayerView.AimOrigin() + PlayerView.AimDirection() * spawnDistance;
             Vector3 spawnPos = targetPoint;
             Vector3 groundNormal = Vector3.up;
             Quaternion spawnRot = Quaternion.identity;
@@ -216,22 +209,36 @@ public class Campfire : MonoBehaviour
     {
         if (!isLit)
         {
-            Debug.Log("Light a fire first, then press C to cook.");
+            Notice("Light a fire first, then press C to cook.");
+            return;
+        }
+
+        if (!PlayerIsSafe())
+        {
+            Notice("Stand near the fire to cook.");
             return;
         }
 
         if (Inventory.Instance == null || !Inventory.Instance.CookOneMeat())
         {
-            Debug.Log("No raw meat to cook.");
+            Notice("No raw meat to cook.");
             return;
         }
 
-        Debug.Log("Meat cooked. Press Q to eat cooked meat.");
+        Notice("Meat cooked. Press Q to eat.");
+    }
+
+    static void Notice(string text)
+    {
+        if (Inventory.Instance != null)
+            Inventory.Instance.ShowNotice(text);
+        else
+            Debug.Log(text);
     }
 
     public static bool PlayerIsSafe()
     {
-        if (Instance == null || !Instance.isLit || Camera.main == null)
+        if (Instance == null || !Instance.isLit)
             return false;
 
         Transform fireTransform = Instance.fireInstance != null
@@ -240,7 +247,7 @@ public class Campfire : MonoBehaviour
         if (fireTransform == null)
             return false;
 
-        float dist = Vector3.Distance(fireTransform.position, Camera.main.transform.position);
+        float dist = Vector3.Distance(fireTransform.position, PlayerView.Position());
         return dist <= Instance.safeRadius;
     }
 }

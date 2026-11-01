@@ -293,7 +293,7 @@ public class HuntWorldDressing : MonoBehaviour
         Animal[] animals = Object.FindObjectsByType<Animal>(FindObjectsInactive.Exclude);
         for (int i = 0; i < animals.Length; i++)
         {
-            if (animals[i] == null)
+            if (animals[i] == null || animals[i].kind == AnimalKind.Bird)
                 continue;
             animals[i].transform.position = WorldGround.Snap(animals[i].transform.position);
         }

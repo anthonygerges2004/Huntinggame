@@ -63,9 +63,23 @@ public class Inventory : MonoBehaviour
             gameObject.AddComponent<HuntChallenges>();
         if (GetComponent<BirdChallenge>() == null)
             gameObject.AddComponent<BirdChallenge>();
+        if (GetComponent<AmbientFlyers>() == null)
+            gameObject.AddComponent<AmbientFlyers>();
         if (GetComponent<FoliageDistanceCull>() == null)
             gameObject.AddComponent<FoliageDistanceCull>();
 
+        int startMeat = meat;
+        int startCooked = cookedMeat;
+        int startWood = wood;
+        meat = 0;
+        cookedMeat = 0;
+        wood = 0;
+        if (startMeat > 0)
+            AddItem(ItemKind.RawMeat, startMeat);
+        if (startCooked > 0)
+            AddItem(ItemKind.CookedMeat, startCooked);
+        if (startWood > 0)
+            AddItem(ItemKind.Wood, startWood);
         RecalculatePublicCounts();
     }
 
@@ -531,9 +545,7 @@ public class Inventory : MonoBehaviour
         if (amount <= 0 || kind == ItemKind.None)
             return;
 
-        Vector3 origin = Camera.main != null
-            ? Camera.main.transform.position + Camera.main.transform.forward * 1.8f
-            : transform.position + transform.forward * 1.8f;
+        Vector3 origin = PlayerView.AimOrigin() + PlayerView.AimDirection() * 1.8f;
         origin = WorldGround.Snap(origin);
 
         if (kind == ItemKind.RawMeat)

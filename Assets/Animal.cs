@@ -11,6 +11,7 @@ public enum AnimalKind
 public class Animal : MonoBehaviour
 {
     public AnimalKind kind = AnimalKind.Deer;
+    public FlyerKind flyer = FlyerKind.Sparrow;
     public int meatAmount = 2;
     public float moveSpeed = 2f;
     public float fleeSpeed = 8f;
@@ -33,6 +34,9 @@ public class Animal : MonoBehaviour
 
     bool present = true;
 
+    public bool Dead => dead;
+    public bool Fleeing => fleeing;
+
     static readonly int VerticalAnimation = Animator.StringToHash("Vert");
     static readonly int StateAnimation = Animator.StringToHash("State");
 
@@ -41,11 +45,18 @@ public class Animal : MonoBehaviour
         ApplyKindFromName();
         AnimalVisuals.Attach(this);
         homePos = WorldGround.Snap(transform.position);
-        transform.position = homePos;
+        if (kind != AnimalKind.Bird)
+            transform.position = homePos;
         previousPosition = transform.position;
         animalAnimator = GetComponentInChildren<Animator>();
         DisableImportedMovementControllers();
-        PickWanderTarget();
+        if (kind == AnimalKind.Bird)
+        {
+            if (GetComponent<BirdFlight>() == null)
+                gameObject.AddComponent<BirdFlight>();
+        }
+        else
+            PickWanderTarget();
         SetPresent(IsPresent());
     }
 
@@ -59,6 +70,9 @@ public class Animal : MonoBehaviour
             SetPresent(shouldBePresent);
 
         if (!present)
+            return;
+
+        if (kind == AnimalKind.Bird)
             return;
 
         if (fleeing)
@@ -124,9 +138,29 @@ public class Animal : MonoBehaviour
             return;
         }
 
-        if (objectName.IndexOf("Bird", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        if (objectName.IndexOf("Bird", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            objectName.IndexOf("Sparrow", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            objectName.IndexOf("Crow", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            objectName.IndexOf("Duck", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            objectName.IndexOf("Hawk", System.StringComparison.OrdinalIgnoreCase) >= 0)
         {
             kind = AnimalKind.Bird;
+            if (objectName.IndexOf("Crow", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                flyer = FlyerKind.Crow;
+            else if (objectName.IndexOf("Duck", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                flyer = FlyerKind.Duck;
+                if (meatAmount < 2)
+                    meatAmount = 2;
+            }
+            else if (objectName.IndexOf("Hawk", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                flyer = FlyerKind.Hawk;
+                if (meatAmount < 3)
+                    meatAmount = 3;
+            }
+            else
+                flyer = FlyerKind.Sparrow;
             return;
         }
 
@@ -157,7 +191,7 @@ public class Animal : MonoBehaviour
     void SetPresent(bool on)
     {
         present = on;
-        if (on)
+        if (on && kind != AnimalKind.Bird)
         {
             transform.position = WorldGround.Snap(homePos);
             previousPosition = transform.position;
@@ -267,6 +301,15 @@ public class Animal : MonoBehaviour
         if (dir.sqrMagnitude < 0.01f)
             dir = transform.forward;
         transform.forward = dir.normalized;
+        if (kind == AnimalKind.Bird)
+            transform.forward = (dir.normalized + Vector3.up * 0.25f).normalized;
+    }
+
+    public void TickFlee(float dt)
+    {
+        fleeTimer -= dt;
+        if (fleeTimer <= 0f)
+            fleeing = false;
     }
 
     void StartReturningHome()
@@ -319,15 +362,23 @@ public class Animal : MonoBehaviour
 
         dead = true;
 
-        MeatPickup.Spawn(transform.position, meatAmount);
         HuntChallenges.ReportKill(this);
-
         WildlifeAlarm.NotifyShot(transform.position);
         Overhunt.RegisterKill();
 
         if (kind == AnimalKind.Legendary && Trader.Instance != null)
             Trader.Instance.LegendaryTakenByPlayer();
 
+        if (kind == AnimalKind.Bird)
+        {
+            FallenBird drop = gameObject.GetComponent<FallenBird>();
+            if (drop == null)
+                drop = gameObject.AddComponent<FallenBird>();
+            drop.Begin(meatAmount);
+            return;
+        }
+
+        MeatPickup.Spawn(transform.position, meatAmount);
         Destroy(gameObject);
     }
 }
