@@ -16,7 +16,6 @@ public class PlayerHealth : MonoBehaviour
     public float nightDecayCheckInterval = 1f; // check every second if conditions met
     private float nightDecayTimer;
 
-    private GameObject deathScreenUI;
     private bool deathScreenCreated = false;
 
     void Awake()
@@ -108,7 +107,7 @@ public class PlayerHealth : MonoBehaviour
         CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
 
-        GraphicRaycaster raycaster = canvasObj.AddComponent<GraphicRaycaster>();
+        canvasObj.AddComponent<GraphicRaycaster>();
 
         RectTransform canvasRect = canvasObj.GetComponent<RectTransform>();
         canvasRect.offsetMin = Vector2.zero;
@@ -166,7 +165,5 @@ public class PlayerHealth : MonoBehaviour
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         });
-
-        deathScreenUI = canvasObj;
     }
 }

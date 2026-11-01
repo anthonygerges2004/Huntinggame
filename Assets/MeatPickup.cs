@@ -24,7 +24,7 @@ public class MeatPickup : MonoBehaviour
         CreateMaterials();
 
         GameObject root = new GameObject("MeatDrop");
-        root.transform.position = WorldGround.Snap(position) + Vector3.up * 0.2f;
+        root.transform.position = WorldGround.Sit(position);
 
         int pieces = Mathf.Clamp(amount, 1, 4);
         for (int i = 0; i < pieces; i++)

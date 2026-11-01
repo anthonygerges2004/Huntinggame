@@ -63,6 +63,18 @@ public static class WorldGround
         return worldPosition;
     }
 
+    public static Vector3 Sit(Vector3 worldPosition, float lift = 0.03f)
+    {
+        Vector3 start = worldPosition + Vector3.up * 6f;
+        if (Physics.Raycast(start, Vector3.down, out RaycastHit hit, 30f, ~0, QueryTriggerInteraction.Ignore))
+            return hit.point + Vector3.up * lift;
+
+        if (TryGetGround(worldPosition, out Vector3 point, out _))
+            return point + Vector3.up * lift;
+
+        return worldPosition;
+    }
+
     public static bool TryGetGround(Vector3 worldPosition, out Vector3 point, out Vector3 normal)
     {
         point = worldPosition;

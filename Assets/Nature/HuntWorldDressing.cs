@@ -147,6 +147,7 @@ public class HuntWorldDressing : MonoBehaviour
         GameCulling.ApplyForActiveScene();
         ReplaceBrokenTreeMeshes();
         ArrangeCamp();
+        SnapCastlesToGround();
 
         if (GameObject.Find(FoliageRootName) != null)
             return;
@@ -297,6 +298,56 @@ public class HuntWorldDressing : MonoBehaviour
                 continue;
             animals[i].transform.position = WorldGround.Snap(animals[i].transform.position);
         }
+    }
+
+    static void SnapCastlesToGround()
+    {
+        CastleBuilder[] builders = Object.FindObjectsByType<CastleBuilder>(FindObjectsInactive.Exclude);
+        for (int i = 0; i < builders.Length; i++)
+        {
+            if (builders[i] != null)
+                SitBuildingOnGround(builders[i].transform, 0.2f);
+        }
+
+        string[] names = { "newCastle", "Castle", "Castleie" };
+        for (int i = 0; i < names.Length; i++)
+        {
+            GameObject go = GameObject.Find(names[i]);
+            if (go == null)
+                continue;
+            if (go.GetComponent<CastleBuilder>() != null)
+                continue;
+            SitBuildingOnGround(go.transform, 0.2f);
+        }
+    }
+
+    static void SitBuildingOnGround(Transform root, float sink)
+    {
+        if (root == null)
+            return;
+
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>();
+        if (renderers == null || renderers.Length == 0)
+        {
+            if (root.childCount == 0)
+                return;
+            root.position = WorldGround.Sit(root.position, -sink);
+            return;
+        }
+
+        Bounds bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null && renderers[i].enabled)
+                bounds.Encapsulate(renderers[i].bounds);
+        }
+
+        Vector3 ground = WorldGround.Sit(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z), 0f);
+        float delta = ground.y - bounds.min.y - sink;
+        if (Mathf.Abs(delta) < 0.02f)
+            return;
+
+        root.position += Vector3.up * delta;
     }
 
     static void FixTerrainShaders()

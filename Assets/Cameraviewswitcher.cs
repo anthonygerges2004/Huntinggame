@@ -47,6 +47,8 @@ public class CameraViewSwitcher : MonoBehaviour
 
     private void Start()
     {
+        minPitch = -80f;
+        maxPitch = 70f;
         isFirstPerson = startInFirstPerson;
         playerMove = GetComponent<PlayerMove>();
         if (playerCamera != null)
@@ -94,12 +96,30 @@ public class CameraViewSwitcher : MonoBehaviour
         if (playerCamera == null)
             return;
 
+        aimFov = Mathf.MoveTowards(aimFov, PlayerShotgun.IsAiming ? 1f : 0f, Time.deltaTime * 6f);
+
         if (isFirstPerson)
             UpdateFirstPerson();
         else
             UpdateThirdPerson();
 
         ApplyWeaponVisibility();
+        ApplyAimZoom();
+    }
+
+    float savedFov = -1f;
+    float aimFov;
+
+    void ApplyAimZoom()
+    {
+        if (playerCamera == null)
+            return;
+
+        if (savedFov < 1f)
+            savedFov = playerCamera.fieldOfView;
+
+        float zoom = isFirstPerson ? 0.68f : 0.8f;
+        playerCamera.fieldOfView = Mathf.Lerp(savedFov, savedFov * zoom, aimFov);
     }
 
     private void UpdateFirstPerson()
@@ -119,13 +139,19 @@ public class CameraViewSwitcher : MonoBehaviour
         Transform cam = playerCamera.transform;
         orbitPitch = Mathf.Clamp(ReadLookPitch(), minPitch, maxPitch);
 
-        Vector3 lookPoint = transform.position + Vector3.up * lookHeight;
-        Quaternion orbit = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
-        Vector3 desired = lookPoint + orbit * (Vector3.back * currentDistance);
-        desired = ResolveCollision(lookPoint, desired);
+        float aim = aimFov;
+        float height = Mathf.Lerp(lookHeight, lookHeight + 0.12f, aim);
+        float distance = Mathf.Lerp(currentDistance, Mathf.Min(currentDistance, 2.35f), aim);
+        Vector3 lookPoint = transform.position + Vector3.up * height;
+        Quaternion yawOnly = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+        Vector3 desired = lookPoint + yawOnly * Vector3.back * distance + Vector3.up * 0.35f;
+        desired = ResolveCollision(lookPoint + Vector3.up * 0.2f, desired);
 
         cam.position = Vector3.SmoothDamp(cam.position, desired, ref followVelocity, followSmooth);
-        cam.LookAt(lookPoint);
+        cam.rotation = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
+
+        if (playerCamera.nearClipPlane < 0.2f)
+            playerCamera.nearClipPlane = 0.2f;
     }
 
     private void SnapCamera()
@@ -145,10 +171,10 @@ public class CameraViewSwitcher : MonoBehaviour
 
         orbitPitch = Mathf.Clamp(ReadLookPitch(), minPitch, maxPitch);
         Vector3 lookPoint = transform.position + Vector3.up * lookHeight;
-        Quaternion orbit = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
-        Vector3 desired = ResolveCollision(lookPoint, lookPoint + orbit * (Vector3.back * currentDistance));
-        cam.position = desired;
-        cam.LookAt(lookPoint);
+        Quaternion yawOnly = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+        Vector3 desired = lookPoint + yawOnly * Vector3.back * currentDistance + Vector3.up * 0.35f;
+        cam.position = ResolveCollision(lookPoint + Vector3.up * 0.2f, desired);
+        cam.rotation = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
     }
 
     private void ApplyParenting()
@@ -204,26 +230,27 @@ public class CameraViewSwitcher : MonoBehaviour
     private void CacheWeaponRenderers()
     {
         var found = new List<Renderer>();
-        foreach (Transform child in playerCamera.transform)
-            found.AddRange(child.GetComponentsInChildren<Renderer>(true));
+        if (playerCamera != null)
+        {
+            foreach (Transform child in playerCamera.transform)
+            {
+                if (UnderName(child, "Shotgun"))
+                    continue;
+                found.AddRange(child.GetComponentsInChildren<Renderer>(true));
+            }
+        }
         weaponRenderers = found.ToArray();
     }
 
     private void CreateHandAxe()
     {
-        if (GetComponentInChildren<HandAxeGrip>(true) != null)
+        if (playerCamera == null || GetComponentInChildren<HandAxeGrip>(true) != null)
             return;
 
-        Transform axe = null;
-        foreach (Transform child in playerCamera.transform)
-        {
-            if (child.GetComponentInChildren<Renderer>(true) != null)
-            {
-                axe = child;
-                break;
-            }
-        }
+        if (GetComponent<WeaponHold>() == null)
+            gameObject.AddComponent<WeaponHold>();
 
+        Transform axe = FindCameraAxe();
         Transform hand = FindRightHand();
         if (axe == null || hand == null)
             return;
@@ -262,6 +289,30 @@ public class CameraViewSwitcher : MonoBehaviour
         handAxeRenderers = copy.GetComponentsInChildren<Renderer>(true);
     }
 
+    private Transform FindCameraAxe()
+    {
+        Transform[] cameraKids = playerCamera.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < cameraKids.Length; i++)
+        {
+            Transform child = cameraKids[i];
+            if (child == playerCamera.transform)
+                continue;
+            if (child.GetComponentInChildren<Renderer>(true) == null)
+                continue;
+            if (child.name.IndexOf("Axe", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                child.GetComponent<AxeSwing>() != null)
+                return child;
+        }
+
+        foreach (Transform child in playerCamera.transform)
+        {
+            if (child.GetComponentInChildren<Renderer>(true) != null)
+                return child;
+        }
+
+        return null;
+    }
+
     private Transform FindRightHand()
     {
         Transform left = null;
@@ -290,7 +341,7 @@ public class CameraViewSwitcher : MonoBehaviour
                 continue;
             if (playerCamera != null && r.transform.IsChildOf(playerCamera.transform))
                 continue;
-            if (UnderName(r.transform, "HandAxe") || UnderName(r.transform, "FallingAxe"))
+            if (UnderName(r.transform, "HandAxe") || UnderName(r.transform, "FallingAxe") || UnderName(r.transform, "Shotgun"))
                 continue;
             found.Add(r);
         }
@@ -319,8 +370,9 @@ public class CameraViewSwitcher : MonoBehaviour
         if (weaponRenderers == null)
             return;
 
-        SetRenderersEnabled(weaponRenderers, isFirstPerson && AxeSwing.HasAxe);
-        SetRenderersEnabled(handAxeRenderers, !isFirstPerson && AxeSwing.HasAxe);
+        bool axeOut = AxeSwing.HasAxe && !PlayerShotgun.IsEquipped;
+        SetRenderersEnabled(weaponRenderers, isFirstPerson && axeOut);
+        SetRenderersEnabled(handAxeRenderers, !isFirstPerson && axeOut);
     }
 
     private static bool UnderName(Transform t, string name)

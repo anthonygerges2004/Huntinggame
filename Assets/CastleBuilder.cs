@@ -127,14 +127,8 @@ public class CastleBuilder : MonoBehaviour
         // remove an older build
         for (int i = transform.childCount - 1; i >= 0; i--) DestroyImmediate(transform.GetChild(i).gameObject);
 
-        // put the castle on the terrain
         if (snapToGround)
-        {
-            if (Physics.Raycast(transform.position + Vector3.up * 1000f, Vector3.down, out RaycastHit hit, 3000f))
-                transform.position = new Vector3(transform.position.x, hit.point.y + groundOffset, transform.position.z);
-            else
-                Debug.LogWarning("CastleBuilder: no ground found below, so the castle was not moved down. Set its Y position by hand.");
-        }
+            SitOnTerrain();
 
         // work out the size of one piece and which way the pieces face
         Calibrate(out float unit, out float baseYaw);
@@ -162,6 +156,33 @@ public class CastleBuilder : MonoBehaviour
         }
 
         Debug.Log("CastleBuilder: castle built with " + items.Length + " pieces.");
+    }
+
+    void Start()
+    {
+        if (snapToGround && transform.childCount > 0)
+            SitOnTerrain();
+    }
+
+    void SitOnTerrain()
+    {
+        Renderer[] renderers = GetComponentsInChildren<Renderer>();
+        if (renderers != null && renderers.Length > 0)
+        {
+            Bounds bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null && renderers[i].enabled)
+                    bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            Vector3 ground = WorldGround.Sit(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z), 0f);
+            transform.position += Vector3.up * (ground.y - bounds.min.y + groundOffset);
+            return;
+        }
+
+        Vector3 at = WorldGround.Sit(transform.position, 0f);
+        transform.position = new Vector3(transform.position.x, at.y + groundOffset, transform.position.z);
     }
 
     // Measures a wall piece so the layout still fits however Unity imported the model.

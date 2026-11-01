@@ -5,19 +5,38 @@ public class HandAxeGrip : MonoBehaviour
 {
     public static HandAxeGrip Instance { get; private set; }
 
-    Transform hand;
-    Transform player;
     float gripLocalY = 0.08f;
+
+    static readonly Vector3 HoldPos = new Vector3(0f, 0.02f, 0f);
+    static readonly Quaternion HoldRot = Quaternion.identity;
 
     public void Setup(Transform handBone, Transform playerRoot, float grip)
     {
         Instance = this;
-        hand = handBone;
-        player = playerRoot;
         gripLocalY = MeasureGrip(grip);
-        if (hand != null)
-            transform.SetParent(hand, false);
-        transform.localScale = Vector3.one;
+        StickToSlot();
+    }
+
+    void LateUpdate()
+    {
+        StickToSlot();
+        if (transform.parent == null)
+            return;
+
+        bool swinging = PlayerBodyAnimation.IsActing();
+        transform.localPosition = HoldPos + new Vector3(0f, -gripLocalY, 0f);
+        transform.localRotation = swinging ? Quaternion.Euler(22f, 0f, 0f) : HoldRot;
+        WeaponHold.SetWorldScale(transform, 1f);
+    }
+
+    void StickToSlot()
+    {
+        if (WeaponHold.Instance == null)
+            return;
+
+        WeaponHold.Instance.EnsureSlot();
+        if (transform.parent != WeaponHold.Instance.RightSlot)
+            WeaponHold.Instance.Attach(transform, HoldPos + new Vector3(0f, -gripLocalY, 0f), HoldRot, 1f);
     }
 
     float MeasureGrip(float fallback)
@@ -57,45 +76,7 @@ public class HandAxeGrip : MonoBehaviour
         if (!any)
             return Mathf.Max(0.05f, fallback);
 
-        return Mathf.Lerp(minY, maxY, 0.22f);
-    }
-
-    void LateUpdate()
-    {
-        if (hand == null || player == null)
-            return;
-
-        Vector3 fingers = hand.up;
-        if (fingers.sqrMagnitude < 0.0001f)
-            fingers = -player.up;
-        fingers.Normalize();
-
-        Vector3 palm = hand.forward;
-        if (palm.sqrMagnitude < 0.0001f)
-            palm = -player.right;
-        palm.Normalize();
-
-        // Carry: head up beside the hip. Throw: head follows the arm as it comes forward.
-        Vector3 carried = (player.up * 0.92f + player.right * 0.18f - player.forward * 0.08f).normalized;
-        float forward = Mathf.InverseLerp(-0.15f, 0.55f, Vector3.Dot(fingers, player.forward));
-        float raised = Mathf.InverseLerp(0.05f, 0.7f, Vector3.Dot(fingers, player.up));
-        Vector3 headDir = Vector3.Slerp(carried, fingers, Mathf.Max(forward, raised * 0.45f));
-        if (headDir.sqrMagnitude < 0.0001f)
-            headDir = player.up;
-        headDir.Normalize();
-
-        Vector3 blade = Vector3.ProjectOnPlane(player.forward * 0.85f + player.right * 0.2f, headDir);
-        if (blade.sqrMagnitude < 0.0001f)
-            blade = Vector3.ProjectOnPlane(player.right, headDir);
-        blade.Normalize();
-
-        Quaternion rot = Quaternion.LookRotation(blade, headDir);
-        Vector3 hold = hand.position
-            + fingers * 0.07f
-            + palm * 0.028f
-            + player.right * 0.025f;
-
-        transform.SetPositionAndRotation(hold - rot * new Vector3(0f, gripLocalY, 0f), rot);
+        return Mathf.Lerp(minY, maxY, 0.36f);
     }
 
     void OnDestroy()

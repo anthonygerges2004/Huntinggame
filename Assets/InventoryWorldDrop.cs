@@ -16,7 +16,7 @@ public class InventoryWorldDrop : MonoBehaviour
             return;
 
         GameObject root = new GameObject(itemId + "Drop");
-        root.transform.position = WorldGround.Snap(position) + Vector3.up * 0.2f;
+        root.transform.position = WorldGround.Sit(position);
 
         InventoryWorldDrop drop = root.AddComponent<InventoryWorldDrop>();
         drop.itemId = itemId;
@@ -29,26 +29,35 @@ public class InventoryWorldDrop : MonoBehaviour
     {
         PrimitiveType shape = PrimitiveType.Cube;
         Color color = new Color(0.75f, 0.75f, 0.75f);
+        Vector3 scale = new Vector3(0.28f, 0.12f, 0.28f);
+        Quaternion tilt = Quaternion.identity;
 
         if (itemId == "Wood")
         {
             shape = PrimitiveType.Cylinder;
             color = new Color(0.38f, 0.29f, 0.16f);
+            scale = new Vector3(0.16f, 0.28f, 0.16f);
+            tilt = Quaternion.Euler(0f, 20f, 90f);
         }
         else if (itemId == "CookedMeat")
         {
             shape = PrimitiveType.Capsule;
             color = new Color(0.55f, 0.35f, 0.16f);
+            scale = new Vector3(0.18f, 0.12f, 0.18f);
+            tilt = Quaternion.Euler(0f, 15f, 90f);
         }
         else if (itemId == "RawMeat")
         {
             shape = PrimitiveType.Sphere;
             color = new Color(0.6f, 0.14f, 0.12f);
+            scale = new Vector3(0.22f, 0.1f, 0.16f);
         }
 
         GameObject visual = GameObject.CreatePrimitive(shape);
         visual.transform.SetParent(parent, false);
-        visual.transform.localScale = new Vector3(0.38f, 0.28f, 0.38f);
+        visual.transform.localRotation = tilt;
+        visual.transform.localPosition = Vector3.up * 0.06f;
+        visual.transform.localScale = scale;
         Destroy(visual.GetComponent<Collider>());
 
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
@@ -64,7 +73,7 @@ public class InventoryWorldDrop : MonoBehaviour
     void Update()
     {
         age += Time.deltaTime;
-        transform.position = basePos + Vector3.up * (Mathf.Sin(age * 2.2f) * 0.05f);
+        transform.position = basePos + Vector3.up * (Mathf.Sin(age * 2.2f) * 0.015f);
         transform.Rotate(0f, 45f * Time.deltaTime, 0f);
 
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)

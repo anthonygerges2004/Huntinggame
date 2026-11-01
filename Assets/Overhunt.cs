@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class Overhunt : MonoBehaviour
+public static class Overhunt
 {
     public static int kills;
     public static int killsBeforeAreaGoesQuiet = 6;

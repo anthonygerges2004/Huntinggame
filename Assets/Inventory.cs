@@ -545,8 +545,11 @@ public class Inventory : MonoBehaviour
         if (amount <= 0 || kind == ItemKind.None)
             return;
 
-        Vector3 origin = PlayerView.AimOrigin() + PlayerView.AimDirection() * 1.8f;
-        origin = WorldGround.Snap(origin);
+        Transform body = PlayerView.Body();
+        Vector3 origin = body != null
+            ? body.position + body.forward * 1.5f + Vector3.up * 0.4f
+            : PlayerView.AimOrigin() + PlayerView.AimDirection() * 1.5f;
+        origin = WorldGround.Sit(origin);
 
         if (kind == ItemKind.RawMeat)
             MeatPickup.Spawn(origin, amount);

@@ -25,9 +25,6 @@ public class GameHUD : MonoBehaviour
     {
         EnsureHudSource();
         SetupLayout();
-        Canvas canvas = hudText != null ? hudText.canvas : Object.FindAnyObjectByType<Canvas>();
-        if (canvas != null)
-            MakeCrosshair(canvas);
     }
 
     void Update()
@@ -296,7 +293,7 @@ public class GameHUD : MonoBehaviour
         MakeLabel(
             hintRoot.transform,
             font,
-            "F fire/feed  C cook  Q eat  E chop  Right click throw  1 sell  3 pickaxe  T challenge  G inventory",
+            "F fire  C cook  Q eat  E chop  2 shotgun  Right click aim  1 sell  3 pickaxe  T challenge  G inventory",
             14f,
             -8f,
             952f,

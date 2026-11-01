@@ -99,6 +99,11 @@ public class PlayerBodyAnimation : MonoBehaviour
         Instance.throwTime = -1f;
     }
 
+    public static bool IsActing()
+    {
+        return Instance != null && (Instance.chopTime >= 0f || Instance.throwTime >= 0f);
+    }
+
     void LateUpdate()
     {
         if (!ready)
@@ -208,12 +213,27 @@ public class PlayerBodyAnimation : MonoBehaviour
             spinePitch = Mathf.Lerp(spinePitch, -8f, airBlend);
         }
 
-        bool holdingAxe = AxeSwing.HasAxe;
+        bool holdingShotgun = PlayerShotgun.IsEquipped;
+        bool holdingAxe = AxeSwing.HasAxe && !holdingShotgun;
+        float shotgunMount = holdingShotgun ? PlayerShotgun.Mount : 0f;
+        float shotgunRecoil = holdingShotgun ? PlayerShotgun.RecoilKick : 0f;
+        float shotgunPump = holdingShotgun ? PlayerShotgun.PumpPull : 0f;
+        if (holdingShotgun)
+        {
+            spinePitch += 8f * (1f - shotgunMount) - 12f * shotgunRecoil;
+            spineTwist += 7f * (1f - shotgunMount);
+        }
         if (holdingAxe)
         {
-            rightArmPitch = 22f - r * 8f * walkW;
-            rightElbow = 38f + 4f * walkW;
-            hangR = -70f;
+            hangR = -24f;
+            rightArmPitch = -52f - r * 4f * walkW;
+            rightElbow = 46f + 2f * walkW;
+            if (crouch)
+            {
+                hangR = -32f;
+                rightArmPitch = -38f;
+                rightElbow = 50f;
+            }
         }
 
         float actionPitch = 0f;
@@ -243,7 +263,7 @@ public class PlayerBodyAnimation : MonoBehaviour
                 float k = Ease(chopTime / strikeStart);
                 actionHang = Mathf.Lerp(hangR, -18f, k);
                 actionPitch = Mathf.Lerp(0f, -40f, k);
-                actionElbow = Mathf.Lerp(holdingAxe ? 12f : 12f, 22f, k);
+                actionElbow = Mathf.Lerp(12f, 22f, k);
                 actionLean = Mathf.Lerp(0f, -10f, k);
                 actionYaw = Mathf.Lerp(0f, 8f, k);
             }
@@ -379,45 +399,106 @@ public class PlayerBodyAnimation : MonoBehaviour
         Pose(leftFoot, leftFootRot, -leftThigh * 0.35f - leftKnee * 0.15f, 0f, 0f);
         Pose(rightFoot, rightFootRot, -rightThigh * 0.35f - rightKnee * 0.15f, 0f, 0f);
         PoseArmsAndHands(hangL, hangR, leftArmPitch, rightArmPitch, leftElbow, rightElbow,
-            acting ? actionYaw : 0f, holdingAxe || throwTime >= 0f);
+            acting ? actionYaw : 0f, holdingAxe || holdingShotgun || throwTime >= 0f,
+            holdingAxe && !acting, holdingShotgun && !acting,
+            shotgunMount, shotgunRecoil, shotgunPump);
     }
 
     void PoseArmsAndHands(
         float hangLDeg, float hangRDeg,
         float pitchL, float pitchR,
         float elbowL, float elbowR,
-        float yawR, bool gripRight)
+        float yawR, bool gripRight, bool holdAxeHigh, bool holdShotgun,
+        float shotgunMount, float shotgunRecoil, float shotgunPump)
     {
         Vector3 down = -transform.up;
         Vector3 fwd = transform.forward;
         Vector3 right = transform.right;
+        Vector3 up = transform.up;
 
-        PointAlong(leftShoulder, leftShoulderRot, Vector3.Slerp(-right, down, 0.32f));
-        PointAlong(rightShoulder, rightShoulderRot, Vector3.Slerp(right, down, 0.32f));
+        PointAlong(leftShoulder, leftShoulderRot, holdShotgun
+            ? Vector3.Slerp(-right, fwd, 0.42f + 0.18f * shotgunMount)
+            : Vector3.Slerp(-right, down, 0.32f));
+        PointAlong(rightShoulder, rightShoulderRot, holdAxeHigh
+            ? Vector3.Slerp(right, up, 0.22f)
+            : holdShotgun
+                ? Vector3.Slerp(right, fwd, 0.38f + 0.22f * shotgunMount)
+                : Vector3.Slerp(right, down, 0.32f));
 
-        Vector3 leftArmDir = Vector3.Slerp(-right, down, Mathf.Clamp01(Mathf.Abs(hangLDeg) / 88f));
-        leftArmDir = Quaternion.AngleAxis(pitchL, right) * leftArmDir;
-        Vector3 rightArmDir = Vector3.Slerp(right, down, Mathf.Clamp01(Mathf.Abs(hangRDeg) / 88f));
-        rightArmDir = Quaternion.AngleAxis(pitchR, right) * rightArmDir;
-        if (Mathf.Abs(yawR) > 0.01f)
-            rightArmDir = Quaternion.AngleAxis(yawR, transform.up) * rightArmDir;
+        if (holdShotgun)
+        {
+            CurlFingers(leftFingers, leftFingerBind, gripFingerEuler);
+            CurlFingers(rightFingers, rightFingerBind, gripFingerEuler);
+            return;
+        }
 
-        Vector3 leftForeDir = Quaternion.AngleAxis(-elbowL, right) * leftArmDir;
-        Vector3 rightForeDir = Quaternion.AngleAxis(-elbowR, right) * rightArmDir;
+        Vector3 leftArmDir;
+        Vector3 leftForeDir;
+        Vector3 rightArmDir;
+        Vector3 rightForeDir;
+        if (holdShotgun)
+        {
+            Vector3 readyRightArm = (fwd * 0.42f + right * 0.62f - up * 0.08f).normalized;
+            Vector3 readyRightFore = (fwd * 0.88f + right * 0.06f - up * 0.10f).normalized;
+            Vector3 readyLeftArm = (fwd * 0.62f - right * 0.08f - up * 0.22f).normalized;
+            Vector3 readyLeftFore = (fwd * 0.82f + right * 0.18f - up * 0.12f).normalized;
+
+            Vector3 aimRightArm = (fwd * 0.38f + right * 0.72f + up * 0.22f).normalized;
+            Vector3 aimRightFore = (fwd * 0.78f + right * 0.12f + up * 0.28f).normalized;
+            Vector3 aimLeftArm = (fwd * 0.78f - right * 0.16f + up * 0.08f).normalized;
+            Vector3 aimLeftFore = (fwd * 0.96f + up * 0.08f).normalized;
+
+            rightArmDir = Vector3.Slerp(readyRightArm, aimRightArm, shotgunMount);
+            rightForeDir = Vector3.Slerp(readyRightFore, aimRightFore, shotgunMount);
+            leftArmDir = Vector3.Slerp(readyLeftArm, aimLeftArm, shotgunMount);
+            leftForeDir = Vector3.Slerp(readyLeftFore, aimLeftFore, shotgunMount);
+
+            rightForeDir = (rightForeDir + up * 0.28f * shotgunRecoil - fwd * 0.12f * shotgunRecoil).normalized;
+            leftForeDir = (leftForeDir + up * 0.16f * shotgunRecoil + (down * 0.55f + fwd * 0.10f) * shotgunPump).normalized;
+        }
+        else if (holdAxeHigh)
+        {
+            leftArmDir = Vector3.Slerp(-right, down, Mathf.Clamp01(Mathf.Abs(hangLDeg) / 88f));
+            leftArmDir = Quaternion.AngleAxis(pitchL, right) * leftArmDir;
+            leftForeDir = Quaternion.AngleAxis(-elbowL, right) * leftArmDir;
+            rightArmDir = (right * 0.78f + fwd * 0.42f + up * 0.18f).normalized;
+            rightForeDir = (up * 0.88f + fwd * 0.32f - right * 0.18f).normalized;
+        }
+        else
+        {
+            leftArmDir = Vector3.Slerp(-right, down, Mathf.Clamp01(Mathf.Abs(hangLDeg) / 88f));
+            leftArmDir = Quaternion.AngleAxis(pitchL, right) * leftArmDir;
+            leftForeDir = Quaternion.AngleAxis(-elbowL, right) * leftArmDir;
+            rightArmDir = Vector3.Slerp(right, down, Mathf.Clamp01(Mathf.Abs(hangRDeg) / 88f));
+            rightArmDir = Quaternion.AngleAxis(pitchR, right) * rightArmDir;
+            if (Mathf.Abs(yawR) > 0.01f)
+                rightArmDir = Quaternion.AngleAxis(yawR, up) * rightArmDir;
+            rightForeDir = Quaternion.AngleAxis(-elbowR, right) * rightArmDir;
+        }
 
         PointAlong(leftArm, leftArmRot, leftArmDir);
         PointAlong(rightArm, rightArmRot, rightArmDir);
         PointAlong(leftForeArm, leftForeArmRot, leftForeDir);
         PointAlong(rightForeArm, rightForeArmRot, rightForeDir);
 
-        Vector3 leftPalm = -fwd * 0.8f + right * 0.35f;
-        Vector3 rightPalm = -fwd * 0.8f - right * 0.35f;
-        Vector3 leftFingerDir = (leftForeDir * 0.7f + down * 0.3f - fwd * 0.1f).normalized;
-        Vector3 rightFingerDir = (rightForeDir * 0.7f + down * 0.3f - fwd * 0.1f).normalized;
+        Vector3 leftPalm = holdShotgun ? (up * 0.25f + right * 0.15f) : (-fwd * 0.8f + right * 0.35f);
+        Vector3 rightPalm = holdAxeHigh
+            ? (-fwd * 0.35f - right * 0.75f)
+            : holdShotgun
+                ? (up * 0.2f - right * 0.15f)
+                : (-fwd * 0.8f - right * 0.35f);
+        Vector3 leftFingerDir = holdShotgun
+            ? Vector3.Slerp((fwd * 0.82f - up * 0.18f).normalized, fwd, shotgunMount)
+            : (leftForeDir * 0.7f + down * 0.3f - fwd * 0.1f).normalized;
+        Vector3 rightFingerDir = holdAxeHigh
+            ? (up * 0.92f + fwd * 0.18f).normalized
+            : holdShotgun
+                ? Vector3.Slerp((fwd * 0.90f - up * 0.16f).normalized, fwd, shotgunMount)
+                : (rightForeDir * 0.7f + down * 0.3f - fwd * 0.1f).normalized;
         AimBone(leftHand, leftHandRot, leftFingerDir, leftPalm);
         AimBone(rightHand, rightHandRot, rightFingerDir, rightPalm);
 
-        CurlFingers(leftFingers, leftFingerBind, restFingerEuler);
+        CurlFingers(leftFingers, leftFingerBind, holdShotgun ? gripFingerEuler : restFingerEuler);
         CurlFingers(rightFingers, rightFingerBind, gripRight ? gripFingerEuler : restFingerEuler);
     }
 

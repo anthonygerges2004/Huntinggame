@@ -1,10 +1,10 @@
 using UnityEngine;
 
-public class WildlifeAlarm : MonoBehaviour
+public static class WildlifeAlarm
 {
     public static void NotifyShot(Vector3 position)
     {
-        Animal[] animals = FindObjectsByType<Animal>(FindObjectsInactive.Exclude);
+        Animal[] animals = Object.FindObjectsByType<Animal>(FindObjectsInactive.Exclude);
         for (int i = 0; i < animals.Length; i++)
         {
             if (!animals[i].IsPresent() || animals[i].Dead)

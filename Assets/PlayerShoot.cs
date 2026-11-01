@@ -5,20 +5,9 @@ public class PlayerShoot : MonoBehaviour
 {
     public float range = 100f;
 
-    Camera cam;
-
-    void Start()
-    {
-        cam = GetComponentInChildren<Camera>();
-        if (cam == null)
-            cam = Camera.main;
-    }
-
     void Update()
     {
-        if (cam == null)
-            cam = Camera.main;
-        if (cam == null || Mouse.current == null)
+        if (Mouse.current == null)
             return;
 
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
@@ -30,8 +19,6 @@ public class PlayerShoot : MonoBehaviour
         if (!Mouse.current.leftButton.wasPressedThisFrame)
             return;
 
-        WildlifeAlarm.NotifyShot(PlayerView.Position());
-
         if (WoodBuilder.IsBuilding)
             return;
 
@@ -40,20 +27,18 @@ public class PlayerShoot : MonoBehaviour
         if (BirdChallenge.Active)
         {
             if (BirdChallenge.TryUseShot())
+            {
+                WildlifeAlarm.NotifyShot(PlayerView.Position());
                 ShootChallengeBird(ray);
+            }
             return;
         }
 
-        if (Physics.Raycast(ray, out RaycastHit hit, range, ~0, QueryTriggerInteraction.Ignore))
+        if (PlayerShotgun.IsEquipped)
         {
-            if (hit.transform.IsChildOf(transform))
-                return;
-            if (hit.collider.GetComponentInParent<HarvestableTree>() != null)
-                return;
-
-            Animal animal = hit.collider.GetComponentInParent<Animal>();
-            if (animal != null)
-                animal.Hit();
+            if (PlayerShotgun.Instance != null)
+                PlayerShotgun.Instance.TryFire();
+            return;
         }
     }
 
@@ -73,16 +58,5 @@ public class PlayerShoot : MonoBehaviour
 
         if (closest != null)
             closest.Hit();
-    }
-
-    void OnGUI()
-    {
-        float size = 12f;
-        float thick = 3f;
-        float x = Screen.width * 0.5f;
-        float y = Screen.height * 0.5f;
-        GUI.color = Color.white;
-        GUI.DrawTexture(new Rect(x - size, y - thick * 0.5f, size * 2f, thick), Texture2D.whiteTexture);
-        GUI.DrawTexture(new Rect(x - thick * 0.5f, y - size, thick, size * 2f), Texture2D.whiteTexture);
     }
 }

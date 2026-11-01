@@ -23,11 +23,6 @@ public class HarvestableTree : MonoBehaviour
             chopRange = 6f;
     }
 
-    public static bool IsLookingAtTree()
-    {
-        return FindLookedAtTree() != null;
-    }
-
     public static HarvestableTree AimedTree()
     {
         return FindLookedAtTree();

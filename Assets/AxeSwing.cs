@@ -32,7 +32,6 @@ public class AxeSwing : MonoBehaviour
     Vector3 restPos;
     Quaternion restRot;
     bool swinging;
-    bool showChopHint;
     int pickupFrame = -1;
 
     void Awake()
@@ -50,13 +49,7 @@ public class AxeSwing : MonoBehaviour
             return;
 
         if (!HasAxe)
-        {
             ScreenText.Centered("No axe. Walk over it to pick it up.", Screen.height * 0.5f - 90f * ScreenText.Scale, 24);
-            return;
-        }
-
-        if (showChopHint)
-            ScreenText.Centered("Left click or E to chop", Screen.height * 0.62f, 22);
     }
 
     void Start()
@@ -88,7 +81,7 @@ public class AxeSwing : MonoBehaviour
 
     bool SwingPressed()
     {
-        if (Inventory.IsOpen || WoodBuilder.IsBuilding || BirdChallenge.Active) return false;
+        if (Inventory.IsOpen || WoodBuilder.IsBuilding || BirdChallenge.Active || PlayerShotgun.IsEquipped) return false;
 #if ENABLE_INPUT_SYSTEM
         var kb = Keyboard.current; var ms = Mouse.current;
         return (swingOnE && kb != null && kb.eKey.wasPressedThisFrame)
@@ -101,7 +94,7 @@ public class AxeSwing : MonoBehaviour
 
     bool ThrowPressed()
     {
-        if (Inventory.IsOpen || !throwOnRightClick || WoodBuilder.IsBuilding || BirdChallenge.Active) return false;
+        if (Inventory.IsOpen || !throwOnRightClick || WoodBuilder.IsBuilding || BirdChallenge.Active || PlayerShotgun.IsEquipped) return false;
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
@@ -267,13 +260,5 @@ public class AxeSwing : MonoBehaviour
         }
         transform.localRotation = restRot * Quaternion.Euler(a1, 0f, 0f);
         transform.localPosition = restPos + o1;
-    }
-
-    static bool LookingAtWood()
-    {
-        if (WoodBuilder.LookedAtPiece(4f) != null)
-            return true;
-
-        return HarvestableTree.IsLookingAtTree();
     }
 }

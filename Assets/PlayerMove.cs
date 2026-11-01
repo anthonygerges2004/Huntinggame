@@ -36,6 +36,10 @@ public class PlayerMove : MonoBehaviour
             gameObject.AddComponent<PlayerBodyAnimation>();
         if (GetComponent<PlayerHunterLook>() == null)
             gameObject.AddComponent<PlayerHunterLook>();
+        if (GetComponent<WeaponHold>() == null)
+            gameObject.AddComponent<WeaponHold>();
+        if (GetComponent<PlayerShotgun>() == null)
+            gameObject.AddComponent<PlayerShotgun>();
         cam = GetComponentInChildren<Camera>().transform;
         sprintRemaining = sprintDurationSeconds;
         Cursor.lockState = CursorLockMode.Locked;
@@ -73,7 +77,7 @@ public class PlayerMove : MonoBehaviour
 
         bool firstPerson = views == null || views.IsFirstPerson;
         xRotation -= look.y;
-        xRotation = Mathf.Clamp(xRotation, firstPerson ? -80f : -20f, firstPerson ? 80f : 50f);
+        xRotation = Mathf.Clamp(xRotation, firstPerson ? -85f : -80f, firstPerson ? 85f : 70f);
         if (firstPerson && cam != null)
             cam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
 
@@ -85,7 +89,7 @@ public class PlayerMove : MonoBehaviour
         }
 
         IsCrouching = Keyboard.current.leftCtrlKey.isPressed;
-        bool running = !IsCrouching && Keyboard.current.leftShiftKey.isPressed;
+        bool running = !IsCrouching && !PlayerShotgun.IsAiming && Keyboard.current.leftShiftKey.isPressed;
 
         Vector2 moveInput = Vector2.zero;
         if (Keyboard.current.aKey.isPressed) moveInput.x -= 1f;
@@ -117,6 +121,8 @@ public class PlayerMove : MonoBehaviour
         UpdateSprint(sprinting);
 
         float currentSpeed = IsCrouching ? crouchSpeed : (sprinting ? runSpeed : speed);
+        if (PlayerShotgun.IsAiming)
+            currentSpeed *= 0.55f;
         Vector3 motion = move * currentSpeed;
         motion.y = verticalSpeed;
         controller.Move(motion * Time.deltaTime);
