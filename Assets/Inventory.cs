@@ -83,13 +83,29 @@ public class Inventory : MonoBehaviour
         RecalculatePublicCounts();
     }
 
+    void OnDisable()
+    {
+        if (dragging)
+            ReturnDraggedToSource();
+        inventoryOpen = false;
+    }
+
     void Update()
     {
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+        {
+            if (dragging)
+                ReturnDraggedToSource();
+            inventoryOpen = false;
             return;
+        }
 
         if (Keyboard.current != null && Keyboard.current.gKey.wasPressedThisFrame)
+        {
+            if (inventoryOpen && dragging)
+                ReturnDraggedToSource();
             inventoryOpen = !inventoryOpen;
+        }
 
         if (Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame)
         {
@@ -131,6 +147,10 @@ public class Inventory : MonoBehaviour
 
     public bool UseWood(int amount)
     {
+        if (amount <= 0)
+            return true;
+        if (wood < amount)
+            return false;
         return RemoveItem(ItemKind.Wood, amount) == amount;
     }
 

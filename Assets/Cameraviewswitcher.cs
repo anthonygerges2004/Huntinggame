@@ -30,6 +30,8 @@ public class CameraViewSwitcher : MonoBehaviour
 
     public static CameraViewSwitcher Instance { get; private set; }
     public bool IsFirstPerson => isFirstPerson;
+    public Camera PlayerCamera => playerCamera;
+    public Transform EyePoint => eyePoint;
 
     private bool isFirstPerson;
     private Renderer[] weaponRenderers;
@@ -399,3 +401,4 @@ public class CameraViewSwitcher : MonoBehaviour
         }
     }
 }
+

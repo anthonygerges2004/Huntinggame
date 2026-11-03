@@ -2,6 +2,15 @@ using UnityEngine;
 
 public static class PlayerView
 {
+    public static Camera GetCamera()
+    {
+        if (CameraViewSwitcher.Instance != null && CameraViewSwitcher.Instance.PlayerCamera != null)
+            return CameraViewSwitcher.Instance.PlayerCamera;
+        if (Camera.main != null)
+            return Camera.main;
+        return Object.FindAnyObjectByType<Camera>();
+    }
+
     public static Transform Body()
     {
         if (PlayerHealth.Instance != null)
@@ -26,7 +35,7 @@ public static class PlayerView
     {
         if (IsFirstPerson())
         {
-            Camera cam = Camera.main;
+            Camera cam = GetCamera();
             if (cam != null)
                 return cam.transform.position;
         }
@@ -35,7 +44,7 @@ public static class PlayerView
         if (body != null)
             return body.position + Vector3.up * 1.5f;
 
-        Camera fallback = Camera.main;
+        Camera fallback = GetCamera();
         return fallback != null ? fallback.transform.position : Vector3.zero;
     }
 
@@ -43,7 +52,7 @@ public static class PlayerView
     {
         if (IsFirstPerson())
         {
-            Camera cam = Camera.main;
+            Camera cam = GetCamera();
             if (cam != null)
                 return cam.transform.forward;
         }
@@ -51,7 +60,7 @@ public static class PlayerView
         Transform body = Body();
         if (body == null)
         {
-            Camera cam = Camera.main;
+            Camera cam = GetCamera();
             return cam != null ? cam.transform.forward : Vector3.forward;
         }
 

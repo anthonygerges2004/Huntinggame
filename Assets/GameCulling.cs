@@ -6,12 +6,12 @@ public static class GameCulling
     public const float MainCameraFarClip = 2000f;
     public const float MinimapCameraFarClip = 500f;
 
-    public const float TerrainTreeDistance = 2000f;
-    public const float TerrainTreeBillboard = 1200f;
-    public const float TerrainDetailDistance = 80f;
-    public const float TerrainDetailDensity = 0.5f;
-    public const float TerrainPixelError = 10f;
-    public const float TerrainBasemapDistance = 1000f;
+    public const float TerrainTreeDistance = 2600f;
+    public const float TerrainTreeBillboard = 1700f;
+    public const float TerrainDetailDistance = 130f;
+    public const float TerrainDetailDensity = 0.85f;
+    public const float TerrainPixelError = 5f;
+    public const float TerrainBasemapDistance = 1800f;
 
     public static void ApplyToCamera(Camera camera, bool minimap)
     {

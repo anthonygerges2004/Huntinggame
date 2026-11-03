@@ -144,7 +144,7 @@ public class FallenBird : MonoBehaviour
             Vector3.ProjectOnPlane(transform.forward, Vector3.up).sqrMagnitude > 0.01f
                 ? Vector3.ProjectOnPlane(transform.forward, Vector3.up)
                 : Vector3.forward,
-            Vector3.right);
+            Vector3.up);
 
         if (body != null)
         {

@@ -11,9 +11,9 @@ public class DayNightCycle : MonoBehaviour
     public float dayLengthSeconds = 90f;
     public bool IsNight { get; private set; }
 
-    public Color ambientSky = new Color(0.62f, 0.66f, 0.72f);
-    public Color ambientHorizon = new Color(0.52f, 0.52f, 0.48f);
-    public Color ambientGround = new Color(0.34f, 0.31f, 0.26f);
+    public Color ambientSky = new Color(0.68f, 0.73f, 0.80f);
+    public Color ambientHorizon = new Color(0.58f, 0.58f, 0.54f);
+    public Color ambientGround = new Color(0.38f, 0.35f, 0.30f);
 
     float timeOfDay;
     float ambientLevel = 1f;
@@ -27,7 +27,8 @@ public class DayNightCycle : MonoBehaviour
 
         // The sky images have a teal sea in their lower half, which tints shaded surfaces blue.
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-        RenderSettings.reflectionIntensity = 0.15f;
+        RenderSettings.reflectionIntensity = 0.28f;
+        RenderSettings.ambientIntensity = 1f;
     }
 
     void Update()
@@ -73,39 +74,36 @@ public class DayNightCycle : MonoBehaviour
 
             // Dynamic intensity based on sun position with smooth curve
             float sunHeight = Mathf.Sin(timeOfDay * Mathf.PI);
-            sun.intensity = Mathf.Max(0.1f, sunHeight * 1.3f);
+            float shaped = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(sunHeight));
+            sun.intensity = Mathf.Lerp(0.16f, 1.35f, shaped);
 
             // Smooth color transitions across entire day
             Color targetColor = Color.white;
 
-            if (timeOfDay < 0.2f)
+            if (timeOfDay < 0.18f)
             {
-                // Day: white
-                targetColor = Color.white;
+                targetColor = new Color(1f, 0.98f, 0.93f);
             }
-            else if (timeOfDay < 0.5f)
+            else if (timeOfDay < 0.52f)
             {
-                // Long sunset transition (0.2 to 0.5 = 30 seconds out of 90)
-                float sunsetProgress = (timeOfDay - 0.2f) / 0.3f;
-                targetColor = Color.Lerp(Color.white, new Color(1f, 0.4f, 0.2f), sunsetProgress);
+                float sunsetProgress = (timeOfDay - 0.18f) / 0.34f;
+                targetColor = Color.Lerp(new Color(1f, 0.96f, 0.90f), new Color(1f, 0.48f, 0.26f), sunsetProgress);
             }
-            else if (timeOfDay < 0.7f)
+            else if (timeOfDay < 0.72f)
             {
-                // Night: deep blue
-                targetColor = new Color(0.6f, 0.6f, 0.9f);
+                targetColor = new Color(0.58f, 0.62f, 0.90f);
             }
             else
             {
-                // Long sunrise transition (0.7 to 1.0)
-                float sunriseProgress = (timeOfDay - 0.7f) / 0.3f;
-                targetColor = Color.Lerp(new Color(1f, 0.4f, 0.2f), Color.white, sunriseProgress);
+                float sunriseProgress = (timeOfDay - 0.72f) / 0.28f;
+                targetColor = Color.Lerp(new Color(1f, 0.50f, 0.28f), new Color(1f, 0.97f, 0.92f), sunriseProgress);
             }
 
             sun.color = targetColor;
         }
 
-        float targetLevel = IsNight ? 0.3f : 1f;
-        ambientLevel = Mathf.Lerp(ambientLevel, targetLevel, Time.deltaTime * 0.3f);
+        float targetLevel = IsNight ? 0.42f : 1f;
+        ambientLevel = Mathf.Lerp(ambientLevel, targetLevel, Time.deltaTime * 0.45f);
         RenderSettings.ambientSkyColor = ambientSky * ambientLevel;
         RenderSettings.ambientEquatorColor = ambientHorizon * ambientLevel;
         RenderSettings.ambientGroundColor = ambientGround * ambientLevel;

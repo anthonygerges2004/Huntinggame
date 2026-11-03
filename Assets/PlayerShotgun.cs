@@ -43,14 +43,23 @@ public class PlayerShotgun : MonoBehaviour
 
     void Start()
     {
-        Camera playerCam = GetComponentInChildren<Camera>();
+        Camera playerCam = CameraViewSwitcher.Instance != null
+            ? CameraViewSwitcher.Instance.PlayerCamera
+            : null;
+        if (playerCam == null)
+            playerCam = PlayerView.GetCamera();
+        if (playerCam == null)
+            playerCam = GetComponentInChildren<Camera>();
         if (playerCam != null)
             cam = playerCam.transform;
 
         ClearLeftoverGuns();
 
         if (cam != null)
+        {
             viewGun = ShotgunVisual.Build(cam).transform;
+            FirstPersonHands.AttachTo(viewGun);
+        }
 
         handGun = ShotgunVisual.Build(transform).transform;
         rightGripLocal = new Vector3(
@@ -221,8 +230,9 @@ public class PlayerShotgun : MonoBehaviour
         {
             float spread = aimHeld ? spreadAngle * 0.28f : spreadAngle;
             Vector3 direction = forward;
-            direction += up * Random.Range(-spread, spread) / 100f;
-            direction += right * Random.Range(-spread, spread) / 100f;
+            float half = Mathf.Tan(spread * Mathf.Deg2Rad);
+            direction += up * Random.Range(-half, half);
+            direction += right * Random.Range(-half, half);
 
             if (Physics.Raycast(origin, direction, out RaycastHit hit, range, ~0, QueryTriggerInteraction.Ignore))
             {
@@ -279,7 +289,7 @@ public class PlayerShotgun : MonoBehaviour
         rot = Quaternion.Euler(-16f * recoil + 34f * breakOpen, 2f * recoil, -2f * recoil) * rot;
         viewGun.localPosition = pos;
         viewGun.localRotation = rot;
-        WeaponHold.SetWorldScale(viewGun, ShotgunVisual.FittedScale * 0.58f);
+        WeaponHold.SetWorldScale(viewGun, ShotgunVisual.FittedScale * 0.9f);
 
         if (cam != null)
         {
@@ -293,9 +303,6 @@ public class PlayerShotgun : MonoBehaviour
     {
         if (handGun == null)
             return;
-
-        if (GetComponent<WeaponHold>() == null)
-            gameObject.AddComponent<WeaponHold>();
 
         WeaponHold hold = WeaponHold.Instance;
         if (hold == null)

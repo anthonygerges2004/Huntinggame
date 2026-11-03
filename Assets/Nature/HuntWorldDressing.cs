@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -9,6 +10,38 @@ public class HuntWorldDressing : MonoBehaviour
 {
     const string FoliageRootName = "_HuntFoliage";
     const string TreePrefab = "Assets/RealisticTree/RealisticTree_LOD.prefab";
+    const string UnwantedRockName = "FCP_RockCluster_Type1_Color1";
+
+    const float QualityDensityMultiplier = 1.35f;
+    const float FoliageRadiusMultiplier = 1.25f;
+    const float AtmosphereFogDensity = 0.0019f;
+    const float AtmosphereFogBlue = 0.74f;
+
+    static readonly Color[] UnsRockPalette =
+    {
+        new Color(0.27f, 0.30f, 0.32f, 1f),
+        new Color(0.33f, 0.35f, 0.34f, 1f),
+        new Color(0.30f, 0.33f, 0.29f, 1f),
+        new Color(0.39f, 0.37f, 0.34f, 1f)
+    };
+
+    static readonly string[] PrefabFolders =
+    {
+        "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs",
+        "Assets/URP GanzSe Free Camping Props/Prefabs",
+        "Assets/RealisticTree",
+        "Assets/Nature"
+    };
+
+    static readonly string[] TreeHints = { "tree", "pine", "oak", "fir", "spruce" };
+    static readonly string[] GrassHints = { "grass", "fern", "weed", "plant", "tuft" };
+    static readonly string[] BushHints = { "bush", "shrub", "hedge" };
+    static readonly string[] RockHints = { "rock", "stone", "boulder" };
+    static readonly string[] DecorHints = { "stump", "log", "mushroom", "flower", "branch" };
+    static readonly string[] ExcludeHints =
+    {
+        "demo", "preview", "fx", "particle", "weapon", "shot", "axe", "animal", "deer", "bird", "player", "ui", "icon"
+    };
 
     void OnEnable()
     {
@@ -116,10 +149,62 @@ public class HuntWorldDressing : MonoBehaviour
             {
                 filled[m] = current;
             }
+
+            if (filled[m] != null && IsRockRenderer(renderer) && MaterialTooBright(filled[m]))
+            {
+                ApplyUnsRockTint(filled[m], renderer, m);
+                changed = true;
+            }
         }
 
         if (changed)
             renderer.sharedMaterials = filled;
+    }
+
+    static bool IsRockRenderer(Renderer renderer)
+    {
+        Transform t = renderer.transform;
+        while (t != null)
+        {
+            if (t.name.IndexOf("rock", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                t.name.IndexOf("stone", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                t.name.IndexOf("boulder", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+            t = t.parent;
+        }
+
+        return false;
+    }
+
+    static bool MaterialTooBright(Material mat)
+    {
+        Color color = Color.white;
+        if (mat.HasProperty("_BaseColor"))
+            color = mat.GetColor("_BaseColor");
+        else if (mat.HasProperty("_Color"))
+            color = mat.GetColor("_Color");
+
+        float luminance = color.r * 0.2126f + color.g * 0.7152f + color.b * 0.0722f;
+        bool neonGreen = color.g > 0.7f && color.r > 0.6f;
+        return luminance > 0.62f || neonGreen;
+    }
+
+    static void ApplyUnsRockTint(Material mat, Renderer renderer, int slot)
+    {
+        int idx = Mathf.Abs((renderer.transform.GetSiblingIndex() * 17 + slot * 31) % UnsRockPalette.Length);
+        Color tint = UnsRockPalette[idx];
+
+        if (mat.HasProperty("_BaseColor"))
+            mat.SetColor("_BaseColor", tint);
+        if (mat.HasProperty("_Color"))
+            mat.SetColor("_Color", tint);
+        if (mat.HasProperty("_Smoothness"))
+            mat.SetFloat("_Smoothness", 0.22f);
+        if (mat.HasProperty("_Metallic"))
+            mat.SetFloat("_Metallic", 0.02f);
+
+        if (mat.IsKeywordEnabled("_EMISSION"))
+            mat.DisableKeyword("_EMISSION");
     }
 
     static void FixPinkTreesNow()
@@ -141,16 +226,30 @@ public class HuntWorldDressing : MonoBehaviour
         GameCulling.ApplyForActiveScene();
     }
 
-    public static void Dress()
+    public static void Dress(bool rebuildFoliage = false)
     {
         FixTerrainShaders();
         GameCulling.ApplyForActiveScene();
         ReplaceBrokenTreeMeshes();
         ArrangeCamp();
         SnapCastlesToGround();
+        RemoveUnwantedRocks();
 
-        if (GameObject.Find(FoliageRootName) != null)
+        GameObject existingRoot = GameObject.Find(FoliageRootName);
+        if (existingRoot != null && !rebuildFoliage)
             return;
+
+        if (existingRoot != null)
+        {
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+                Object.DestroyImmediate(existingRoot);
+            else
+                Object.Destroy(existingRoot);
+#else
+            Object.Destroy(existingRoot);
+#endif
+        }
 
         Terrain terrain = Object.FindAnyObjectByType<Terrain>();
         if (terrain == null)
@@ -162,52 +261,64 @@ public class HuntWorldDressing : MonoBehaviour
         GameObject root = new GameObject(FoliageRootName);
         Vector3 camp = FindCamp();
 
-        ScatterPrefabs(root.transform, camp, new[] { TreePrefab }, 36, 18f, 260f, 0.95f, 1.35f, true);
+        int trees = ScaledCount(120);
+        int grasses = ScaledCount(480);
+        int bushes = ScaledCount(92);
+        int rocks = ScaledCount(54);
+        int decor = ScaledCount(74);
 
-        ScatterPrefabs(
-            root.transform,
-            camp,
+        string[] treePrefabs = CategoryPrefabs(TreeHints, new[] { TreePrefab });
+        string[] grassPrefabs = CategoryPrefabs(
+            GrassHints,
             new[]
             {
                 "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Grass_11.prefab",
                 "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Grass_15.prefab",
                 "Assets/URP GanzSe Free Camping Props/Prefabs/FCP_GrassCluster_Type1_Color1.prefab"
-            },
-            180,
-            4f,
-            90f,
-            0.8f,
-            1.5f,
-            false);
-
-        ScatterPrefabs(
-            root.transform,
-            camp,
+            });
+        string[] bushPrefabs = CategoryPrefabs(
+            BushHints,
             new[]
             {
                 "Assets/URP GanzSe Free Camping Props/Prefabs/FCP__Bush_Type1_Color1.prefab"
-            },
-            18,
-            12f,
-            50f,
-            0.9f,
-            1.3f,
-            false);
-
-        ScatterPrefabs(
-            root.transform,
-            camp,
+            });
+        string[] rockPrefabs = CategoryPrefabs(
+            RockHints,
             new[]
             {
-                "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Rock_Moss_Grown_09.prefab",
-                "Assets/URP GanzSe Free Camping Props/Prefabs/FCP_RockCluster_Type1_Color1.prefab"
-            },
-            12,
-            16f,
-            85f,
-            0.7f,
-            1.4f,
-            false);
+                "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Rock_Moss_Grown_09.prefab"
+            });
+        string[] decorPrefabs = CategoryPrefabs(DecorHints, new string[0]);
+
+        ScatterPrefabs(root.transform, camp, treePrefabs, trees, 22f, 520f * FoliageRadiusMultiplier, 0.95f, 1.6f, 40f, 5.4f, true);
+        ScatterPrefabs(root.transform, camp, grassPrefabs, grasses, 8f, 260f, 0.75f, 1.8f, 45f, 1.05f, false);
+        ScatterPrefabs(root.transform, camp, bushPrefabs, bushes, 16f, 300f, 0.85f, 1.55f, 40f, 2.0f, false);
+        ScatterPrefabs(root.transform, camp, rockPrefabs, rocks, 22f, 360f, 0.75f, 1.6f, 52f, 3.2f, false);
+        ScatterPrefabs(root.transform, camp, decorPrefabs, decor, 14f, 260f, 0.75f, 1.35f, 42f, 1.6f, false);
+
+        RemoveUnwantedRocks();
+    }
+
+    static void RemoveUnwantedRocks()
+    {
+        GameObject[] objects = Object.FindObjectsByType<GameObject>(FindObjectsInactive.Exclude);
+        for (int i = objects.Length - 1; i >= 0; i--)
+        {
+            GameObject go = objects[i];
+            if (go == null)
+                continue;
+            if (go.name.IndexOf(UnwantedRockName, System.StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+                Object.DestroyImmediate(go);
+            else
+                Object.Destroy(go);
+#else
+            Object.Destroy(go);
+#endif
+        }
     }
 
     static Vector3 FindCamp()
@@ -398,8 +509,76 @@ public class HuntWorldDressing : MonoBehaviour
     {
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.Exponential;
-        RenderSettings.fogDensity = 0.0028f;
-        RenderSettings.fogColor = new Color(0.55f, 0.62f, 0.68f);
+        RenderSettings.fogDensity = AtmosphereFogDensity;
+        RenderSettings.fogColor = new Color(0.58f, 0.66f, AtmosphereFogBlue);
+    }
+
+    static int ScaledCount(int baseCount)
+    {
+        Terrain[] terrains = Object.FindObjectsByType<Terrain>(FindObjectsInactive.Exclude);
+        float area = 0f;
+        for (int i = 0; i < terrains.Length; i++)
+        {
+            if (terrains[i] == null || terrains[i].terrainData == null)
+                continue;
+            Vector3 size = terrains[i].terrainData.size;
+            area += size.x * size.z;
+        }
+
+        float baseline = 512f * 512f;
+        float factor = area > 1f ? Mathf.Clamp(area / baseline, 1.0f, 5.2f) : 1f;
+        return Mathf.Max(1, Mathf.RoundToInt(baseCount * factor * QualityDensityMultiplier));
+    }
+
+    static string[] CategoryPrefabs(string[] hints, string[] fallback)
+    {
+#if UNITY_EDITOR
+        string[] guids = AssetDatabase.FindAssets("t:prefab", PrefabFolders);
+        List<string> found = new List<string>();
+
+        for (int i = 0; i < guids.Length; i++)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+            if (string.IsNullOrEmpty(path))
+                continue;
+            if (path.IndexOf(UnwantedRockName, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                continue;
+
+            string lower = path.ToLowerInvariant();
+            if (!ContainsAny(lower, hints) || ContainsAny(lower, ExcludeHints))
+                continue;
+
+            if (!found.Contains(path))
+                found.Add(path);
+        }
+
+        if (fallback != null)
+        {
+            for (int i = 0; i < fallback.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(fallback[i]) && !found.Contains(fallback[i]))
+                    found.Add(fallback[i]);
+            }
+        }
+
+        return found.ToArray();
+#else
+        return fallback ?? new string[0];
+#endif
+    }
+
+    static bool ContainsAny(string text, string[] hints)
+    {
+        if (string.IsNullOrEmpty(text) || hints == null)
+            return false;
+
+        for (int i = 0; i < hints.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(hints[i]) && text.Contains(hints[i]))
+                return true;
+        }
+
+        return false;
     }
 
     static void ScatterPrefabs(
@@ -411,27 +590,61 @@ public class HuntWorldDressing : MonoBehaviour
         float maxRadius,
         float minScale,
         float maxScale,
+        float maxSlope,
+        float minSpacing,
         bool harvestable)
     {
         GameObject[] prefabs = LoadPrefabs(paths);
         if (prefabs.Length == 0)
             return;
 
-        for (int i = 0; i < count; i++)
+        int attempts = Mathf.Max(count * 10, 64);
+        int placed = 0;
+        for (int i = 0; i < attempts && placed < count; i++)
         {
-            float angle = i * 137.508f * Mathf.Deg2Rad;
-            float radius = Mathf.Lerp(minRadius, maxRadius, (i % 9) / 8f);
+            float angle = Random.value * Mathf.PI * 2f;
+            float radius = Mathf.Lerp(minRadius, maxRadius, Mathf.Sqrt(Random.value));
             Vector3 pos = camp + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
-            pos = WorldGround.Snap(pos);
 
-            GameObject prefab = prefabs[i % prefabs.Length];
-            GameObject instance = Object.Instantiate(prefab, pos, Quaternion.Euler(0f, i * 47f, 0f), parent);
-            float scale = Mathf.Lerp(minScale, maxScale, (i % 5) / 4f);
+            if (!WorldGround.TryGetGround(pos, out Vector3 ground, out Vector3 normal))
+                continue;
+            if (WorldGround.InsideWater(ground))
+                continue;
+
+            float slope = Vector3.Angle(normal, Vector3.up);
+            if (slope > maxSlope)
+                continue;
+            if (minSpacing > 0.01f && TooCloseToExisting(parent, ground, minSpacing))
+                continue;
+
+            GameObject prefab = prefabs[placed % prefabs.Length];
+            Quaternion rot = Quaternion.AngleAxis(Random.Range(0f, 360f), Vector3.up);
+            GameObject instance = Object.Instantiate(prefab, ground, rot, parent);
+            float scale = Random.Range(minScale, maxScale);
             instance.transform.localScale *= scale;
 
             if (harvestable && instance.GetComponent<HarvestableTree>() == null)
                 instance.AddComponent<HarvestableTree>();
+
+            placed++;
         }
+    }
+
+    static bool TooCloseToExisting(Transform parent, Vector3 position, float spacing)
+    {
+        float sqr = spacing * spacing;
+        for (int i = 0; i < parent.childCount; i++)
+        {
+            Transform child = parent.GetChild(i);
+            if (child == null)
+                continue;
+            Vector3 delta = child.position - position;
+            delta.y = 0f;
+            if (delta.sqrMagnitude < sqr)
+                return true;
+        }
+
+        return false;
     }
 
     static GameObject[] LoadPrefabs(string[] paths)

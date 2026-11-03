@@ -20,6 +20,7 @@ public class PlayerHealth : MonoBehaviour
 
     void Awake()
     {
+        Time.timeScale = 1f;
         Instance = this;
         health = maxHealth;
         isDead = false;
@@ -165,5 +166,12 @@ public class PlayerHealth : MonoBehaviour
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         });
+    }
+
+    void OnDestroy()
+    {
+        Time.timeScale = 1f;
+        if (Instance == this)
+            Instance = null;
     }
 }

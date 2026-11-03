@@ -20,6 +20,12 @@ public class GameHUD : MonoBehaviour
     TMP_Text challengeDeer;
     TMP_Text challengeCage;
     GameObject hintRoot;
+    RectTransform crosshairLeft;
+    RectTransform crosshairRight;
+    RectTransform crosshairTop;
+    RectTransform crosshairBottom;
+    RectTransform crosshairCenter;
+    float currentAimGap = 9f;
 
     void Start()
     {
@@ -86,6 +92,8 @@ public class GameHUD : MonoBehaviour
         SetChallenge(challengeShot, shot, "Hit an animal from 20 m");
         SetChallenge(challengeDeer, deer, "Kill a deer while crouching");
         SetChallenge(challengeCage, cage, "Win the bird challenge");
+
+        UpdateCrosshair();
     }
 
     void SetChallenge(TMP_Text label, bool done, string task)
@@ -284,8 +292,7 @@ public class GameHUD : MonoBehaviour
         rect.anchorMax = new Vector2(0.5f, 0f);
         rect.pivot = new Vector2(0.5f, 0f);
         rect.anchoredPosition = new Vector2(0f, 14f);
-        rect.sizeDelta = new Vector2(980f, 34f);
-
+        rect.sizeDelta = new Vector2(1080f, 34f);
         Image bg = hintRoot.GetComponent<Image>();
         bg.color = new Color(0.03f, 0.04f, 0.05f, 0.62f);
         bg.raycastTarget = false;
@@ -293,10 +300,10 @@ public class GameHUD : MonoBehaviour
         MakeLabel(
             hintRoot.transform,
             font,
-            "F fire  C cook  Q eat  E chop  2 shotgun  Right click aim  1 sell  3 pickaxe  T challenge  G inventory",
+            "F fire  C cook  Q eat  E chop  2 shotgun  Right click aim  1 sell  3 pickaxe  B build  V view  T challenge  G inventory",
             14f,
             -8f,
-            952f,
+            1052f,
             22f,
             13f,
             Color.white);
@@ -328,6 +335,24 @@ public class GameHUD : MonoBehaviour
         return tmp;
     }
 
+    void UpdateCrosshair()
+    {
+        if (crosshairLeft == null || crosshairRight == null || crosshairTop == null || crosshairBottom == null)
+            return;
+
+        bool aiming = PlayerShotgun.IsAiming;
+        float targetGap = aiming ? 3.5f : 9f;
+        currentAimGap = Mathf.MoveTowards(currentAimGap, targetGap, Time.deltaTime * 35f);
+
+        float barLen = aiming ? 10f : 12f;
+        float offset = currentAimGap + barLen * 0.5f;
+
+        crosshairLeft.anchoredPosition = new Vector2(-offset, 0f);
+        crosshairRight.anchoredPosition = new Vector2(offset, 0f);
+        crosshairTop.anchoredPosition = new Vector2(0f, offset);
+        crosshairBottom.anchoredPosition = new Vector2(0f, -offset);
+    }
+
     void MakeCrosshair(Canvas canvas)
     {
         Transform existing = canvas.transform.Find("AimPoint");
@@ -341,25 +366,57 @@ public class GameHUD : MonoBehaviour
         rootRect.anchorMax = new Vector2(0.5f, 0.5f);
         rootRect.pivot = new Vector2(0.5f, 0.5f);
         rootRect.anchoredPosition = Vector2.zero;
-        rootRect.sizeDelta = new Vector2(48f, 48f);
+        rootRect.sizeDelta = new Vector2(64f, 64f);
 
-        MakeAimBar(root.transform, new Vector2(28f, 4f));
-        MakeAimBar(root.transform, new Vector2(4f, 28f));
-        MakeAimBar(root.transform, new Vector2(6f, 6f));
+        // Center aiming pip
+        crosshairCenter = MakeReticleTick(root.transform, "CenterDot", new Vector2(2.5f, 2.5f));
+        crosshairCenter.anchoredPosition = Vector2.zero;
+
+        // 4 Tactical reticle lines (Left, Right, Top, Bottom)
+        crosshairLeft = MakeReticleTick(root.transform, "LeftTick", new Vector2(12f, 2f));
+        crosshairRight = MakeReticleTick(root.transform, "RightTick", new Vector2(12f, 2f));
+        crosshairTop = MakeReticleTick(root.transform, "TopTick", new Vector2(2f, 12f));
+        crosshairBottom = MakeReticleTick(root.transform, "BottomTick", new Vector2(2f, 12f));
+
+        UpdateCrosshair();
     }
 
-    void MakeAimBar(Transform parent, Vector2 size)
+    RectTransform MakeReticleTick(Transform parent, string name, Vector2 size)
     {
+        GameObject tickGroup = new GameObject(name, typeof(RectTransform));
+        tickGroup.transform.SetParent(parent, false);
+        RectTransform groupRect = tickGroup.GetComponent<RectTransform>();
+        groupRect.anchorMin = new Vector2(0.5f, 0.5f);
+        groupRect.anchorMax = new Vector2(0.5f, 0.5f);
+        groupRect.pivot = new Vector2(0.5f, 0.5f);
+        groupRect.sizeDelta = size;
+
+        // Shadow outline for high contrast against any background
+        GameObject shadow = new GameObject("Shadow", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        shadow.transform.SetParent(tickGroup.transform, false);
+        RectTransform shadowRect = shadow.GetComponent<RectTransform>();
+        shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+        shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+        shadowRect.pivot = new Vector2(0.5f, 0.5f);
+        shadowRect.anchoredPosition = Vector2.zero;
+        shadowRect.sizeDelta = size + new Vector2(2f, 2f);
+        Image shadowImg = shadow.GetComponent<Image>();
+        shadowImg.color = new Color(0f, 0f, 0f, 0.72f);
+        shadowImg.raycastTarget = false;
+
+        // Razor-sharp foreground bar
         GameObject bar = new GameObject("Bar", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        bar.transform.SetParent(parent, false);
-        RectTransform rect = bar.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 0.5f);
-        rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = size;
-        Image image = bar.GetComponent<Image>();
-        image.color = Color.white;
-        image.raycastTarget = false;
+        bar.transform.SetParent(tickGroup.transform, false);
+        RectTransform barRect = bar.GetComponent<RectTransform>();
+        barRect.anchorMin = new Vector2(0.5f, 0.5f);
+        barRect.anchorMax = new Vector2(0.5f, 0.5f);
+        barRect.pivot = new Vector2(0.5f, 0.5f);
+        barRect.anchoredPosition = Vector2.zero;
+        barRect.sizeDelta = size;
+        Image barImg = bar.GetComponent<Image>();
+        barImg.color = new Color(1f, 1f, 1f, 0.95f);
+        barImg.raycastTarget = false;
+
+        return groupRect;
     }
 }

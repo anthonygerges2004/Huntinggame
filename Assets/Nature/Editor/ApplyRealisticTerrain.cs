@@ -35,8 +35,7 @@ public static class ApplyRealisticTerrain
 
     static readonly string[] RockPrefabs =
     {
-        "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Rock_Moss_Grown_09.prefab",
-        "Assets/URP GanzSe Free Camping Props/Prefabs/FCP_RockCluster_Type1_Color1.prefab"
+        "Assets/Pure Poly/Free Low Poly Nature Pack/Prefabs/PP_Rock_Moss_Grown_09.prefab"
     };
 
     static bool building;

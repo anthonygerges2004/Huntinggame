@@ -116,6 +116,7 @@ public class PlayerMove : MonoBehaviour
             verticalSpeed = Mathf.Sqrt(jumpHeight * -2f * gravity);
 
         verticalSpeed += gravity * Time.deltaTime;
+        verticalSpeed = Mathf.Max(verticalSpeed, -30f);
 
         bool sprinting = running && move.sqrMagnitude > 0.0001f && sprintRemaining > 0f;
         UpdateSprint(sprinting);

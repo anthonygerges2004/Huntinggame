@@ -133,6 +133,17 @@ public class AxeSwing : MonoBehaviour
             return;
         }
 
+        Ray ray = PlayerView.AimRay();
+        if (Physics.Raycast(ray, out RaycastHit hit, 3.5f, ~0, QueryTriggerInteraction.Ignore))
+        {
+            Animal animal = hit.collider.GetComponentInParent<Animal>();
+            if (animal != null)
+            {
+                animal.Hit();
+                return;
+            }
+        }
+
         HarvestableTree.ChopLookedAtTree();
     }
 

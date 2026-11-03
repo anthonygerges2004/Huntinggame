@@ -225,7 +225,7 @@ public class WoodBuilder : MonoBehaviour
     static void AddPart(GameObject root, PrimitiveType type, Material material, Vector3 position, Quaternion rotation, Vector3 scale)
     {
         GameObject part = GameObject.CreatePrimitive(type);
-        DestroyImmediate(part.GetComponent<Collider>());
+        Destroy(part.GetComponent<Collider>());
         part.transform.SetParent(root.transform, false);
         part.transform.localPosition = position;
         part.transform.localRotation = rotation;
