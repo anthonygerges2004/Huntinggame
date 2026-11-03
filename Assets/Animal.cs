@@ -1,3 +1,5 @@
+using HuntingGame.Animals;
+using HuntingGame.Tracking;
 using UnityEngine;
 
 public enum AnimalKind
@@ -33,9 +35,13 @@ public class Animal : MonoBehaviour
     public bool nocturnal;
 
     bool present = true;
+    float step;
+    bool suspendSelfTick;
+    AnimalBrain brain;
 
     public bool Dead => dead;
     public bool Fleeing => fleeing;
+    public Vector3 HomePosition => homePos;
 
     static readonly int VerticalAnimation = Animator.StringToHash("Vert");
     static readonly int StateAnimation = Animator.StringToHash("State");
@@ -58,9 +64,27 @@ public class Animal : MonoBehaviour
         else
             PickWanderTarget();
         SetPresent(IsPresent());
+        if (GetComponent<AnimalAiAgent>() == null)
+            gameObject.AddComponent<AnimalAiAgent>();
+        brain = GetComponent<AnimalBrain>();
+        if (brain != null)
+            brain.Bind();
     }
 
     void Update()
+    {
+        if (suspendSelfTick)
+            return;
+
+        Simulate(Time.deltaTime);
+    }
+
+    public void SetSuspendSelfTick(bool suspend)
+    {
+        suspendSelfTick = suspend;
+    }
+
+    public void SimulatePresence()
     {
         if (dead)
             return;
@@ -68,25 +92,47 @@ public class Animal : MonoBehaviour
         bool shouldBePresent = IsPresent();
         if (shouldBePresent != present)
             SetPresent(shouldBePresent);
+    }
 
+    public void Simulate(float delta)
+    {
+        step = delta;
+        if (dead)
+        {
+            if (brain != null && brain.isActiveAndEnabled)
+                brain.Tick(delta);
+            return;
+        }
+
+        SimulatePresence();
         if (!present)
             return;
+
+        if (brain != null && brain.isActiveAndEnabled)
+        {
+            brain.Tick(delta);
+            if (kind != AnimalKind.Bird &&
+                brain.State != AnimalAiState.Flee &&
+                brain.State != AnimalAiState.Dead)
+                TryNightAttack();
+            return;
+        }
 
         if (kind == AnimalKind.Bird)
             return;
 
         if (fleeing)
         {
-            fleeTimer -= Time.deltaTime;
+            fleeTimer -= step;
             Vector3 away = transform.position + transform.forward * 2f;
             Vector3 next = WorldGround.Snap(
-                Vector3.MoveTowards(transform.position, away, fleeSpeed * Time.deltaTime));
+                Vector3.MoveTowards(transform.position, away, fleeSpeed * step));
             if (WorldGround.InsideWater(next))
             {
                 transform.Rotate(0f, 110f, 0f);
                 away = transform.position + transform.forward * 2f;
                 next = WorldGround.Snap(
-                    Vector3.MoveTowards(transform.position, away, fleeSpeed * Time.deltaTime));
+                    Vector3.MoveTowards(transform.position, away, fleeSpeed * step));
             }
 
             transform.position = next;
@@ -103,7 +149,7 @@ public class Animal : MonoBehaviour
             Vector3 home = WorldGround.Snap(homePos);
             FaceDirection(home - transform.position);
             transform.position = WorldGround.Snap(
-                Vector3.MoveTowards(transform.position, home, moveSpeed * Time.deltaTime));
+                Vector3.MoveTowards(transform.position, home, moveSpeed * step));
             UpdateAnimation(false);
 
             if (Vector3.Distance(Flat(transform.position), Flat(home)) < 0.6f)
@@ -116,9 +162,26 @@ public class Animal : MonoBehaviour
             return;
         }
 
+        if (MeatBait.TryGetTarget(transform.position, kind, out Vector3 baitPoint))
+        {
+            float baitDist = Vector3.Distance(Flat(transform.position), Flat(baitPoint));
+            if (baitDist > 1.4f)
+            {
+                FaceDirection(baitPoint - transform.position);
+                Vector3 next = WorldGround.Snap(
+                    Vector3.MoveTowards(transform.position, baitPoint, moveSpeed * 1.35f * step));
+                if (!WorldGround.InsideWater(next))
+                    transform.position = next;
+            }
+
+            UpdateAnimation(false);
+            TryNightAttack();
+            return;
+        }
+
         FaceDirection(wanderTarget - transform.position);
         transform.position = WorldGround.Snap(
-            Vector3.MoveTowards(transform.position, wanderTarget, moveSpeed * Time.deltaTime));
+            Vector3.MoveTowards(transform.position, wanderTarget, moveSpeed * step));
         if (Vector3.Distance(Flat(transform.position), Flat(wanderTarget)) < 0.5f)
             PickWanderTarget();
 
@@ -220,7 +283,7 @@ public class Animal : MonoBehaviour
         transform.rotation = Quaternion.Slerp(
             transform.rotation,
             targetRotation,
-            6f * Time.deltaTime);
+            6f * step);
     }
 
     void UpdateAnimation(bool running)
@@ -235,12 +298,12 @@ public class Animal : MonoBehaviour
             VerticalAnimation,
             moving ? 1f : 0f,
             0.12f,
-            Time.deltaTime);
+            step);
         animalAnimator.SetFloat(
             StateAnimation,
             running ? 1f : 0f,
             0.12f,
-            Time.deltaTime);
+            step);
 
         previousPosition = transform.position;
     }
@@ -291,18 +354,83 @@ public class Animal : MonoBehaviour
         return value;
     }
 
+    public void NoticeThreat(Vector3 danger)
+    {
+        if (brain != null && brain.isActiveAndEnabled)
+            brain.Notice(danger, false);
+        else
+            FleeImmediate(danger);
+    }
+
     public void FleeFrom(Vector3 danger)
+    {
+        if (brain != null && brain.isActiveAndEnabled)
+            brain.Notice(danger, true);
+        else
+            FleeImmediate(danger);
+    }
+
+    public void BeginFlee(Vector3 direction, float duration)
     {
         fleeing = true;
         returningHome = false;
-        fleeTimer = fleeDuration;
-        Vector3 dir = transform.position - danger;
-        dir.y = 0f;
-        if (dir.sqrMagnitude < 0.01f)
-            dir = transform.forward;
-        transform.forward = dir.normalized;
+        fleeTimer = duration > 0.05f ? duration : fleeDuration;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.01f)
+            direction = transform.forward;
+        direction.Normalize();
         if (kind == AnimalKind.Bird)
-            transform.forward = (dir.normalized + Vector3.up * 0.25f).normalized;
+            transform.forward = (direction + Vector3.up * 0.25f).normalized;
+        else
+            transform.forward = direction;
+    }
+
+    public void EndFlee()
+    {
+        fleeing = false;
+        returningHome = false;
+    }
+
+    public void Hold()
+    {
+        UpdateAnimation(false);
+    }
+
+    public void Face(Vector3 worldPoint)
+    {
+        FaceDirection(worldPoint - transform.position);
+        UpdateAnimation(false);
+    }
+
+    public void MoveOnGround(Vector3 destination, float speed, bool running)
+    {
+        FaceDirection(destination - transform.position);
+        transform.position = WorldGround.Snap(
+            Vector3.MoveTowards(transform.position, destination, speed * step));
+        UpdateAnimation(running);
+    }
+
+    public bool MoveHeading(Vector3 direction, float speed)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.0001f)
+            return false;
+
+        direction.Normalize();
+        Vector3 next = WorldGround.Snap(transform.position + direction * (speed * step));
+        if (WorldGround.InsideWater(next))
+            return false;
+
+        transform.forward = direction;
+        transform.position = next;
+        UpdateAnimation(true);
+        return true;
+    }
+
+    void FleeImmediate(Vector3 danger)
+    {
+        Vector3 dir = transform.position - danger;
+        BeginFlee(dir, fleeDuration);
     }
 
     public void TickFlee(float dt)
@@ -343,7 +471,7 @@ public class Animal : MonoBehaviour
         if (dist > nightAttackRange)
             return;
 
-        attackTimer -= Time.deltaTime;
+        attackTimer -= step;
         if (attackTimer > 0f)
             return;
 
@@ -361,10 +489,11 @@ public class Animal : MonoBehaviour
             return;
 
         dead = true;
+        LeaveBlood(transform.position);
 
         HuntChallenges.ReportKill(this);
         WildlifeAlarm.NotifyShot(transform.position);
-        Overhunt.RegisterKill();
+        Overhunt.RegisterKill(transform.position);
 
         if (kind == AnimalKind.Legendary && Trader.Instance != null)
             Trader.Instance.LegendaryTakenByPlayer();
@@ -380,5 +509,23 @@ public class Animal : MonoBehaviour
 
         MeatPickup.Spawn(transform.position, meatAmount);
         Destroy(gameObject);
+    }
+
+    void LeaveBlood(Vector3 position)
+    {
+        AnimalTracks tracks = GetComponent<AnimalTracks>();
+        if (tracks != null)
+        {
+            tracks.SpillBlood(position);
+            return;
+        }
+
+        TrackPool pool = TrackPool.Current;
+        if (pool == null)
+            return;
+
+        Vector3 ground = WorldGround.Snap(position);
+        ground.y += 0.06f;
+        pool.Place(TrackKind.Blood, ground, 0f, 0f, 0f);
     }
 }
