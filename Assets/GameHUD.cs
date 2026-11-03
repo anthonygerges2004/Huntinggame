@@ -1,3 +1,4 @@
+using HuntingGame.Survival;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -11,9 +12,14 @@ public class GameHUD : MonoBehaviour
     TMP_Text timeValue;
     TMP_Text meatValue;
     TMP_Text cookedValue;
+    TMP_Text spoiledValue;
     TMP_Text woodValue;
     TMP_Text pickaxeValue;
     TMP_Text fireValue;
+    TMP_Text hungerValue;
+    TMP_Text warmthValue;
+    int shownHunger = -1;
+    int shownWarmth = -1;
     TMP_Text challengeCount;
     TMP_Text challengeBird;
     TMP_Text challengeShot;
@@ -44,8 +50,11 @@ public class GameHUD : MonoBehaviour
         string time = DayNightCycle.Instance != null
             ? DayNightCycle.Instance.TimeLabel()
             : "-";
+        if (WorldWeather.Instance != null)
+            time = time + "   " + WorldWeather.Instance.Label;
         int meat = Inventory.Instance != null ? Inventory.Instance.meat : 0;
         int cooked = Inventory.Instance != null ? Inventory.Instance.cookedMeat : 0;
+        int spoiled = Inventory.Instance != null ? Inventory.Instance.spoiledMeat : 0;
         int wood = Inventory.Instance != null ? Inventory.Instance.wood : 0;
         bool pickaxe = Inventory.Instance != null && Inventory.Instance.hasPickaxe;
         bool fire = Campfire.PlayerIsSafe();
@@ -61,18 +70,45 @@ public class GameHUD : MonoBehaviour
                 : new Color(1f, 0.45f, 0.45f);
 
         timeValue.text = time;
-        timeValue.color = time == "Night"
+        timeValue.color = DayNightCycle.Instance != null && DayNightCycle.Instance.IsNight
             ? new Color(0.62f, 0.72f, 1f)
             : Color.white;
 
         meatValue.text = meat > 0 ? meat + "  (" + spoil + "s)" : meat.ToString();
         cookedValue.text = cooked.ToString();
+        if (spoiledValue != null)
+            spoiledValue.text = spoiled.ToString();
         woodValue.text = wood.ToString();
         pickaxeValue.text = pickaxe ? "Yes" : "No";
         fireValue.text = fire ? "Safe" : "None";
         fireValue.color = fire
             ? new Color(0.55f, 1f, 0.55f)
             : new Color(1f, 0.72f, 0.35f);
+
+        if (hungerValue != null && warmthValue != null && SurvivalStats.Current != null)
+        {
+            int hunger = Mathf.RoundToInt(SurvivalStats.Current.Hunger01 * 100f);
+            int warmth = Mathf.RoundToInt(SurvivalStats.Current.Warmth01 * 100f);
+            if (hunger != shownHunger)
+            {
+                shownHunger = hunger;
+                hungerValue.text = hunger.ToString();
+                hungerValue.color = hunger > 40
+                    ? new Color(0.55f, 1f, 0.55f)
+                    : hunger > 15
+                        ? new Color(1f, 0.89f, 0.48f)
+                        : new Color(1f, 0.45f, 0.45f);
+            }
+
+            if (warmth != shownWarmth)
+            {
+                shownWarmth = warmth;
+                warmthValue.text = warmth.ToString();
+                warmthValue.color = warmth > 40
+                    ? new Color(0.55f, 1f, 0.55f)
+                    : new Color(0.62f, 0.72f, 1f);
+            }
+        }
 
         bool bird = HuntChallenges.Instance != null && HuntChallenges.Instance.ShadeBirdDone;
         bool shot = HuntChallenges.Instance != null && HuntChallenges.Instance.LongShotDone;
@@ -187,7 +223,7 @@ public class GameHUD : MonoBehaviour
         boardRect.anchorMax = new Vector2(0f, 1f);
         boardRect.pivot = new Vector2(0f, 1f);
         boardRect.anchoredPosition = new Vector2(12f, -12f);
-        boardRect.sizeDelta = new Vector2(960f, 62f);
+        boardRect.sizeDelta = new Vector2(1216f, 62f);
 
         Image boardBg = board.GetComponent<Image>();
         boardBg.color = new Color(0.03f, 0.04f, 0.05f, 0.52f);
@@ -196,18 +232,21 @@ public class GameHUD : MonoBehaviour
         TMP_FontAsset font = hudText.font != null ? hudText.font : TMP_Settings.defaultFontAsset;
         if (font == null)
             return;
-        float boxW = 130f;
+        float boxW = 112f;
         float boxH = 46f;
-        float gap = 6f;
-        float startX = 7f;
+        float gap = 5f;
+        float startX = 6f;
 
         healthValue = MakeBox(board.transform, font, "HP", startX, -8f, boxW, boxH, new Color(0.29f, 0.73f, 0.44f));
         timeValue = MakeBox(board.transform, font, "Time", startX + (boxW + gap) * 1f, -8f, boxW, boxH, new Color(0.37f, 0.52f, 0.86f));
         meatValue = MakeBox(board.transform, font, "Meat", startX + (boxW + gap) * 2f, -8f, boxW, boxH, new Color(0.74f, 0.38f, 0.38f));
         cookedValue = MakeBox(board.transform, font, "Cooked", startX + (boxW + gap) * 3f, -8f, boxW, boxH, new Color(0.83f, 0.59f, 0.33f));
-        woodValue = MakeBox(board.transform, font, "Wood", startX + (boxW + gap) * 4f, -8f, boxW, boxH, new Color(0.66f, 0.5f, 0.29f));
-        pickaxeValue = MakeBox(board.transform, font, "Pickaxe", startX + (boxW + gap) * 5f, -8f, boxW, boxH, new Color(0.5f, 0.61f, 0.75f));
-        fireValue = MakeBox(board.transform, font, "Fire", startX + (boxW + gap) * 6f, -8f, boxW, boxH, new Color(0.95f, 0.51f, 0.26f));
+        spoiledValue = MakeBox(board.transform, font, "Spoiled", startX + (boxW + gap) * 4f, -8f, boxW, boxH, new Color(0.45f, 0.48f, 0.22f));
+        woodValue = MakeBox(board.transform, font, "Wood", startX + (boxW + gap) * 5f, -8f, boxW, boxH, new Color(0.66f, 0.5f, 0.29f));
+        pickaxeValue = MakeBox(board.transform, font, "Pickaxe", startX + (boxW + gap) * 6f, -8f, boxW, boxH, new Color(0.5f, 0.61f, 0.75f));
+        fireValue = MakeBox(board.transform, font, "Fire", startX + (boxW + gap) * 7f, -8f, boxW, boxH, new Color(0.95f, 0.51f, 0.26f));
+        hungerValue = MakeBox(board.transform, font, "Food", startX + (boxW + gap) * 8f, -8f, boxW, boxH, new Color(0.72f, 0.55f, 0.28f));
+        warmthValue = MakeBox(board.transform, font, "Warmth", startX + (boxW + gap) * 9f, -8f, boxW, boxH, new Color(0.45f, 0.62f, 0.86f));
 
         MakeChallengePanel(canvas.transform, font);
         MakeBottomHint(canvas, font);
@@ -293,7 +332,7 @@ public class GameHUD : MonoBehaviour
         MakeLabel(
             hintRoot.transform,
             font,
-            "F fire  C cook  Q eat  E chop  2 shotgun  Right click aim  1 sell  3 pickaxe  T challenge  G inventory",
+            "F fire  C cook  Q eat  X bait  E chop  B build  2 shotgun  1 sell  3 pickaxe  T challenge  G inventory",
             14f,
             -8f,
             952f,

@@ -1,3 +1,4 @@
+using HuntingGame.Survival;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -24,6 +25,8 @@ public class PlayerHealth : MonoBehaviour
         health = maxHealth;
         isDead = false;
         nightDecayTimer = nightDecayCheckInterval;
+        if (GetComponent<SurvivalStats>() == null)
+            gameObject.AddComponent<SurvivalStats>();
     }
 
     void Update()

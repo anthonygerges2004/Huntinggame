@@ -1,3 +1,4 @@
+using HuntingGame.Crafting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -207,25 +208,39 @@ public class Campfire : MonoBehaviour
 
     void Cook()
     {
-        if (!isLit)
+        if (CraftBook.Current == null)
         {
+            if (!isLit)
+            {
+                Notice("Light a fire first, then press C to cook.");
+                return;
+            }
+
+            if (!PlayerIsSafe())
+            {
+                Notice("Stand near the fire to cook.");
+                return;
+            }
+
+            if (Inventory.Instance == null || !Inventory.Instance.CookOneMeat())
+            {
+                Notice("No raw meat to cook.");
+                return;
+            }
+
+            Notice("Meat cooked. Press Q to eat.");
+            return;
+        }
+
+        CraftResult result = CraftBook.Current.TryCookMeat();
+        if (result == CraftResult.NeedFire)
             Notice("Light a fire first, then press C to cook.");
-            return;
-        }
-
-        if (!PlayerIsSafe())
-        {
+        else if (result == CraftResult.TooFar)
             Notice("Stand near the fire to cook.");
-            return;
-        }
-
-        if (Inventory.Instance == null || !Inventory.Instance.CookOneMeat())
-        {
+        else if (result == CraftResult.Missing)
             Notice("No raw meat to cook.");
-            return;
-        }
-
-        Notice("Meat cooked. Press Q to eat.");
+        else
+            Notice("Meat cooked. Press Q to eat.");
     }
 
     static void Notice(string text)
@@ -249,5 +264,19 @@ public class Campfire : MonoBehaviour
 
         float dist = Vector3.Distance(fireTransform.position, PlayerView.Position());
         return dist <= Instance.safeRadius;
+    }
+
+    public static bool Covers(Vector3 worldPos)
+    {
+        if (Instance == null || !Instance.isLit)
+            return false;
+
+        Transform fireTransform = Instance.fireInstance != null
+            ? Instance.fireInstance.transform
+            : (Instance.fireLight != null ? Instance.fireLight.transform : null);
+        if (fireTransform == null)
+            return false;
+
+        return Vector3.Distance(fireTransform.position, worldPos) <= Instance.safeRadius;
     }
 }

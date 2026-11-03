@@ -17,7 +17,18 @@ public class PlayerMove : MonoBehaviour
     public float sprintRechargeSeconds = 15f;
 
     public static bool IsCrouching;
+    public static bool IsMoving;
+    public static bool IsSprinting;
     public static bool Frozen;
+    public static float SurfaceNoise { get; private set; } = 1f;
+
+    public static void SetGait(bool moving, bool sprinting, bool crouching, float surfaceNoise)
+    {
+        IsMoving = moving;
+        IsSprinting = sprinting;
+        IsCrouching = crouching;
+        SurfaceNoise = surfaceNoise < 0.05f ? 0.05f : surfaceNoise;
+    }
 
     public float LookPitch => xRotation;
 
@@ -27,6 +38,7 @@ public class PlayerMove : MonoBehaviour
     float xRotation;
     float verticalSpeed;
     float sprintRemaining;
+    float surfaceTimer;
 
     void Start()
     {
@@ -54,11 +66,19 @@ public class PlayerMove : MonoBehaviour
 
     void Update()
     {
+        RefreshSurface();
+
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+        {
+            SetNoise(false, false);
             return;
+        }
 
         if (Keyboard.current == null || Mouse.current == null)
+        {
+            SetNoise(false, false);
             return;
+        }
 
         if (Inventory.IsOpen)
         {
@@ -66,6 +86,7 @@ public class PlayerMove : MonoBehaviour
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             IsCrouching = false;
+            SetNoise(false, false);
             return;
         }
 
@@ -85,6 +106,7 @@ public class PlayerMove : MonoBehaviour
         {
             UpdateSprint(false);
             IsCrouching = false;
+            SetNoise(false, false);
             return;
         }
 
@@ -105,6 +127,7 @@ public class PlayerMove : MonoBehaviour
         if (isSwimming)
         {
             UpdateSprint(false);
+            SetNoise(false, false);
             Swim(move, surface, current);
             return;
         }
@@ -119,6 +142,7 @@ public class PlayerMove : MonoBehaviour
 
         bool sprinting = running && move.sqrMagnitude > 0.0001f && sprintRemaining > 0f;
         UpdateSprint(sprinting);
+        SetNoise(move.sqrMagnitude > 0.0001f, sprinting);
 
         float currentSpeed = IsCrouching ? crouchSpeed : (sprinting ? runSpeed : speed);
         if (PlayerShotgun.IsAiming)
@@ -136,6 +160,51 @@ public class PlayerMove : MonoBehaviour
             sprintRemaining += Time.deltaTime * (sprintDurationSeconds / Mathf.Max(0.01f, sprintRechargeSeconds));
 
         sprintRemaining = Mathf.Clamp(sprintRemaining, 0f, sprintDurationSeconds);
+    }
+
+    static void SetNoise(bool moving, bool sprinting)
+    {
+        IsMoving = moving;
+        IsSprinting = sprinting;
+    }
+
+    void RefreshSurface()
+    {
+        surfaceTimer -= Time.deltaTime;
+        if (surfaceTimer > 0f)
+            return;
+
+        surfaceTimer = 0.4f;
+        SurfaceNoise = SampleSurface(transform.position);
+    }
+
+    static float SampleSurface(Vector3 position)
+    {
+        if (WaterBodies.InsideWater(position))
+            return 1.65f;
+
+        Terrain terrain = WorldGround.TerrainAt(position);
+        if (terrain == null || terrain.terrainData == null)
+            return 1f;
+
+        Vector3 origin = terrain.transform.position;
+        Vector3 size = terrain.terrainData.size;
+        if (size.x < 1f || size.z < 1f || size.y < 0.01f)
+            return 1f;
+
+        float nx = Mathf.Clamp01((position.x - origin.x) / size.x);
+        float nz = Mathf.Clamp01((position.z - origin.z) / size.z);
+        float steep = 1f - terrain.terrainData.GetInterpolatedNormal(nx, nz).y;
+        float height = terrain.terrainData.GetInterpolatedHeight(nx, nz) / size.y;
+        float rock = Mathf.Clamp01(steep * 2.4f + Mathf.InverseLerp(0.32f, 0.72f, height));
+        if (rock > 0.55f)
+            return 1.3f;
+
+        float grass = Mathf.Clamp01((1f - rock) * (1.15f - height));
+        if (grass > 0.55f)
+            return 0.75f;
+
+        return 1f;
     }
 
     void Swim(Vector3 move, float surface, Vector3 current)

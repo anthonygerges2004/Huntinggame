@@ -47,14 +47,27 @@ public class Trader : MonoBehaviour
         if (Inventory.Instance == null)
             return;
 
-        if (!Inventory.Instance.RemoveOneSellableMeat())
+        if (Inventory.Instance.RemoveOneSellableMeat())
         {
-            Notice("No meat to sell.");
+            Inventory.Instance.AddWood(meatSellPriceWood);
+            Notice("Sold meat for wood.");
             return;
         }
 
-        Inventory.Instance.AddWood(meatSellPriceWood);
-        Notice("Sold meat for wood.");
+        if (Inventory.Instance.spoiledMeat >= 2 && Inventory.Instance.RemoveSpoiledMeat(2))
+        {
+            Inventory.Instance.AddWood(meatSellPriceWood);
+            Notice("Sold spoiled meat cheap. Two pieces for one wood.");
+            return;
+        }
+
+        if (Inventory.Instance.spoiledMeat > 0)
+        {
+            Notice("Spoiled meat is only useful as bait. The trader wants 2 for 1 wood.");
+            return;
+        }
+
+        Notice("No meat to sell.");
     }
 
     void SellWoodForPickaxeHint()

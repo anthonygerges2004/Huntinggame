@@ -116,6 +116,17 @@ public class BirdFlight : MonoBehaviour
             return;
         }
 
+        if (MeatBait.TryGetTarget(transform.position, AnimalKind.Bird, out Vector3 baitPoint))
+        {
+            perched = false;
+            landing = false;
+            Vector3 hover = baitPoint;
+            hover.y = WorldGround.Snap(baitPoint).y + Mathf.Clamp(cruiseMin * 0.35f, 2f, 4.5f);
+            FlyToward(hover, cruiseSpeed, 0.45f);
+            Flap(18f, 40f);
+            return;
+        }
+
         if (night && !perched && !landing)
             TryPerch(true);
 

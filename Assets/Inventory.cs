@@ -1,3 +1,9 @@
+using HuntingGame.Animals;
+using HuntingGame.Ballistics;
+using HuntingGame.Crafting;
+using HuntingGame.Survival;
+using HuntingGame.Tracking;
+using HuntingGame.Wounds;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -8,6 +14,7 @@ public class Inventory : MonoBehaviour
         None,
         RawMeat,
         CookedMeat,
+        SpoiledMeat,
         Wood
     }
 
@@ -22,6 +29,7 @@ public class Inventory : MonoBehaviour
 
     public int meat;
     public int cookedMeat;
+    public int spoiledMeat;
     public int wood;
     public bool hasPickaxe = true;
     public float meatSpoilSeconds = 90f;
@@ -67,6 +75,18 @@ public class Inventory : MonoBehaviour
             gameObject.AddComponent<AmbientFlyers>();
         if (GetComponent<FoliageDistanceCull>() == null)
             gameObject.AddComponent<FoliageDistanceCull>();
+        if (GetComponent<OpenWorld>() == null)
+            gameObject.AddComponent<OpenWorld>();
+        if (GetComponent<AnimalAiScheduler>() == null)
+            gameObject.AddComponent<AnimalAiScheduler>();
+        if (GetComponent<TrackPool>() == null)
+            gameObject.AddComponent<TrackPool>();
+        if (GetComponent<WoundPool>() == null)
+            gameObject.AddComponent<WoundPool>();
+        if (GetComponent<CraftBook>() == null)
+            gameObject.AddComponent<CraftBook>();
+        if (GetComponent<BallisticsGun>() == null)
+            gameObject.AddComponent<BallisticsGun>();
 
         int startMeat = meat;
         int startCooked = cookedMeat;
@@ -97,6 +117,10 @@ public class Inventory : MonoBehaviour
                 Debug.Log("No cooked meat to eat. Cook raw meat on a fire first.");
         }
 
+        if (Keyboard.current != null && Keyboard.current.xKey.wasPressedThisFrame
+            && !inventoryOpen && !BirdChallenge.Active)
+            PlaceOneBait();
+
         if (meat <= 0)
         {
             spoilTimer = meatSpoilSeconds;
@@ -106,9 +130,11 @@ public class Inventory : MonoBehaviour
         spoilTimer -= Time.deltaTime;
         if (spoilTimer <= 0f)
         {
-            RemoveItem(ItemKind.RawMeat, meat);
+            int spoiled = meat;
+            RemoveItem(ItemKind.RawMeat, spoiled);
+            AddItem(ItemKind.SpoiledMeat, spoiled);
             spoilTimer = meatSpoilSeconds;
-            Debug.Log("Raw meat spoiled. Cook it on a fire next time.");
+            ShowNotice("Meat spoiled. Press X to place it as bait.");
         }
     }
 
@@ -127,6 +153,16 @@ public class Inventory : MonoBehaviour
     public void AddCookedMeat(int amount)
     {
         AddItem(ItemKind.CookedMeat, amount);
+    }
+
+    public void AddSpoiledMeat(int amount)
+    {
+        AddItem(ItemKind.SpoiledMeat, amount);
+    }
+
+    public bool RemoveSpoiledMeat(int amount)
+    {
+        return RemoveItem(ItemKind.SpoiledMeat, amount) == amount;
     }
 
     public bool UseWood(int amount)
@@ -160,6 +196,8 @@ public class Inventory : MonoBehaviour
 
         if (PlayerHealth.Instance != null)
             PlayerHealth.Instance.Heal(cookedHealAmount);
+        if (SurvivalStats.Current != null)
+            SurvivalStats.Current.EatMeal();
         return true;
     }
 
@@ -244,6 +282,7 @@ public class Inventory : MonoBehaviour
     {
         meat = 0;
         cookedMeat = 0;
+        spoiledMeat = 0;
         wood = 0;
 
         for (int i = 0; i < slots.Length; i++)
@@ -258,6 +297,9 @@ public class Inventory : MonoBehaviour
                     break;
                 case ItemKind.CookedMeat:
                     cookedMeat += slots[i].count;
+                    break;
+                case ItemKind.SpoiledMeat:
+                    spoiledMeat += slots[i].count;
                     break;
                 case ItemKind.Wood:
                     wood += slots[i].count;
@@ -483,6 +525,8 @@ public class Inventory : MonoBehaviour
                 return "Raw";
             case ItemKind.CookedMeat:
                 return "Cooked";
+            case ItemKind.SpoiledMeat:
+                return "Spoiled";
             case ItemKind.Wood:
                 return "Wood";
             default:
@@ -498,6 +542,8 @@ public class Inventory : MonoBehaviour
                 return new Color(0.53f, 0.18f, 0.16f, 1f);
             case ItemKind.CookedMeat:
                 return new Color(0.55f, 0.38f, 0.16f, 1f);
+            case ItemKind.SpoiledMeat:
+                return new Color(0.32f, 0.34f, 0.14f, 1f);
             case ItemKind.Wood:
                 return new Color(0.34f, 0.25f, 0.14f, 1f);
             default:
@@ -553,6 +599,8 @@ public class Inventory : MonoBehaviour
 
         if (kind == ItemKind.RawMeat)
             MeatPickup.Spawn(origin, amount);
+        else if (kind == ItemKind.SpoiledMeat)
+            MeatBait.Place(origin, amount);
         else
             InventoryWorldDrop.Spawn(origin, kind.ToString(), amount);
     }
@@ -560,5 +608,31 @@ public class Inventory : MonoBehaviour
     public float SpoilSecondsLeft()
     {
         return meat > 0 ? spoilTimer : 0f;
+    }
+
+    void PlaceOneBait()
+    {
+        if (spoiledMeat <= 0)
+        {
+            ShowNotice("No spoiled meat. Let raw meat spoil, then press X.");
+            return;
+        }
+
+        if (!RemoveSpoiledMeat(1))
+            return;
+
+        Transform body = PlayerView.Body();
+        Vector3 origin = body != null
+            ? body.position + body.forward * 2.2f + Vector3.up * 0.4f
+            : PlayerView.AimOrigin() + PlayerView.AimDirection() * 2.2f;
+        origin = WorldGround.Sit(origin);
+        MeatBait.Place(origin, 1);
+
+        bool nightAway = DayNightCycle.Instance != null
+            && DayNightCycle.Instance.IsNight
+            && !Campfire.Covers(origin);
+        ShowNotice(nightAway
+            ? "Bait placed away from the fire. A large animal may come."
+            : "Bait placed. Nearby prey will come for a short time.");
     }
 }

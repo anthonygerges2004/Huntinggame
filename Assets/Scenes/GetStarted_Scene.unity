@@ -3316,15 +3316,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 966d037d56a65db42813ae099ad29002, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 1110.83
+      value: 1122.45
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 966d037d56a65db42813ae099ad29002, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 214.77
+      value: 209.64
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 966d037d56a65db42813ae099ad29002, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1110.95
+      value: 1111.01
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 966d037d56a65db42813ae099ad29002, type: 3}
       propertyPath: m_LocalRotation.w
@@ -23524,6 +23524,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Inventory
   meat: 0
   cookedMeat: 0
+  spoiledMeat: 0
   wood: 3
   hasPickaxe: 1
   meatSpoilSeconds: 90
