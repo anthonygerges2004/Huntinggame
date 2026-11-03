@@ -225,14 +225,14 @@ public class PlayerBodyAnimation : MonoBehaviour
         }
         if (holdingAxe)
         {
-            hangR = -24f;
-            rightArmPitch = -52f - r * 4f * walkW;
-            rightElbow = 46f + 2f * walkW;
+            hangR = -48f;
+            rightArmPitch = -18f - r * 3f * walkW;
+            rightElbow = 78f;
             if (crouch)
             {
-                hangR = -32f;
-                rightArmPitch = -38f;
-                rightElbow = 50f;
+                hangR = -40f;
+                rightArmPitch = -12f;
+                rightElbow = 70f;
             }
         }
 
@@ -420,29 +420,42 @@ public class PlayerBodyAnimation : MonoBehaviour
             ? Vector3.Slerp(-right, fwd, 0.42f + 0.18f * shotgunMount)
             : Vector3.Slerp(-right, down, 0.32f));
         PointAlong(rightShoulder, rightShoulderRot, holdAxeHigh
-            ? Vector3.Slerp(right, up, 0.22f)
+            ? (right * 0.55f + down * 0.7f + fwd * 0.25f).normalized
             : holdShotgun
                 ? Vector3.Slerp(right, fwd, 0.38f + 0.22f * shotgunMount)
                 : Vector3.Slerp(right, down, 0.32f));
-
-        if (holdShotgun)
-        {
-            CurlFingers(leftFingers, leftFingerBind, gripFingerEuler);
-            CurlFingers(rightFingers, rightFingerBind, gripFingerEuler);
-            return;
-        }
 
         Vector3 leftArmDir;
         Vector3 leftForeDir;
         Vector3 rightArmDir;
         Vector3 rightForeDir;
-        if (holdAxeHigh)
+        if (holdShotgun)
+        {
+            Vector3 readyRightArm = (down * 0.2f + right * 0.48f + fwd * 0.62f).normalized;
+            Vector3 readyRightFore = (fwd * 0.48f + right * 0.12f - up * 0.62f).normalized;
+            Vector3 readyLeftArm = (fwd * 0.72f - up * 0.38f - right * 0.08f).normalized;
+            Vector3 readyLeftFore = (fwd * 0.84f - up * 0.32f).normalized;
+
+            Vector3 aimRightArm = (right * 0.58f + fwd * 0.62f + up * 0.08f).normalized;
+            Vector3 aimRightFore = (fwd * 0.9f + up * 0.12f).normalized;
+            Vector3 aimLeftArm = (fwd * 0.82f - right * 0.08f + up * 0.04f).normalized;
+            Vector3 aimLeftFore = (fwd * 0.94f + up * 0.1f).normalized;
+
+            rightArmDir = Vector3.Slerp(readyRightArm, aimRightArm, shotgunMount);
+            rightForeDir = Vector3.Slerp(readyRightFore, aimRightFore, shotgunMount);
+            leftArmDir = Vector3.Slerp(readyLeftArm, aimLeftArm, shotgunMount);
+            leftForeDir = Vector3.Slerp(readyLeftFore, aimLeftFore, shotgunMount);
+
+            rightForeDir = (rightForeDir + up * 0.28f * shotgunRecoil - fwd * 0.12f * shotgunRecoil).normalized;
+            leftForeDir = (leftForeDir + up * 0.16f * shotgunRecoil + (down * 0.55f + fwd * 0.10f) * shotgunPump).normalized;
+        }
+        else if (holdAxeHigh)
         {
             leftArmDir = Vector3.Slerp(-right, down, Mathf.Clamp01(Mathf.Abs(hangLDeg) / 88f));
             leftArmDir = Quaternion.AngleAxis(pitchL, right) * leftArmDir;
             leftForeDir = Quaternion.AngleAxis(-elbowL, right) * leftArmDir;
-            rightArmDir = (right * 0.78f + fwd * 0.42f + up * 0.18f).normalized;
-            rightForeDir = (up * 0.88f + fwd * 0.32f - right * 0.18f).normalized;
+            rightArmDir = (down * 0.62f + fwd * 0.52f + right * 0.22f).normalized;
+            rightForeDir = (up * 0.58f + fwd * 0.68f + right * 0.1f).normalized;
         }
         else
         {
@@ -463,12 +476,18 @@ public class PlayerBodyAnimation : MonoBehaviour
 
         Vector3 leftPalm = -fwd * 0.8f + right * 0.35f;
         Vector3 rightPalm = holdAxeHigh
-            ? (-fwd * 0.35f - right * 0.75f)
-            : (-fwd * 0.8f - right * 0.35f);
-        Vector3 leftFingerDir = (leftForeDir * 0.7f + down * 0.3f - fwd * 0.1f).normalized;
+            ? (-right * 0.9f + up * 0.12f - fwd * 0.2f)
+            : holdShotgun
+                ? (up * 0.2f - right * 0.15f)
+                : (-fwd * 0.8f - right * 0.35f);
+        Vector3 leftFingerDir = holdShotgun
+            ? Vector3.Slerp((fwd * 0.82f - up * 0.18f).normalized, fwd, shotgunMount)
+            : (leftForeDir * 0.7f + down * 0.3f - fwd * 0.1f).normalized;
         Vector3 rightFingerDir = holdAxeHigh
-            ? (up * 0.92f + fwd * 0.18f).normalized
-            : (rightForeDir * 0.7f + down * 0.3f - fwd * 0.1f).normalized;
+            ? (up * 0.5f + fwd * 0.72f).normalized
+            : holdShotgun
+                ? Vector3.Slerp((fwd * 0.90f - up * 0.16f).normalized, fwd, shotgunMount)
+                : (rightForeDir * 0.7f + down * 0.3f - fwd * 0.1f).normalized;
         AimBone(leftHand, leftHandRot, leftFingerDir, leftPalm);
         AimBone(rightHand, rightHandRot, rightFingerDir, rightPalm);
 
@@ -590,11 +609,11 @@ public class PlayerBodyAnimation : MonoBehaviour
         };
         gripFingerEuler = new Vector3[]
         {
-            new Vector3(42f, 0f, 0f), new Vector3(50f, 0f, 0f), new Vector3(32f, 0f, 0f),
-            new Vector3(44f, 0f, 0f), new Vector3(52f, 0f, 0f), new Vector3(34f, 0f, 0f),
-            new Vector3(40f, 0f, 0f), new Vector3(48f, 0f, 0f), new Vector3(30f, 0f, 0f),
-            new Vector3(36f, 0f, 0f), new Vector3(44f, 0f, 0f), new Vector3(28f, 0f, 0f),
-            new Vector3(12f, 22f, 0f), new Vector3(10f, 0f, 0f), new Vector3(12f, 0f, 0f)
+            new Vector3(68f, 0f, 0f), new Vector3(78f, 0f, 0f), new Vector3(52f, 0f, 0f),
+            new Vector3(70f, 0f, 0f), new Vector3(80f, 0f, 0f), new Vector3(54f, 0f, 0f),
+            new Vector3(66f, 0f, 0f), new Vector3(76f, 0f, 0f), new Vector3(50f, 0f, 0f),
+            new Vector3(58f, 0f, 0f), new Vector3(68f, 0f, 0f), new Vector3(44f, 0f, 0f),
+            new Vector3(18f, 28f, 0f), new Vector3(14f, 0f, 0f), new Vector3(16f, 0f, 0f)
         };
 
         leftFingers = new Transform[joints.Length];

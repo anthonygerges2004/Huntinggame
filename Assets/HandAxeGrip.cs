@@ -7,8 +7,8 @@ public class HandAxeGrip : MonoBehaviour
 
     float gripLocalY = 0.08f;
 
-    static readonly Vector3 HoldPos = new Vector3(0f, 0.02f, 0f);
-    static readonly Quaternion HoldRot = Quaternion.identity;
+    static readonly Vector3 HoldPos = new Vector3(0f, 0.02f, 0.01f);
+    static readonly Quaternion HoldRot = Quaternion.Euler(-16f, 10f, 4f);
 
     public void Setup(Transform handBone, Transform playerRoot, float grip)
     {
@@ -25,7 +25,7 @@ public class HandAxeGrip : MonoBehaviour
 
         bool swinging = PlayerBodyAnimation.IsActing();
         transform.localPosition = HoldPos + new Vector3(0f, -gripLocalY, 0f);
-        transform.localRotation = swinging ? Quaternion.Euler(22f, 0f, 0f) : HoldRot;
+        transform.localRotation = swinging ? Quaternion.Euler(46f, 8f, 0f) : HoldRot;
         WeaponHold.SetWorldScale(transform, 1f);
     }
 

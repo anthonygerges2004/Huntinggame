@@ -1,3 +1,4 @@
+using HuntingGame.Crafting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -282,6 +283,9 @@ public class WoodBuilder : MonoBehaviour
 
     int CostFor(int index)
     {
+        if (CraftBook.Current != null)
+            return CraftBook.Current.WoodCost(index);
+
         return index == 0 ? foundationCost : wallCost;
     }
 

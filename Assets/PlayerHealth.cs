@@ -1,3 +1,4 @@
+using HuntingGame.Survival;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -10,13 +11,12 @@ public class PlayerHealth : MonoBehaviour
     public float health = 100f;
     public bool isDead { get; private set; }
 
-    [Header("Night Survival")]
-    public bool enableNightDecay = true;
-    public float nightDecayRate = 2f; // health lost per second when night without fire
-    public float nightDecayCheckInterval = 1f; // check every second if conditions met
-    private float nightDecayTimer;
+    // Time of the last damage; natural healing waits a while after being hurt.
+    public float LastDamageTime { get; private set; } = -999f;
+    public string CauseOfDeath { get; private set; } = "";
 
     private bool deathScreenCreated = false;
+    private string lastCause = "Injuries";
 
     void Awake()
     {
@@ -24,48 +24,25 @@ public class PlayerHealth : MonoBehaviour
         Instance = this;
         health = maxHealth;
         isDead = false;
-        nightDecayTimer = nightDecayCheckInterval;
-    }
-
-    void Update()
-    {
-        if (!isDead && enableNightDecay)
-        {
-            UpdateNightDecay();
-        }
-    }
-
-    void UpdateNightDecay()
-    {
-        nightDecayTimer -= Time.deltaTime;
-        if (nightDecayTimer > 0f)
-            return;
-
-        nightDecayTimer = nightDecayCheckInterval;
-
-        // Check if it's night and player is not safe by fire
-        if (DayNightCycle.Instance != null && DayNightCycle.Instance.IsNight)
-        {
-            if (!Campfire.PlayerIsSafe())
-            {
-                // Apply decay damage
-                float damageThisCheck = nightDecayRate * nightDecayCheckInterval;
-                TakeDamage(damageThisCheck);
-                Debug.Log($"Cold/starvation damage: {damageThisCheck}. Health: {health}/{maxHealth}");
-            }
-        }
+        if (GetComponent<SurvivalStats>() == null)
+            gameObject.AddComponent<SurvivalStats>();
     }
 
     public void TakeDamage(float amount)
     {
-        if (isDead)
+        TakeDamage(amount, "Injuries");
+    }
+
+    public void TakeDamage(float amount, string cause)
+    {
+        if (isDead || amount <= 0f)
             return;
 
         health -= amount;
         if (health < 0f)
             health = 0f;
-
-        Debug.Log($"Player took {amount} damage. Health: {health}/{maxHealth}");
+        LastDamageTime = Time.time;
+        lastCause = string.IsNullOrEmpty(cause) ? "Injuries" : cause;
 
         if (health <= 0f)
             Die();
@@ -73,14 +50,12 @@ public class PlayerHealth : MonoBehaviour
 
     public void Heal(float amount)
     {
-        if (isDead)
+        if (isDead || amount <= 0f)
             return;
 
         health += amount;
         if (health > maxHealth)
             health = maxHealth;
-
-        Debug.Log($"Player healed {amount}. Health: {health}/{maxHealth}");
     }
 
     void Die()
@@ -88,7 +63,8 @@ public class PlayerHealth : MonoBehaviour
         isDead = true;
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
-        Debug.Log("You died. Light a fire at night and keep your health up.");
+        CauseOfDeath = lastCause;
+        Debug.Log("You died: " + CauseOfDeath);
         CreateDeathScreen();
     }
 
@@ -128,7 +104,7 @@ public class PlayerHealth : MonoBehaviour
         GameObject textObj = new GameObject("DeathText");
         textObj.transform.SetParent(panelObj.transform, false);
         TextMeshProUGUI deathText = textObj.AddComponent<TextMeshProUGUI>();
-        deathText.text = "YOU DIED\n\nLight a fire at night and keep your health up!";
+        deathText.text = "YOU DIED\n<size=45%><color=#D8D2C4>" + CauseOfDeath + "</color></size>";
         deathText.alignment = TextAlignmentOptions.Center;
         deathText.fontSize = 60;
 

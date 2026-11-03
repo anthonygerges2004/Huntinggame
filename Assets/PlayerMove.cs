@@ -17,7 +17,19 @@ public class PlayerMove : MonoBehaviour
     public float sprintRechargeSeconds = 15f;
 
     public static bool IsCrouching;
+    public static bool IsMoving;
+    public static bool IsSprinting;
     public static bool Frozen;
+    public static float Stamina01 { get; private set; } = 1f;
+    public static float SurfaceNoise { get; private set; } = 1f;
+
+    public static void SetGait(bool moving, bool sprinting, bool crouching, float surfaceNoise)
+    {
+        IsMoving = moving;
+        IsSprinting = sprinting;
+        IsCrouching = crouching;
+        SurfaceNoise = surfaceNoise < 0.05f ? 0.05f : surfaceNoise;
+    }
 
     public float LookPitch => xRotation;
 
@@ -27,6 +39,8 @@ public class PlayerMove : MonoBehaviour
     float xRotation;
     float verticalSpeed;
     float sprintRemaining;
+    float surfaceTimer;
+    float fallSpeed;
 
     void Start()
     {
@@ -54,11 +68,19 @@ public class PlayerMove : MonoBehaviour
 
     void Update()
     {
+        RefreshSurface();
+
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
+        {
+            SetNoise(false, false);
             return;
+        }
 
         if (Keyboard.current == null || Mouse.current == null)
+        {
+            SetNoise(false, false);
             return;
+        }
 
         if (Inventory.IsOpen)
         {
@@ -66,6 +88,7 @@ public class PlayerMove : MonoBehaviour
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             IsCrouching = false;
+            SetNoise(false, false);
             return;
         }
 
@@ -85,6 +108,7 @@ public class PlayerMove : MonoBehaviour
         {
             UpdateSprint(false);
             IsCrouching = false;
+            SetNoise(false, false);
             return;
         }
 
@@ -105,6 +129,8 @@ public class PlayerMove : MonoBehaviour
         if (isSwimming)
         {
             UpdateSprint(false);
+            SetNoise(false, false);
+            fallSpeed = 0f; // water breaks the fall
             Swim(move, surface, current);
             return;
         }
@@ -120,13 +146,44 @@ public class PlayerMove : MonoBehaviour
 
         bool sprinting = running && move.sqrMagnitude > 0.0001f && sprintRemaining > 0f;
         UpdateSprint(sprinting);
+        SetNoise(move.sqrMagnitude > 0.0001f, sprinting);
 
         float currentSpeed = IsCrouching ? crouchSpeed : (sprinting ? runSpeed : speed);
         if (PlayerShotgun.IsAiming)
             currentSpeed *= 0.55f;
+        if (HuntingGame.Survival.SurvivalStats.Current != null)
+            currentSpeed *= HuntingGame.Survival.SurvivalStats.Current.MoveSpeedMultiplier;
         Vector3 motion = move * currentSpeed;
         motion.y = verticalSpeed;
+        bool wasGrounded = controller.isGrounded;
         controller.Move(motion * Time.deltaTime);
+        CheckFall(wasGrounded);
+    }
+
+    // Landing hard hurts: anything faster than a ~4-5 m drop does damage.
+    void CheckFall(bool wasGrounded)
+    {
+        if (!controller.isGrounded)
+        {
+            fallSpeed = Mathf.Min(fallSpeed, verticalSpeed);
+            return;
+        }
+
+        float impact = -fallSpeed;
+        fallSpeed = 0f;
+        if (wasGrounded || Time.timeSinceLevelLoad < 6f || PlayerHealth.Instance == null)
+            return;
+
+        HuntingGame.Survival.SurvivalStats stats = HuntingGame.Survival.SurvivalStats.Current;
+        float safe = stats != null ? stats.Settings.safeFallSpeed : 13f;
+        float perUnit = stats != null ? stats.Settings.fallDamagePerMetrePerSecond : 6f;
+        if (impact <= safe)
+            return;
+
+        float damage = (impact - safe) * perUnit;
+        PlayerHealth.Instance.TakeDamage(damage, "Died from a fall");
+        if (Inventory.Instance != null && !PlayerHealth.Instance.isDead)
+            Inventory.Instance.ShowNotice(damage > 25f ? "That was a bad fall." : "Ouch. Hard landing.");
     }
 
     void UpdateSprint(bool sprinting)
@@ -134,9 +191,60 @@ public class PlayerMove : MonoBehaviour
         if (sprinting)
             sprintRemaining -= Time.deltaTime;
         else
-            sprintRemaining += Time.deltaTime * (sprintDurationSeconds / Mathf.Max(0.01f, sprintRechargeSeconds));
+        {
+            float recovery = HuntingGame.Survival.SurvivalStats.Current != null
+                ? HuntingGame.Survival.SurvivalStats.Current.StaminaRecoveryMultiplier
+                : 1f;
+            sprintRemaining += Time.deltaTime * recovery * (sprintDurationSeconds / Mathf.Max(0.01f, sprintRechargeSeconds));
+        }
 
         sprintRemaining = Mathf.Clamp(sprintRemaining, 0f, sprintDurationSeconds);
+        Stamina01 = sprintRemaining / Mathf.Max(0.01f, sprintDurationSeconds);
+    }
+
+    static void SetNoise(bool moving, bool sprinting)
+    {
+        IsMoving = moving;
+        IsSprinting = sprinting;
+    }
+
+    void RefreshSurface()
+    {
+        surfaceTimer -= Time.deltaTime;
+        if (surfaceTimer > 0f)
+            return;
+
+        surfaceTimer = 0.4f;
+        SurfaceNoise = SampleSurface(transform.position);
+    }
+
+    static float SampleSurface(Vector3 position)
+    {
+        if (WaterBodies.InsideWater(position))
+            return 1.65f;
+
+        Terrain terrain = WorldGround.TerrainAt(position);
+        if (terrain == null || terrain.terrainData == null)
+            return 1f;
+
+        Vector3 origin = terrain.transform.position;
+        Vector3 size = terrain.terrainData.size;
+        if (size.x < 1f || size.z < 1f || size.y < 0.01f)
+            return 1f;
+
+        float nx = Mathf.Clamp01((position.x - origin.x) / size.x);
+        float nz = Mathf.Clamp01((position.z - origin.z) / size.z);
+        float steep = 1f - terrain.terrainData.GetInterpolatedNormal(nx, nz).y;
+        float height = terrain.terrainData.GetInterpolatedHeight(nx, nz) / size.y;
+        float rock = Mathf.Clamp01(steep * 2.4f + Mathf.InverseLerp(0.32f, 0.72f, height));
+        if (rock > 0.55f)
+            return 1.3f;
+
+        float grass = Mathf.Clamp01((1f - rock) * (1.15f - height));
+        if (grass > 0.55f)
+            return 0.75f;
+
+        return 1f;
     }
 
     void Swim(Vector3 move, float surface, Vector3 current)

@@ -176,12 +176,27 @@ public class CastleBuilder : MonoBehaviour
                     bounds.Encapsulate(renderers[i].bounds);
             }
 
-            Vector3 ground = WorldGround.Sit(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z), 0f);
-            transform.position += Vector3.up * (ground.y - bounds.min.y + groundOffset);
+            // Read the terrain directly: a physics ray from above hits the castle's own
+            // mesh colliders (floors, walls) and lifted the castle into the air.
+            // Use the lowest ground under the footprint so no edge floats.
+            float lowest = float.MaxValue;
+            for (int ix = -1; ix <= 1; ix++)
+            {
+                for (int iz = -1; iz <= 1; iz++)
+                {
+                    Vector3 probe = new Vector3(bounds.center.x + ix * bounds.extents.x * 0.9f, bounds.min.y,
+                                                bounds.center.z + iz * bounds.extents.z * 0.9f);
+                    if (WorldGround.TryGetGround(probe, out Vector3 point, out _))
+                        lowest = Mathf.Min(lowest, point.y);
+                }
+            }
+
+            if (lowest < float.MaxValue)
+                transform.position += Vector3.up * (lowest - bounds.min.y + groundOffset);
             return;
         }
 
-        Vector3 at = WorldGround.Sit(transform.position, 0f);
+        Vector3 at = WorldGround.Snap(transform.position);
         transform.position = new Vector3(transform.position.x, at.y + groundOffset, transform.position.z);
     }
 

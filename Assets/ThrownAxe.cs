@@ -1,3 +1,4 @@
+using HuntingGame.Wounds;
 using UnityEngine;
 
 public class ThrownAxe : MonoBehaviour
@@ -103,6 +104,12 @@ public class ThrownAxe : MonoBehaviour
         Animal animal = other.GetComponentInParent<Animal>();
         if (animal != null)
         {
+            if (WoundPool.Current != null)
+            {
+                bool heavy = animal.kind == AnimalKind.Large || animal.kind == AnimalKind.Legendary;
+                WoundPool.Current.Mark(transform.position, heavy);
+            }
+
             animal.Hit();
             Debug.Log("Axe hit " + animal.kind + "!");
         }

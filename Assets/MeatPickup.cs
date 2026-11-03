@@ -106,7 +106,12 @@ public class MeatPickup : MonoBehaviour
 
         if (age >= spoilSeconds)
         {
+            Vector3 pos = basePos;
+            int kept = amount;
+            if (Inventory.Instance != null)
+                Inventory.Instance.ShowNotice("Meat on the ground spoiled into bait.");
             Destroy(gameObject);
+            MeatBait.Place(pos, kept);
             return;
         }
 

@@ -8,7 +8,9 @@ public class DayNightCycle : MonoBehaviour
     public Material skyboxDay;
     public Material skyboxSunset;
     public Material skyboxNight;
-    public float dayLengthSeconds = 90f;
+    [Tooltip("Real minutes for one full day and night.")]
+    public float dayLengthMinutes = 12f;
+    public float dayLengthSeconds => Mathf.Max(0.1f, dayLengthMinutes) * 60f;
     public bool IsNight { get; private set; }
 
     public Color ambientSky = new Color(0.68f, 0.73f, 0.80f);
@@ -108,6 +110,9 @@ public class DayNightCycle : MonoBehaviour
         RenderSettings.ambientEquatorColor = ambientHorizon * ambientLevel;
         RenderSettings.ambientGroundColor = ambientGround * ambientLevel;
     }
+
+    // 0..1 through the day: night runs from 0.5 to 0.7.
+    public float TimeOfDay01 => timeOfDay;
 
     public string TimeLabel()
     {

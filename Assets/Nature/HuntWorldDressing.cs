@@ -150,7 +150,10 @@ public class HuntWorldDressing : MonoBehaviour
                 filled[m] = current;
             }
 
-            if (filled[m] != null && IsRockRenderer(renderer) && MaterialTooBright(filled[m]))
+            // Never tint RPG Poly Pack rocks: the whole pack shares one atlas material,
+            // so tinting it turns every house, tree and prop dark grey.
+            if (filled[m] != null && IsRockRenderer(renderer) && !UsesRpgppMaterial(filled[m]) &&
+                MaterialTooBright(filled[m]))
             {
                 ApplyUnsRockTint(filled[m], renderer, m);
                 changed = true;
@@ -174,6 +177,11 @@ public class HuntWorldDressing : MonoBehaviour
         }
 
         return false;
+    }
+
+    static bool UsesRpgppMaterial(Material mat)
+    {
+        return mat.name.StartsWith("rpgpp_", System.StringComparison.OrdinalIgnoreCase);
     }
 
     static bool MaterialTooBright(Material mat)
@@ -231,9 +239,15 @@ public class HuntWorldDressing : MonoBehaviour
         FixTerrainShaders();
         GameCulling.ApplyForActiveScene();
         ReplaceBrokenTreeMeshes();
-        ArrangeCamp();
+        // The RPG Poly Pack rebuild lays out the camp on a levelled pad; don't re-arrange it.
+        if (!RpgppScenery.Present)
+            ArrangeCamp();
         SnapCastlesToGround();
         RemoveUnwantedRocks();
+
+        // The RPG Poly Pack scenery replaces this foliage; don't regenerate it.
+        if (RpgppScenery.Present)
+            return;
 
         GameObject existingRoot = GameObject.Find(FoliageRootName);
         if (existingRoot != null && !rebuildFoliage)
@@ -453,8 +467,26 @@ public class HuntWorldDressing : MonoBehaviour
                 bounds.Encapsulate(renderers[i].bounds);
         }
 
-        Vector3 ground = WorldGround.Sit(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z), 0f);
-        float delta = ground.y - bounds.min.y - sink;
+        // Use the terrain itself (a physics ray can hit the building's own floors and
+        // lift it into the air), and the lowest point under the footprint so no edge floats.
+        float lowest = float.MaxValue;
+        for (int ix = -1; ix <= 1; ix++)
+        {
+            for (int iz = -1; iz <= 1; iz++)
+            {
+                Vector3 probe = new Vector3(
+                    bounds.center.x + ix * bounds.extents.x * 0.9f,
+                    bounds.min.y,
+                    bounds.center.z + iz * bounds.extents.z * 0.9f);
+                if (WorldGround.TryGetGround(probe, out Vector3 point, out _))
+                    lowest = Mathf.Min(lowest, point.y);
+            }
+        }
+
+        if (lowest == float.MaxValue)
+            return;
+
+        float delta = lowest - bounds.min.y - sink;
         if (Mathf.Abs(delta) < 0.02f)
             return;
 

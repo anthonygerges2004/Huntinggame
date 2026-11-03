@@ -55,6 +55,9 @@ public static class ApplyRealisticTerrain
             return;
         if (!PackIsImported())
             return;
+        // The RPG Poly Pack scenery replaced this layout; don't rebuild it on load.
+        if (RpgppScenery.Present)
+            return;
 
         Scene scene = SceneManager.GetActiveScene();
         if (!scene.IsValid() || scene.name != "GetStarted_Scene")
@@ -500,6 +503,9 @@ public static class ApplyRealisticTerrain
 
     static void EnsureGameObjectForest()
     {
+        if (RpgppScenery.Present)
+            return;
+
         Terrain terrain = Object.FindAnyObjectByType<Terrain>();
         if (terrain == null)
             return;

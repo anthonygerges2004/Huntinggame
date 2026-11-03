@@ -1,3 +1,4 @@
+using HuntingGame.Ballistics;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -11,9 +12,9 @@ public class PlayerShotgun : MonoBehaviour
     public static float RecoilKick => Instance != null ? Instance.recoil : 0f;
     public static float PumpPull => Instance != null ? Instance.breakOpen : 0f;
 
-    public int pellets = 8;
+    public int pellets = 24;
     public float spreadAngle = 10f;
-    public float range = 50f;
+    public float range = 120f;
     public float readyPitch = 30f;
 
     bool equipped;
@@ -70,8 +71,8 @@ public class PlayerShotgun : MonoBehaviour
         leftGrip.SetParent(handGun, false);
         leftGrip.localPosition = new Vector3(
             0f,
-            Mathf.Lerp(ShotgunVisual.StockLocal.y, ShotgunVisual.MuzzleLocal.y, 0.45f),
-            Mathf.Lerp(0.16f, ShotgunVisual.MuzzleLocal.z, 0.40f));
+            Mathf.Lerp(ShotgunVisual.StockLocal.y, ShotgunVisual.MuzzleLocal.y, 0.58f),
+            Mathf.Lerp(ShotgunVisual.StockLocal.z, ShotgunVisual.MuzzleLocal.z, 0.62f));
 
         if (WeaponHold.Instance != null)
             WeaponHold.Instance.AttachToShoulder(handGun, ShotgunVisual.FittedScale);
@@ -209,6 +210,8 @@ public class PlayerShotgun : MonoBehaviour
         WildlifeAlarm.NotifyShot(PlayerView.Position());
         Flash();
         FirePellets();
+        if (Inventory.Instance != null)
+            Inventory.Instance.ShowNotice(shells > 0 ? "Shot. 1 shell left." : "Shot. The gun breaks open to reload.");
 
         if (shells <= 0)
             StartReload();
@@ -224,36 +227,11 @@ public class PlayerShotgun : MonoBehaviour
     void FirePellets()
     {
         GetAim(out Vector3 origin, out Vector3 forward, out Vector3 up, out Vector3 right);
-        var hitAnimals = new System.Collections.Generic.List<Animal>();
+        if (BallisticsGun.Current == null)
+            return;
 
-        for (int i = 0; i < pellets; i++)
-        {
-            float spread = aimHeld ? spreadAngle * 0.28f : spreadAngle;
-            Vector3 direction = forward;
-            float half = Mathf.Tan(spread * Mathf.Deg2Rad);
-            direction += up * Random.Range(-half, half);
-            direction += right * Random.Range(-half, half);
-
-            if (Physics.Raycast(origin, direction, out RaycastHit hit, range, ~0, QueryTriggerInteraction.Ignore))
-            {
-                Debug.DrawLine(origin, hit.point, Color.green, 1f);
-                if (hit.transform.IsChildOf(transform))
-                    continue;
-                if (hit.collider.GetComponentInParent<HarvestableTree>() != null)
-                    continue;
-
-                Animal animal = hit.collider.GetComponentInParent<Animal>();
-                if (animal != null && !hitAnimals.Contains(animal))
-                    hitAnimals.Add(animal);
-            }
-            else
-            {
-                Debug.DrawRay(origin, direction * range, Color.red, 1f);
-            }
-        }
-
-        for (int i = 0; i < hitAnimals.Count; i++)
-            hitAnimals[i].Hit();
+        float spread = aimHeld ? spreadAngle * 0.28f : spreadAngle;
+        BallisticsGun.Current.Fire(origin, forward, up, right, spread, range, pellets, transform);
     }
 
     void GetAim(out Vector3 origin, out Vector3 forward, out Vector3 up, out Vector3 right)
@@ -318,24 +296,31 @@ public class PlayerShotgun : MonoBehaviour
             aim = fwd;
         aim.Normalize();
 
-        Vector3 readyBarrel = Vector3.Slerp((fwd * 0.82f - up * 0.08f + right * 0.08f).normalized, aim, 0.85f);
-        Vector3 barrel = Vector3.Slerp(readyBarrel, aim, mount).normalized;
-        barrel = Quaternion.AngleAxis(-10f * recoil + 26f * breakOpen, right) * barrel;
-        Vector3 gunUp = Vector3.Cross(right, barrel);
-        if (gunUp.sqrMagnitude < 0.0001f)
-            gunUp = up;
-        Quaternion rot = Quaternion.LookRotation(barrel, gunUp.normalized);
+        Vector3 lowBarrel = (fwd * 0.78f - up * 0.42f + right * 0.05f).normalized;
+        Vector3 barrel = Vector3.Slerp(lowBarrel, aim, mount).normalized;
+        barrel = Quaternion.AngleAxis(-8f * recoil + 22f * breakOpen, right) * barrel;
+        Vector3 side = Vector3.Cross(up, barrel);
+        if (side.sqrMagnitude < 0.0001f)
+            side = right;
+        Vector3 rolledUp = Vector3.Cross(barrel, side).normalized;
+        Vector3 gunUp = Vector3.Slerp(up, rolledUp, 0.2f + 0.8f * mount);
+        Quaternion rot = Quaternion.LookRotation(barrel, gunUp);
 
         Transform shoulder = hold.ShoulderAnchor();
-        Vector3 readyHold = shoulder.position + aim * 0.32f + right * 0.05f - up * 0.04f;
-        Vector3 aimHold = shoulder.position + aim * 0.26f + right * 0.03f + up * 0.02f;
-        Vector3 holdPoint = Vector3.Lerp(readyHold, aimHold, mount);
-        holdPoint += (-barrel * 0.04f + up * 0.03f) * recoil;
+        Vector3 pocket = shoulder.position + right * 0.07f - up * 0.03f;
+        Vector3 lowButt = pocket + fwd * 0.08f - up * 0.05f + right * 0.02f;
+        Vector3 aimButt = pocket + aim * 0.02f + up * 0.015f;
+        Vector3 butt = Vector3.Lerp(lowButt, aimButt, mount);
+        butt += up * 0.02f * recoil - barrel * 0.03f * recoil;
 
-        handGun.SetPositionAndRotation(holdPoint - rot * rightGripLocal, rot);
+        handGun.SetPositionAndRotation(butt - rot * ShotgunVisual.StockLocal, rot);
         WeaponHold.SetWorldScale(handGun, ShotgunVisual.FittedScale);
 
-        hold.HandsOnWeapon(holdPoint, leftGrip != null ? leftGrip.position : holdPoint + barrel * 0.28f, barrel);
+        Vector3 rightHandTarget = handGun.TransformPoint(rightGripLocal);
+        Vector3 leftHandTarget = leftGrip != null
+            ? leftGrip.position
+            : handGun.TransformPoint(new Vector3(0f, 0.03f, 0.28f));
+        hold.HandsOnWeapon(rightHandTarget, leftHandTarget, barrel);
     }
 
     void ClearLeftoverGuns()
@@ -362,9 +347,9 @@ public class PlayerShotgun : MonoBehaviour
         Light light = flash.AddComponent<Light>();
         light.type = LightType.Point;
         light.color = new Color(1f, 0.72f, 0.28f);
-        light.range = 4.2f;
-        light.intensity = 6.5f;
-        Destroy(flash, 0.05f);
+        light.range = 8f;
+        light.intensity = 14f;
+        Destroy(flash, 0.16f);
     }
 
     void SetVisible(bool on)

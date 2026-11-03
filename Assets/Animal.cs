@@ -449,7 +449,8 @@ public class Animal : MonoBehaviour
 
     void TryNightAttack()
     {
-        if (kind == AnimalKind.Bird)
+        // Only predators hunt people at night; birds and deer never attack.
+        if (kind == AnimalKind.Bird || kind == AnimalKind.Deer)
             return;
 
         if (DayNightCycle.Instance == null || !DayNightCycle.Instance.IsNight)
@@ -478,7 +479,7 @@ public class Animal : MonoBehaviour
         attackTimer = nightAttackCooldown;
         if (PlayerHealth.Instance != null)
         {
-            PlayerHealth.Instance.TakeDamage(nightDamage);
+            PlayerHealth.Instance.TakeDamage(nightDamage, "Killed by a predator");
             Debug.Log($"{kind} attacked player! {nightDamage} damage taken.");
         }
     }

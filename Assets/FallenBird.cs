@@ -96,9 +96,12 @@ public class FallenBird : MonoBehaviour
 
         if (age >= spoilSeconds)
         {
+            Vector3 pos = transform.position;
+            int kept = meat;
             if (Inventory.Instance != null)
-                Inventory.Instance.ShowNotice("The bird spoiled.");
+                Inventory.Instance.ShowNotice("The bird spoiled into bait.");
             Destroy(gameObject);
+            MeatBait.Place(pos, kept);
             return;
         }
 

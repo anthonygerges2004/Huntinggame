@@ -73,21 +73,36 @@ public class WeaponHold : MonoBehaviour
         if (!bindsReady)
             BindBones();
 
-        Vector3 rightPole = RightArm != null
-            ? RightArm.position + transform.right * 0.32f - transform.forward * 0.18f
-            : transform.position + transform.right * 0.4f;
-        Vector3 leftPole = LeftArm != null
-            ? LeftArm.position - transform.right * 0.32f - transform.forward * 0.18f
-            : transform.position - transform.right * 0.4f;
+        Vector3 rightPole = transform.position + transform.right * 0.28f - transform.up * 0.42f;
+        Vector3 leftPole = transform.position - transform.up * 0.62f + transform.forward * 0.1f;
 
         TwoBoneIk(RightArm, rightArmBind, RightForeArm, rightForeBind, RightHand, rightGrip, rightPole);
         TwoBoneIk(LeftArm, leftArmBind, LeftForeArm, leftForeBind, LeftHand, leftGrip, leftPole);
 
         if (barrel.sqrMagnitude > 0.0001f)
         {
-            PointAlong(RightHand, rightHandBind, barrel.normalized);
-            PointAlong(LeftHand, leftHandBind, barrel.normalized);
+            Vector3 along = barrel.normalized;
+            AlignHand(RightHand, rightHandBind, along, -transform.right + transform.up * 0.15f);
+            AlignHand(LeftHand, leftHandBind, along, transform.right * 0.65f + transform.up * 0.75f);
         }
+    }
+
+    void AlignHand(Transform bone, Quaternion bind, Vector3 along, Vector3 palm)
+    {
+        if (bone == null || bone.parent == null || along.sqrMagnitude < 0.0001f)
+            return;
+
+        along.Normalize();
+        Quaternion bindWorld = bone.parent.rotation * bind;
+        Quaternion hang = Quaternion.FromToRotation(bindWorld * Vector3.up, along);
+        Quaternion hungWorld = hang * bindWorld;
+
+        Vector3 wantPalm = Vector3.ProjectOnPlane(palm, along);
+        Vector3 havePalm = Vector3.ProjectOnPlane(hungWorld * Vector3.forward, along);
+        if (wantPalm.sqrMagnitude > 0.0001f && havePalm.sqrMagnitude > 0.0001f)
+            hungWorld = Quaternion.FromToRotation(havePalm.normalized, wantPalm.normalized) * hungWorld;
+
+        bone.localRotation = Quaternion.Inverse(bone.parent.rotation) * hungWorld;
     }
 
     public Transform ShoulderAnchor()
