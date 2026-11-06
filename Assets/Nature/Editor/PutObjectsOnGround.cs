@@ -11,7 +11,7 @@ public static class PutObjectsOnGround
     static readonly HashSet<string> Skip = new HashSet<string>
     {
         "_RealisticTerrain", "Player", "Canvas", "EventSystem", "Directional Light",
-        "MiniMapCamerra", "Ground_1", "Wall", "Water", "Water2", "River"
+        "MiniMapCamerra", "Ground_1", "Wall", "Water", "Water2", "River", "_GapRivers"
     };
 
     [MenuItem("Tools/Hunting Game/Put Objects On Ground")]

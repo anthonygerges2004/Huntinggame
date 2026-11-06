@@ -615,6 +615,7 @@ public static partial class RpgppSceneryBuilder
         HashSet<string> ignore = new HashSet<string>
         {
             RpgppScenery.RootName, OldFoliageName, ApplyRealisticTerrain.RootName, "River", "Water", "Water2",
+            FillTerrainGapsWithWater.RootName,
             "Player", "Directional Light", "EventSystem", "MiniMapCamerra", "GameManager", "Canvas",
             "ThirdPersonPoint", "permalight"
         };

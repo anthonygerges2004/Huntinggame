@@ -16,6 +16,8 @@ public class Villager : MonoBehaviour
     public float walkSpeed = 1.3f;
     public Vector3[] path;            // Patrol / Traveler points
     public bool snapToGround = true;  // Fishers on a jetty keep their height
+    [Tooltip("Hermit and other story NPCs stay visible from far away.")]
+    public bool keepVisibleWhenFar;
 
     public Transform body, legL, legR, armL, armR, head;
 
@@ -51,7 +53,8 @@ public class Villager : MonoBehaviour
         if (Time.time >= nextCull)
         {
             nextCull = Time.time + 0.5f + Random.value * 0.2f;
-            bool near = Vector3.Distance(PlayerView.Position(), transform.position) < CullDistance;
+            bool near = keepVisibleWhenFar ||
+                        Vector3.Distance(PlayerView.Position(), transform.position) < CullDistance;
             if (near != visible)
             {
                 visible = near;

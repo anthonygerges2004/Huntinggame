@@ -18,8 +18,8 @@ namespace HuntingGame.Tracking
         float stepInterval = 0.55f;
         float minStepSqr = 0.72f;
         float branchInterval = 1.4f;
-        float printSize = 0.28f;
-        float printLife = 16f;
+        float printSize = 0.42f;
+        float printLife = 75f;
         float bloodSize = 0.2f;
         float branchLength = 0.48f;
         bool armed;

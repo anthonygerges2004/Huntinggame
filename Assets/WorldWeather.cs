@@ -46,11 +46,20 @@ public class WorldWeather : MonoBehaviour
     int index;
     float nextChange;
     float flashUntil;
+    float sunBase = 1f;
+    Color ambientSkyBase = Color.gray;
+    Color ambientEquatorBase = Color.gray;
+    Color ambientGroundBase = Color.gray;
 
     void Awake()
     {
         Instance = this;
         sun = FindAnyObjectByType<Light>();
+        if (sun != null)
+            sunBase = Mathf.Max(0.1f, sun.intensity);
+        ambientSkyBase = RenderSettings.ambientSkyColor;
+        ambientEquatorBase = RenderSettings.ambientEquatorColor;
+        ambientGroundBase = RenderSettings.ambientGroundColor;
         BuildWind();
         BuildRain();
         if (presets == null || presets.Length == 0)
@@ -137,12 +146,24 @@ public class WorldWeather : MonoBehaviour
         RenderSettings.fogDensity = Mathf.Lerp(RenderSettings.fogDensity, active.FogDensity, blend);
         RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, active.FogColor, blend);
 
+        float daylight = DayNightCycle.Instance != null ? DayNightCycle.Instance.Daylight : sunBase;
         if (sun != null)
-            sun.intensity = Mathf.Max(0.02f, sun.intensity * light);
+            sun.intensity = Mathf.Max(0.02f, daylight * light);
 
-        RenderSettings.ambientSkyColor *= light;
-        RenderSettings.ambientEquatorColor *= light;
-        RenderSettings.ambientGroundColor *= light;
+        if (DayNightCycle.Instance != null)
+        {
+            DayNightCycle cycle = DayNightCycle.Instance;
+            float level = cycle.AmbientLevel;
+            RenderSettings.ambientSkyColor = cycle.ambientSky * level * light;
+            RenderSettings.ambientEquatorColor = cycle.ambientHorizon * level * light;
+            RenderSettings.ambientGroundColor = cycle.ambientGround * level * light;
+        }
+        else
+        {
+            RenderSettings.ambientSkyColor = ambientSkyBase * light;
+            RenderSettings.ambientEquatorColor = ambientEquatorBase * light;
+            RenderSettings.ambientGroundColor = ambientGroundBase * light;
+        }
 
         if (wind != null)
         {

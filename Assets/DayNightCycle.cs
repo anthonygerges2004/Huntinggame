@@ -21,6 +21,10 @@ public class DayNightCycle : MonoBehaviour
     float ambientLevel = 1f;
     Material currentSkybox;
 
+    public float Daylight { get; private set; } = 1f;
+    public float AmbientLevel => ambientLevel;
+    public float TimeOfDayNormalized => timeOfDay;
+
     void Awake()
     {
         Instance = this;
@@ -77,7 +81,8 @@ public class DayNightCycle : MonoBehaviour
             // Dynamic intensity based on sun position with smooth curve
             float sunHeight = Mathf.Sin(timeOfDay * Mathf.PI);
             float shaped = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(sunHeight));
-            sun.intensity = Mathf.Lerp(0.16f, 1.35f, shaped);
+            Daylight = Mathf.Lerp(0.16f, 1.35f, shaped);
+            sun.intensity = Daylight;
 
             // Smooth color transitions across entire day
             Color targetColor = Color.white;

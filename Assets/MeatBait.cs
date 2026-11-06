@@ -28,6 +28,7 @@ public class MeatBait : MonoBehaviour
         MeatBait bait = root.AddComponent<MeatBait>();
         bait.amount = amount;
         bait.BuildVisual();
+        VillageReputation.OnBaitPlaced(root.transform.position);
         return bait;
     }
 
@@ -169,6 +170,7 @@ public class MeatBait : MonoBehaviour
         spawned.meatAmount = 5;
         spawned.nightDamage = 14f;
         drewLarge = true;
+        VillageReputation.OnLargePredatorDrawn(transform.position);
 
         if (Inventory.Instance != null)
             Inventory.Instance.ShowNotice("A large animal is coming to the bait.");

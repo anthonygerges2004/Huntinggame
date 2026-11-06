@@ -1217,6 +1217,8 @@ public static partial class RpgppSceneryBuilder
             creature.radius = home.radius;
             creature.speed = speed;
             creature.restChance = restChance;
+            if (name == "Horse" && go.GetComponent<RideableHorse>() == null)
+                go.AddComponent<RideableHorse>();
             n++;
         }
 

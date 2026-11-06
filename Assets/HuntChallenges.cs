@@ -19,6 +19,8 @@ public class HuntChallenges : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        if (GetComponent<HuntCampBoard>() == null)
+            gameObject.AddComponent<HuntCampBoard>();
     }
 
     public static void ReportKill(Animal animal)
@@ -56,6 +58,8 @@ public class HuntChallenges : MonoBehaviour
             quietDeer = true;
             Announce("Quiet deer");
         }
+
+        HuntCampBoard.TryCompleteDaily(animal);
     }
 
     bool PlayerUnderTree()

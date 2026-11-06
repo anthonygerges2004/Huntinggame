@@ -109,7 +109,7 @@ public class BirdFlight : MonoBehaviour
         {
             perched = false;
             landing = false;
-            Vector3 away = transform.position + transform.forward * 8f + Vector3.up * 3f;
+            Vector3 away = FleeDestination();
             FlyToward(away, fleeSpeed, 2.4f);
             Flap(28f, 55f);
             animal.TickFlee(Time.deltaTime);
@@ -181,22 +181,66 @@ public class BirdFlight : MonoBehaviour
 
     void FlyToward(Vector3 dest, float speed, float bob)
     {
-        Vector3 to = dest - transform.position;
-        if (to.sqrMagnitude > 0.01f)
+        Vector3 pos = transform.position;
+        Vector3 flatTo = new Vector3(dest.x - pos.x, 0f, dest.z - pos.z);
+        if (flatTo.sqrMagnitude > 0.04f)
         {
-            Quaternion look = Quaternion.LookRotation(to.normalized, Vector3.up);
+            Vector3 step = flatTo.normalized * (speed * Time.deltaTime);
+            if (step.sqrMagnitude > flatTo.sqrMagnitude)
+                step = flatTo;
+            pos.x += step.x;
+            pos.z += step.z;
+
+            Quaternion look = Quaternion.LookRotation(flatTo.normalized, Vector3.up);
             transform.rotation = Quaternion.Slerp(transform.rotation, look, 4.5f * Time.deltaTime);
         }
 
-        Vector3 next = Vector3.MoveTowards(transform.position, dest, speed * Time.deltaTime);
-        next.y += Mathf.Sin(age * 2.4f) * bob * Time.deltaTime;
-        float floor = WorldGround.Snap(next).y + 1.2f;
+        float wantY = dest.y + Mathf.Sin(age * 2.4f) * bob * 0.12f;
+        pos.y = Mathf.MoveTowards(pos.y, wantY, speed * 0.55f * Time.deltaTime);
+
+        float floor = WorldGround.Snap(pos).y + 1.2f;
         if (animal != null && animal.flyer == FlyerKind.Duck &&
-            WaterBodies.SurfaceAt(next, 8f, out float surface, out _))
+            WaterBodies.SurfaceAt(pos, 8f, out float surface, out _))
             floor = surface + 1.4f;
-        if (next.y < floor)
-            next.y = floor;
-        transform.position = next;
+        if (pos.y < floor)
+            pos.y = floor;
+        transform.position = pos;
+    }
+
+    Vector3 FleeDestination()
+    {
+        Vector3 fromPlayer = transform.position - PlayerView.Position();
+        fromPlayer.y = 0f;
+        if (fromPlayer.sqrMagnitude < 0.25f)
+            fromPlayer = RandomHorizontalDir() * 12f;
+        else
+            fromPlayer = fromPlayer.normalized * Random.Range(14f, 26f);
+
+        Vector3 dest = transform.position + fromPlayer;
+        dest = WorldGround.Snap(dest);
+        dest.y = transform.position.y + Random.Range(1.5f, 4f);
+        dest.y = Mathf.Clamp(dest.y, WorldGround.Snap(dest).y + cruiseMin, WorldGround.Snap(dest).y + cruiseMax);
+        return dest;
+    }
+
+    static Vector3 RandomHorizontalDir()
+    {
+        if (Random.value < 0.4f)
+        {
+            int card = Random.Range(0, 4);
+            if (card == 0)
+                return Vector3.forward;
+            if (card == 1)
+                return Vector3.back;
+            if (card == 2)
+                return Vector3.right;
+            return Vector3.left;
+        }
+
+        Vector2 v = Random.insideUnitCircle;
+        if (v.sqrMagnitude < 0.01f)
+            v = Vector2.right;
+        return new Vector3(v.x, 0f, v.y).normalized;
     }
 
     void PickTarget()
@@ -207,10 +251,11 @@ public class BirdFlight : MonoBehaviour
             return;
         }
 
-        Vector2 circle = Random.insideUnitCircle * wander;
-        Vector3 pos = home + new Vector3(circle.x, 0f, circle.y);
+        Vector3 flatDir = RandomHorizontalDir();
+        float dist = Random.Range(wander * 0.4f, wander);
+        Vector3 pos = home + flatDir * dist;
         pos = WorldGround.Snap(pos);
-        pos.y += Random.Range(cruiseMin, cruiseMax);
+        pos.y = home.y + Random.Range(cruiseMin, cruiseMax);
         target = pos;
     }
 
@@ -219,8 +264,10 @@ public class BirdFlight : MonoBehaviour
         point = Vector3.zero;
         if (WaterBodies.SurfaceAt(home, 8f, out float surface, out _))
         {
-            Vector2 circle = Random.insideUnitCircle * wander;
-            point = new Vector3(home.x + circle.x, surface + Random.Range(cruiseMin, cruiseMax), home.z + circle.y);
+            Vector3 flatDir = RandomHorizontalDir();
+            float dist = Random.Range(wander * 0.35f, wander);
+            point = new Vector3(home.x + flatDir.x * dist, surface + Random.Range(cruiseMin, cruiseMax),
+                home.z + flatDir.z * dist);
             if (WaterBodies.SurfaceAt(point, 4f, out surface, out _))
             {
                 point.y = surface + Random.Range(cruiseMin, cruiseMax);

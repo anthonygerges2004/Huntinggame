@@ -26,6 +26,7 @@ public static class AnimalVisuals
         if (HasSkinnedModel(animal))
         {
             FixAnimalShading(animal.gameObject);
+            EnsureAvatar(animal.gameObject, animal.kind);
             FitCollider(animal);
             return;
         }
@@ -44,6 +45,7 @@ public static class AnimalVisuals
 
         StripImportedControllers(visual);
         FixAnimalShading(visual);
+        EnsureAvatar(visual, animal.kind);
         FitCollider(animal);
     }
 
@@ -169,11 +171,51 @@ public static class AnimalVisuals
                 capsule.center = new Vector3(0f, 0.8f, 0f);
                 break;
             default:
-                capsule.radius = 0.45f;
-                capsule.height = 1.8f;
-                capsule.center = new Vector3(0f, 0.9f, 0f);
+                // Lengthwise along the deer, covering the chest and hindquarters the mesh actually occupies.
+                capsule.direction = 2;
+                capsule.radius = 0.55f;
+                capsule.height = 1.7f;
+                capsule.center = new Vector3(0f, 1.05f, -0.17f);
                 break;
         }
+    }
+
+    static void EnsureAvatar(GameObject visual, AnimalKind kind)
+    {
+        Animator animator = visual.GetComponent<Animator>();
+        if (animator == null)
+            animator = visual.GetComponentInChildren<Animator>(true);
+        if (animator == null)
+            return;
+
+        animator.applyRootMotion = false;
+        animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        if (animator.avatar != null)
+            return;
+
+        Avatar avatar = LoadAvatar(kind);
+        if (avatar == null)
+            return;
+
+        animator.avatar = avatar;
+        animator.Rebind();
+        animator.Update(0f);
+    }
+
+    static Avatar LoadAvatar(AnimalKind kind)
+    {
+#if UNITY_EDITOR
+        string path = "Assets/ithappy/Animals_FREE/Meshes/" + PrefabFileName(kind) + ".fbx";
+        Object[] assets = AssetDatabase.LoadAllAssetsAtPath(path);
+        for (int i = 0; i < assets.Length; i++)
+        {
+            if (assets[i] is Avatar found)
+                return found;
+        }
+#else
+        _ = kind;
+#endif
+        return null;
     }
 
     static void StripImportedControllers(GameObject visual)

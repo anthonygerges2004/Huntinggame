@@ -24,9 +24,13 @@ public class AmbientCreature : MonoBehaviour
     float waitUntil;
     float nextCull;
 
+    /// <summary>When true (e.g. player is riding), grazing movement stops.</summary>
+    public bool PauseWander { get; set; }
+
     void Start()
     {
         DisableImportedControls(gameObject);
+        RideableHorse.TagHorseIfNeeded(gameObject);
         animator = GetComponentInChildren<Animator>();
         renderers = GetComponentsInChildren<Renderer>();
         waitUntil = Time.time + Random.Range(0f, 4f);
@@ -71,6 +75,12 @@ public class AmbientCreature : MonoBehaviour
 
         if (!visible)
             return;
+
+        if (PauseWander || (RideableHorse.Mounted != null && RideableHorse.Mounted.gameObject == gameObject))
+        {
+            SetWalk(0f);
+            return;
+        }
 
         if (!moving)
         {

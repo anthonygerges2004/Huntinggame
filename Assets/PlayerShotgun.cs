@@ -12,6 +12,12 @@ public class PlayerShotgun : MonoBehaviour
     public static float RecoilKick => Instance != null ? Instance.recoil : 0f;
     public static float PumpPull => Instance != null ? Instance.breakOpen : 0f;
 
+    public static float AimFovScale => Instance != null && Instance.active != null && Instance.equipped
+        ? Instance.active.zoom
+        : 1f;
+    public static bool ScopeIsUp => Instance != null && Instance.equipped && Instance.active != null
+        && Instance.active.scope && Instance.mount > 0.72f;
+
     public int pellets = 24;
     public float spreadAngle = 10f;
     public float range = 120f;
@@ -25,6 +31,29 @@ public class PlayerShotgun : MonoBehaviour
     Transform handGun;
     Transform leftGrip;
     Transform cam;
+    Rig active;
+    Rig[] built;
+    Texture2D scopeMask;
+
+    class Rig
+    {
+        public HuntWeapon id;
+        public Transform view;
+        public Transform hand;
+        public Transform leftGrip;
+        public Vector3 stock;
+        public Vector3 muzzle;
+        public Vector3 rightGrip;
+        public float scale;
+        public int ammo;
+        public int magSize;
+        public int pelletCount;
+        public float spread;
+        public float gunRange;
+        public float zoom;
+        public bool scope;
+        public string label;
+    }
 
     Vector3 rightGripLocal = new Vector3(0f, 0.01f, -0.02f);
     float fireTime = -1f;
@@ -55,48 +84,23 @@ public class PlayerShotgun : MonoBehaviour
             cam = playerCam.transform;
 
         ClearLeftoverGuns();
-
-        if (cam != null)
-        {
-            viewGun = ShotgunVisual.Build(cam).transform;
-            FirstPersonHands.AttachTo(viewGun);
-        }
-
-        handGun = ShotgunVisual.Build(transform).transform;
-        rightGripLocal = new Vector3(
-            0f,
-            ShotgunVisual.StockLocal.y,
-            Mathf.Lerp(ShotgunVisual.StockLocal.z, 0.02f, 0.72f));
-        leftGrip = new GameObject("LeftGrip").transform;
-        leftGrip.SetParent(handGun, false);
-        leftGrip.localPosition = new Vector3(
-            0f,
-            Mathf.Lerp(ShotgunVisual.StockLocal.y, ShotgunVisual.MuzzleLocal.y, 0.58f),
-            Mathf.Lerp(ShotgunVisual.StockLocal.z, ShotgunVisual.MuzzleLocal.z, 0.62f));
-
-        if (WeaponHold.Instance != null)
-            WeaponHold.Instance.AttachToShoulder(handGun, ShotgunVisual.FittedScale);
-
-        equipped = true;
-        SetVisible(true);
-        if (CameraViewSwitcher.Instance != null)
-            CameraViewSwitcher.Instance.RefreshBodyRenderers();
+        BuildGuns();
+        if (Inventory.Instance != null)
+            Inventory.Instance.ApplySelectedWeapon(false);
+        else
+            Equip(HuntWeapon.Shotgun);
     }
 
     void OnDestroy()
     {
         if (Instance == this)
             Instance = null;
+        if (scopeMask != null)
+            Destroy(scopeMask);
     }
 
     void Update()
     {
-        if (Keyboard.current != null && Keyboard.current.digit2Key.wasPressedThisFrame)
-        {
-            if (!Inventory.IsOpen && !BirdChallenge.Active && !WoodBuilder.IsBuilding)
-                Toggle();
-        }
-
         bool canAim = equipped
             && !Inventory.IsOpen
             && !BirdChallenge.Active
@@ -116,7 +120,8 @@ public class PlayerShotgun : MonoBehaviour
         }
 
         bool firstPerson = CameraViewSwitcher.Instance != null && CameraViewSwitcher.Instance.IsFirstPerson;
-        SetGunVisible(viewGun, firstPerson);
+        bool scoped = firstPerson && active != null && active.scope && mount > 0.72f;
+        SetGunVisible(viewGun, firstPerson && !scoped);
         SetGunVisible(handGun, !firstPerson);
 
         if (firstPerson)
@@ -140,22 +145,19 @@ public class PlayerShotgun : MonoBehaviour
 
         if (reloading)
         {
+            bool shotgun = active == null || active.id == HuntWeapon.Shotgun;
+            float done = shotgun ? 1.38f : 0.7f;
             if (fireTime < 0.20f)
                 breakOpen = 0f;
-            else if (fireTime < 0.48f)
-                breakOpen = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.20f, 0.48f, fireTime));
-            else if (fireTime < 0.82f)
+            else if (fireTime < done * 0.45f)
+                breakOpen = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.20f, done * 0.45f, fireTime));
+            else if (fireTime < done * 0.7f)
                 breakOpen = 1f;
-            else if (fireTime < 1.08f)
-                breakOpen = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.82f, 1.08f, fireTime));
             else
-                breakOpen = 0f;
+                breakOpen = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(done * 0.7f, done, fireTime));
 
-            if (fireTime < 1.10f)
-                mount = 1f;
-            else if (fireTime < 1.38f)
-                mount = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(1.10f, 1.38f, fireTime));
-            else
+            mount = fireTime < done ? 1f : 0f;
+            if (fireTime >= done)
                 FinishReload();
             return;
         }
@@ -168,24 +170,71 @@ public class PlayerShotgun : MonoBehaviour
     {
         fireTime = -1f;
         reloading = false;
-        shells = 2;
+        shells = active != null ? active.magSize : 2;
+        if (active != null)
+            active.ammo = shells;
         mount = 0f;
         recoil = 0f;
         breakOpen = 0f;
     }
 
-    public void Toggle()
+    public void Equip(HuntWeapon weapon)
     {
-        equipped = !equipped;
+        if (built == null)
+            return;
+
+        if (active != null)
+            active.ammo = shells;
+
         aimHeld = false;
         fireTime = -1f;
         reloading = false;
-        shells = 2;
         mount = 0f;
         recoil = 0f;
         breakOpen = 0f;
+
+        if (weapon == HuntWeapon.None || built == null)
+        {
+            active = null;
+            equipped = false;
+            viewGun = null;
+            handGun = null;
+            leftGrip = null;
+            SetAllHidden();
+            return;
+        }
+
+        active = built[(int)weapon];
+        if (active == null)
+        {
+            equipped = false;
+            return;
+        }
+
+        equipped = true;
+        viewGun = active.view;
+        handGun = active.hand;
+        leftGrip = active.leftGrip;
+        rightGripLocal = active.rightGrip;
+        shells = active.ammo;
+        pellets = active.pelletCount;
+        spreadAngle = active.spread;
+        range = active.gunRange;
+        SetAllHidden();
+        SetVisible(true);
+        if (CameraViewSwitcher.Instance != null)
+            CameraViewSwitcher.Instance.RefreshBodyRenderers();
+    }
+
+    public void Toggle()
+    {
         if (Inventory.Instance != null)
-            Inventory.Instance.ShowNotice(equipped ? "Double barrel. Two shots, then it breaks open." : "Axe ready.");
+        {
+            Inventory.Instance.SelectHotbar(equipped ? -1 : 0, true);
+            return;
+        }
+
+        Equip(equipped ? HuntWeapon.None : HuntWeapon.Shotgun);
     }
 
     public void TryFire()
@@ -207,11 +256,15 @@ public class PlayerShotgun : MonoBehaviour
         mount = 1f;
         recoil = 1f;
         shells--;
+        if (active != null)
+            active.ammo = shells;
+        if (active == null || active.id == HuntWeapon.Shotgun)
+            HuntCampBoard.RegisterShotgunBlast();
         WildlifeAlarm.NotifyShot(PlayerView.Position());
         Flash();
         FirePellets();
         if (Inventory.Instance != null)
-            Inventory.Instance.ShowNotice(shells > 0 ? "Shot. 1 shell left." : "Shot. The gun breaks open to reload.");
+            Inventory.Instance.ShowNotice(ShotLine());
 
         if (shells <= 0)
             StartReload();
@@ -267,7 +320,7 @@ public class PlayerShotgun : MonoBehaviour
         rot = Quaternion.Euler(-16f * recoil + 34f * breakOpen, 2f * recoil, -2f * recoil) * rot;
         viewGun.localPosition = pos;
         viewGun.localRotation = rot;
-        WeaponHold.SetWorldScale(viewGun, ShotgunVisual.FittedScale * 0.9f);
+        WeaponHold.SetWorldScale(viewGun, (active != null ? active.scale : 1f) * 0.9f);
 
         if (cam != null)
         {
@@ -286,7 +339,7 @@ public class PlayerShotgun : MonoBehaviour
         if (hold == null)
             return;
 
-        hold.AttachToShoulder(handGun, ShotgunVisual.FittedScale);
+        hold.AttachToShoulder(handGun, active != null ? active.scale : 1f);
 
         Vector3 up = transform.up;
         Vector3 right = transform.right;
@@ -313,8 +366,8 @@ public class PlayerShotgun : MonoBehaviour
         Vector3 butt = Vector3.Lerp(lowButt, aimButt, mount);
         butt += up * 0.02f * recoil - barrel * 0.03f * recoil;
 
-        handGun.SetPositionAndRotation(butt - rot * ShotgunVisual.StockLocal, rot);
-        WeaponHold.SetWorldScale(handGun, ShotgunVisual.FittedScale);
+        handGun.SetPositionAndRotation(butt - rot * (active != null ? active.stock : Vector3.zero), rot);
+        WeaponHold.SetWorldScale(handGun, active != null ? active.scale : 1f);
 
         Vector3 rightHandTarget = handGun.TransformPoint(rightGripLocal);
         Vector3 leftHandTarget = leftGrip != null
@@ -323,12 +376,161 @@ public class PlayerShotgun : MonoBehaviour
         hold.HandsOnWeapon(rightHandTarget, leftHandTarget, barrel);
     }
 
+    void BuildGuns()
+    {
+        if (built != null)
+            return;
+
+        built = new Rig[4];
+        MakeRig(HuntWeapon.Shotgun, 2, 24, 10f, 120f, 0.75f, false, "Double barrel");
+        MakeRig(HuntWeapon.Rifle, 5, 1, 0.45f, 240f, 0.42f, false, "Hunting rifle");
+        MakeRig(HuntWeapon.Sniper, 4, 1, 0.04f, 500f, 0.15f, true, "Sniper");
+        SetAllHidden();
+    }
+
+    void MakeRig(HuntWeapon id, int mag, int pelletCount, float spread, float gunRange, float zoom, bool scope, string label)
+    {
+        Rig rig = new Rig
+        {
+            id = id,
+            magSize = mag,
+            ammo = mag,
+            pelletCount = pelletCount,
+            spread = spread,
+            gunRange = gunRange,
+            zoom = zoom,
+            scope = scope,
+            label = label
+        };
+
+        WeaponModel hand = WeaponVisual.Build(id, transform);
+        rig.hand = hand.root.transform;
+        rig.stock = hand.stock;
+        rig.muzzle = hand.muzzle;
+        rig.rightGrip = hand.rightGrip;
+        rig.scale = hand.scale;
+        rig.leftGrip = new GameObject("LeftGrip").transform;
+        rig.leftGrip.SetParent(rig.hand, false);
+        rig.leftGrip.localPosition = hand.leftGrip;
+
+        if (cam != null)
+        {
+            WeaponModel view = WeaponVisual.Build(id, cam);
+            rig.view = view.root.transform;
+            FirstPersonHands.AttachTo(rig.view);
+            rig.stock = view.stock;
+            rig.muzzle = view.muzzle;
+            rig.rightGrip = view.rightGrip;
+            rig.scale = view.scale;
+        }
+
+        built[(int)id] = rig;
+    }
+
+    void SetAllHidden()
+    {
+        if (built == null)
+            return;
+
+        for (int i = 0; i < built.Length; i++)
+        {
+            if (built[i] == null)
+                continue;
+            SetGunVisible(built[i].view, false);
+            SetGunVisible(built[i].hand, false);
+        }
+    }
+
+    string ShotLine()
+    {
+        string name = active != null ? active.label : "Shot";
+        if (shells > 0)
+            return name + ". " + shells + " left.";
+        if (active != null && active.id == HuntWeapon.Shotgun)
+            return name + ". It breaks open to reload.";
+        return name + ". Working the bolt.";
+    }
+
+    void OnGUI()
+    {
+        bool firstPerson = CameraViewSwitcher.Instance == null || CameraViewSwitcher.Instance.IsFirstPerson;
+        if (!equipped || !firstPerson || active == null || !active.scope || mount < 0.25f || Inventory.IsOpen)
+            return;
+
+        EnsureScopeMask();
+        float alpha = Mathf.InverseLerp(0.25f, 0.8f, mount);
+        float side = Mathf.Min(Screen.width, Screen.height) * 0.96f;
+        float x = (Screen.width - side) * 0.5f;
+        float y = (Screen.height - side) * 0.5f;
+        Color prev = GUI.color;
+        GUI.color = new Color(0f, 0f, 0f, alpha);
+        GUI.DrawTexture(new Rect(0f, 0f, Screen.width, y), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(0f, y + side, Screen.width, Screen.height - (y + side)), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(0f, y, x, side), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(x + side, y, Screen.width - (x + side), side), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(x, y, side, side), scopeMask);
+
+        float cx = Screen.width * 0.5f;
+        float cy = Screen.height * 0.5f;
+        GUI.color = new Color(0.05f, 0.05f, 0.05f, alpha);
+        GUI.DrawTexture(new Rect(cx - 140f, cy - 1f, 110f, 2f), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(cx + 30f, cy - 1f, 110f, 2f), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(cx - 1f, cy - 140f, 2f, 110f), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(cx - 1f, cy + 30f, 2f, 110f), Texture2D.whiteTexture);
+        for (int i = 1; i <= 4; i++)
+        {
+            float mark = 28f * i;
+            GUI.DrawTexture(new Rect(cx + mark - 1f, cy - 6f, 2f, 12f), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(cx - mark - 1f, cy - 6f, 2f, 12f), Texture2D.whiteTexture);
+        }
+
+        GUI.color = prev;
+    }
+
+    void EnsureScopeMask()
+    {
+        if (scopeMask != null)
+            return;
+
+        const int n = 256;
+        scopeMask = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        scopeMask.wrapMode = TextureWrapMode.Clamp;
+        Color[] pixels = new Color[n * n];
+        Vector2 center = new Vector2(n * 0.5f, n * 0.5f);
+        float radius = n * 0.46f;
+        for (int y = 0; y < n; y++)
+        {
+            for (int x = 0; x < n; x++)
+            {
+                float dist = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
+                float edge = Mathf.InverseLerp(radius - 2f, radius + 10f, dist);
+                pixels[y * n + x] = new Color(0f, 0f, 0f, edge);
+            }
+        }
+
+        scopeMask.SetPixels(pixels);
+        scopeMask.Apply();
+    }
+
     void ClearLeftoverGuns()
     {
-        Transform[] kids = GetComponentsInChildren<Transform>(true);
+        ClearNamedGuns(transform);
+        if (cam != null && !cam.IsChildOf(transform))
+            ClearNamedGuns(cam);
+    }
+
+    static void ClearNamedGuns(Transform root)
+    {
+        if (root == null)
+            return;
+
+        Transform[] kids = root.GetComponentsInChildren<Transform>(true);
         for (int i = kids.Length - 1; i >= 0; i--)
         {
-            if (kids[i] != null && kids[i].name == ShotgunVisual.RootName)
+            if (kids[i] == null)
+                continue;
+            string name = kids[i].name;
+            if (name == ShotgunVisual.RootName || name == "Rifle" || name == "Sniper")
                 Destroy(kids[i].gameObject);
         }
     }
@@ -343,7 +545,7 @@ public class PlayerShotgun : MonoBehaviour
 
         GameObject flash = new GameObject("ShotgunFlash");
         flash.transform.SetParent(gun, false);
-        flash.transform.localPosition = ShotgunVisual.MuzzleLocal;
+        flash.transform.localPosition = active != null ? active.muzzle : ShotgunVisual.MuzzleLocal;
         Light light = flash.AddComponent<Light>();
         light.type = LightType.Point;
         light.color = new Color(1f, 0.72f, 0.28f);

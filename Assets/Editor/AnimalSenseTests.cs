@@ -103,7 +103,9 @@ public class AnimalSenseTests
     {
         PlaceAnimal(new Vector3(0f, 0f, 20f), Vector3.forward);
         senses.Tick(AnimalAiBand.Full);
-        Assert.IsTrue(animal.Fleeing, "Downwind animal at 20m should smell the player.");
+        Assert.Greater(senses.Threat, 0.35f, "Downwind deer at 20m should catch the scent.");
+        Assert.Less(senses.Threat, 0.58f, "A scent at 20m should make the deer watch, not sprint.");
+        Assert.IsFalse(animal.Fleeing, "Downwind deer at 20m should not bolt from scent alone.");
     }
 
     [Test]
@@ -121,9 +123,15 @@ public class AnimalSenseTests
         PlaceAnimal(new Vector3(0f, 0f, 8f), Vector3.back);
 
         senses.Tick(AnimalAiBand.Full);
-        Assert.IsTrue(animal.Fleeing, "Animal facing the player in the open should see them.");
+        Assert.IsFalse(animal.Fleeing, "A still hunter in view is stared at, not instantly flushed.");
+        Assert.Greater(senses.Threat, 0.35f, "The deer should lock on when it can see a still hunter.");
+
+        PlayerMove.SetGait(true, false, false, 1f);
+        senses.Tick(AnimalAiBand.Full);
+        Assert.IsTrue(animal.Fleeing, "Walking while the deer is looking should make it run.");
 
         animal.EndFlee();
+        PlayerMove.SetGait(false, false, false, 1f);
         Vector3 toPlayer = player.transform.position - animalObject.transform.position;
         toPlayer.y = 0f;
         animalObject.transform.rotation = Quaternion.LookRotation(toPlayer.normalized) * Quaternion.Euler(0f, 60f, 0f);
@@ -186,7 +194,8 @@ public class AnimalSenseTests
         Assert.IsFalse(animal.Fleeing, "Senses should not run again before the interval elapses.");
 
         agent.ScheduledTick(start + interval, 0.2f);
-        Assert.IsTrue(animal.Fleeing, "Senses should run once the staggered interval has elapsed.");
+        Assert.Greater(senses.Threat, 0.35f, "Senses should run once the staggered interval has elapsed.");
+        Assert.IsFalse(animal.Fleeing, "The delayed scent should alert the deer, not flush it.");
     }
 
     [MenuItem("Hunting Game/Run Sense Tests")]

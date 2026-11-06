@@ -206,6 +206,13 @@ public class Campfire : MonoBehaviour
 
     public float FuelSecondsRemaining => fuelSeconds;
 
+    public Vector3 FireWorldPosition()
+    {
+        if (fireInstance != null)
+            return fireInstance.transform.position;
+        return transform.position;
+    }
+
     void Cook()
     {
         if (CraftBook.Current == null)

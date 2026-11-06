@@ -16,11 +16,29 @@ public class ChallengeBird : MonoBehaviour
 
     public int PerchIndex { get; private set; }
 
+    static Vector3 RandomHorizontalApproach()
+    {
+        if (Random.value < 0.45f)
+        {
+            int card = Random.Range(0, 4);
+            if (card == 0)
+                return Vector3.forward;
+            if (card == 1)
+                return Vector3.back;
+            if (card == 2)
+                return Vector3.right;
+            return Vector3.left;
+        }
+
+        Vector2 v = Random.insideUnitCircle.normalized;
+        return new Vector3(v.x, 0f, v.y);
+    }
+
     public static ChallengeBird Spawn(BirdChallenge owner, int perchIndex, Vector3 perch, Vector3 lookTarget)
     {
         GameObject root = new GameObject("ChallengeBird");
-        Vector3 side = Vector3.Cross(Vector3.up, (perch - lookTarget).normalized);
-        root.transform.position = perch + Vector3.up * 6f + side * Random.Range(-8f, 8f);
+        Vector3 horiz = RandomHorizontalApproach();
+        root.transform.position = perch + horiz * Random.Range(14f, 24f) + Vector3.up * Random.Range(3f, 7f);
 
         SphereCollider hitBox = root.AddComponent<SphereCollider>();
         hitBox.isTrigger = true;
@@ -60,8 +78,13 @@ public class ChallengeBird : MonoBehaviour
         if (flyT < 1f)
         {
             flyT = Mathf.Min(1f, flyT + Time.deltaTime / flyTime);
-            Vector3 pos = Vector3.Lerp(flyFrom, flyTo, flyT) + Vector3.up * Mathf.Sin(flyT * Mathf.PI) * 2f;
-            Face(pos - transform.position);
+            float ease = Mathf.SmoothStep(0f, 1f, flyT);
+            Vector3 pos = new Vector3(
+                Mathf.Lerp(flyFrom.x, flyTo.x, ease),
+                Mathf.Lerp(flyFrom.y, flyTo.y, ease) + Mathf.Sin(flyT * Mathf.PI) * 1.6f,
+                Mathf.Lerp(flyFrom.z, flyTo.z, ease));
+            Vector3 delta = pos - transform.position;
+            Face(new Vector3(delta.x, 0f, delta.z));
             transform.position = pos;
             Flap(Mathf.Sin(age * 28f) * 55f);
             return;

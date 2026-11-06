@@ -33,6 +33,17 @@ public class CameraViewSwitcher : MonoBehaviour
     public Camera PlayerCamera => playerCamera;
     public Transform EyePoint => eyePoint;
 
+    public void PreferThirdPerson()
+    {
+        if (isFirstPerson)
+        {
+            isFirstPerson = false;
+            ApplyParenting();
+            ApplyBodyVisibility();
+            SnapCamera();
+        }
+    }
+
     private bool isFirstPerson;
     private Renderer[] weaponRenderers;
     private Renderer[] handAxeRenderers;
@@ -120,7 +131,7 @@ public class CameraViewSwitcher : MonoBehaviour
         if (savedFov < 1f)
             savedFov = playerCamera.fieldOfView;
 
-        float zoom = isFirstPerson ? 0.68f : 0.8f;
+        float zoom = PlayerShotgun.AimFovScale;
         playerCamera.fieldOfView = Mathf.Lerp(savedFov, savedFov * zoom, aimFov);
     }
 
@@ -133,7 +144,8 @@ public class CameraViewSwitcher : MonoBehaviour
         Vector3 targetLocal = cam.parent != null
             ? cam.parent.InverseTransformPoint(eyePoint.position)
             : eyePoint.position;
-        cam.localPosition = Vector3.Lerp(cam.localPosition, targetLocal, transitionSpeed * Time.deltaTime);
+        // A slow lerp chases the head bob and the view vibrates. Snap to the eye.
+        cam.localPosition = targetLocal;
     }
 
     private void UpdateThirdPerson()

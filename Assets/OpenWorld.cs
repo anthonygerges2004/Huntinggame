@@ -53,17 +53,53 @@ public class OpenWorld : MonoBehaviour
     float nextRefresh;
     bool worldReady;
     bool propsBuilt;
+    Coroutine hermitSpawnRoutine;
 
     void Awake()
     {
         if (GetComponent<WindSystem>() == null)
             gameObject.AddComponent<WindSystem>();
+        if (GetComponent<GapRiverCrossings>() == null)
+            gameObject.AddComponent<GapRiverCrossings>();
         JoinTerrains();
+    }
+
+    void OnEnable()
+    {
+        if (!Application.isPlaying)
+            return;
+
+        if (GetComponent<HuntVisibility>() == null)
+            gameObject.AddComponent<HuntVisibility>();
+
+        if (hermitSpawnRoutine != null)
+            StopCoroutine(hermitSpawnRoutine);
+        hermitSpawnRoutine = StartCoroutine(SpawnHermitAfterCampReady());
+    }
+
+    void OnDisable()
+    {
+        if (hermitSpawnRoutine != null)
+        {
+            StopCoroutine(hermitSpawnRoutine);
+            hermitSpawnRoutine = null;
+        }
+    }
+
+    System.Collections.IEnumerator SpawnHermitAfterCampReady()
+    {
+        yield return null;
+        yield return null;
+        camp = FindCamp();
+        MountainHermit.EnsureSpawn(camp);
+        RideableHorse.EnsureOnLivestock(force: true);
     }
 
     void Start()
     {
         camp = FindCamp();
+        MountainHermit.EnsureSpawn(camp);
+        RideableHorse.EnsureOnLivestock(force: true);
         BuildDens();
         worldReady = true;
 
@@ -74,9 +110,8 @@ public class OpenWorld : MonoBehaviour
 
     void Update()
     {
-        Transform player = PlayerTransform();
-        if (stream != null && player != null)
-            stream.Tick(player.position);
+        if (stream != null)
+            stream.Tick();
 
         if (!worldReady || Time.time < nextRefresh)
             return;
@@ -104,7 +139,12 @@ public class OpenWorld : MonoBehaviour
 
             bool near = FlatDistance(animal.transform.position, player) < 85f;
             Animator animator = animal.GetComponentInChildren<Animator>();
-            if (animator != null && animator.enabled != near)
+            if (animal.Dead)
+            {
+                if (animator != null && animator.enabled)
+                    animator.enabled = false;
+            }
+            else if (animator != null && animator.enabled != near)
                 animator.enabled = near;
 
             Renderer[] renderers = animal.GetComponentsInChildren<Renderer>(true);
@@ -492,37 +532,83 @@ public class OpenWorld : MonoBehaviour
 
         for (int n = 0; n < MaxDeer + MaxBirds + MaxLarge; n++)
         {
-            int best = -1;
-            float bestDistance = ShowDistance;
-            for (int i = 0; i < dens.Count; i++)
-            {
-                Den den = dens[i];
-                if (den.occupied || den.alive != null)
-                    continue;
-                if (Time.time < den.respawnAt)
-                    continue;
-                if (Overhunt.AreaIsQuiet(den.home))
-                    continue;
-                if (den.kind == AnimalKind.Deer && deer >= MaxDeer)
-                    continue;
-                if (den.kind == AnimalKind.Bird && birds >= MaxBirds)
-                    continue;
-                if (den.kind == AnimalKind.Large && large >= MaxLarge)
-                    continue;
-
-                float distance = FlatDistance(den.home, player.position);
-                if (distance < 8f || distance >= bestDistance)
-                    continue;
-                bestDistance = distance;
-                best = i;
-            }
-
+            int best = PickDen(player.position, deer, birds, large);
             if (best < 0)
                 break;
 
             Spawn(dens[best]);
             Count(dens[best].kind, ref deer, ref birds, ref large);
         }
+    }
+
+    int PickDen(Vector3 player, int deer, int birds, int large)
+    {
+        float total = 0f;
+        int nearest = -1;
+        float nearestDistance = ShowDistance;
+        for (int i = 0; i < dens.Count; i++)
+        {
+            if (!DenOpen(dens[i], deer, birds, large))
+                continue;
+
+            float distance = FlatDistance(dens[i].home, player);
+            if (distance < 8f || distance >= ShowDistance)
+                continue;
+
+            if (distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearest = i;
+            }
+
+            total += DenWeight(distance);
+        }
+
+        if (total <= 0.0001f)
+            return nearest;
+
+        float roll = Random.Range(0f, total);
+        for (int i = 0; i < dens.Count; i++)
+        {
+            if (!DenOpen(dens[i], deer, birds, large))
+                continue;
+
+            float distance = FlatDistance(dens[i].home, player);
+            if (distance < 8f || distance >= ShowDistance)
+                continue;
+
+            roll -= DenWeight(distance);
+            if (roll <= 0f)
+                return i;
+        }
+
+        return nearest;
+    }
+
+    static bool DenOpen(Den den, int deer, int birds, int large)
+    {
+        if (den.occupied || den.alive != null || Time.time < den.respawnAt)
+            return false;
+        if (Overhunt.AreaIsQuiet(den.home))
+            return false;
+        if (den.kind == AnimalKind.Deer && deer >= MaxDeer)
+            return false;
+        if (den.kind == AnimalKind.Bird && birds >= MaxBirds)
+            return false;
+        if (den.kind == AnimalKind.Large && large >= MaxLarge)
+            return false;
+        return true;
+    }
+
+    // More tickets around a stalk, almost none in the hunter's lap or on the far edge.
+    static float DenWeight(float distance)
+    {
+        if (distance < 36f)
+            return 0f;
+
+        float off = Mathf.Abs(distance - 78f) / 70f;
+        float score = Mathf.Clamp01(1f - off);
+        return 0.2f + score * score * 4f;
     }
 
     static void Count(AnimalKind kind, ref int deer, ref int birds, ref int large)
@@ -831,29 +917,66 @@ public class OpenWorld : MonoBehaviour
         prop.root.SetActive(true);
     }
 
+    PlayerMove cachedPlayer;
+
     void KeepPlayerOnLand()
     {
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
+        if (RideableHorse.IsRiding)
+            return;
 
-        PlayerMove move = Object.FindAnyObjectByType<PlayerMove>();
-        if (move == null)
+        if (cachedPlayer == null)
+            cachedPlayer = Object.FindAnyObjectByType<PlayerMove>();
+        if (cachedPlayer == null)
+            return;
+
+        Vector3 position = cachedPlayer.transform.position;
+        if (WaterBodies.InsideWater(position) || WaterBodies.TryGetSwim(position, out _, out _))
             return;
 
         Terrain[] terrains = Terrain.activeTerrains;
         if (terrains == null || terrains.Length == 0)
             return;
 
-        Vector3 position = move.transform.position;
+        // The strips between tiles are rivers. Pulling the player back onto land
+        // every frame made the banks and the water stutter.
         if (!InsideAny(terrains, position))
         {
-            PlacePlayer(move, NearestInside(terrains, position));
+            if (position.y < -40f || !InsideMap(terrains, position, 60f))
+                PlacePlayer(cachedPlayer, NearestInside(terrains, position));
             return;
         }
 
         Vector3 ground = WorldGround.Snap(position);
-        if (position.y < ground.y - 12f)
-            PlacePlayer(move, ground + Vector3.up * 1.2f);
+        if (position.y < ground.y - 25f)
+            PlacePlayer(cachedPlayer, ground + Vector3.up * 1.2f);
+    }
+
+    static bool InsideMap(Terrain[] terrains, Vector3 position, float margin)
+    {
+        float minX = float.MaxValue;
+        float minZ = float.MaxValue;
+        float maxX = float.MinValue;
+        float maxZ = float.MinValue;
+        for (int i = 0; i < terrains.Length; i++)
+        {
+            Terrain terrain = terrains[i];
+            if (terrain == null || terrain.terrainData == null)
+                continue;
+            Vector3 origin = terrain.transform.position;
+            Vector3 size = terrain.terrainData.size;
+            minX = Mathf.Min(minX, origin.x);
+            minZ = Mathf.Min(minZ, origin.z);
+            maxX = Mathf.Max(maxX, origin.x + size.x);
+            maxZ = Mathf.Max(maxZ, origin.z + size.z);
+        }
+
+        if (minX > maxX)
+            return false;
+
+        return position.x >= minX - margin && position.x <= maxX + margin &&
+               position.z >= minZ - margin && position.z <= maxZ + margin;
     }
 
     static bool InsideAny(Terrain[] terrains, Vector3 position)
@@ -916,13 +1039,19 @@ public class OpenWorld : MonoBehaviour
     {
         GameObject tent = GameObject.Find("FCP_Tent_Type1_Color1");
         if (tent != null)
-            return tent.transform.position;
+            return WorldGround.Snap(tent.transform.position);
+
+        GameObject fire = GameObject.Find("Campfire");
+        if (fire == null)
+            fire = GameObject.Find("FCP_Campfire_Type1_Color1");
+        if (fire != null)
+            return WorldGround.Snap(fire.transform.position);
 
         Transform player = PlayerTransform();
         if (player != null)
-            return player.position;
+            return WorldGround.Snap(player.position);
 
-        return Vector3.zero;
+        return WorldGround.Snap(new Vector3(48f, 0f, 57f));
     }
 
     static Transform PlayerTransform()

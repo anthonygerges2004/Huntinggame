@@ -1,21 +1,19 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 /// <summary>
-/// Keeps only the nearby terrains drawn and solid, with distance-based detail.
+/// Keeps every terrain tile drawn and solid. Detail drops with distance,
+/// without hiding the ground or rebuilding its mesh every frame.
 /// </summary>
 public class TerrainStream : MonoBehaviour
 {
-    const float DrawRadius = 1450f;
-    const float SolidRadius = 900f;
-
     class Chunk
     {
         public Terrain terrain;
         public TerrainCollider solid;
         public Vector3 origin;
         public Vector3 size;
+        public bool tuned;
     }
 
     readonly List<Chunk> chunks = new List<Chunk>();
@@ -43,19 +41,16 @@ public class TerrainStream : MonoBehaviour
         }
 
         Link();
-        Vector3 player = PlayerPosition();
         for (int i = 0; i < chunks.Count; i++)
-            Apply(chunks[i], player);
+            Apply(chunks[i]);
 
-        Debug.Log(
-            "Terrain streaming on. " + chunks.Count +
-            " chunks. Distant ground is not drawn until you walk toward it.");
+        Debug.Log("Terrain streaming on. " + chunks.Count + " chunks. Ground stays drawn.");
     }
 
-    public void Tick(Vector3 player)
+    public void Tick()
     {
         for (int i = 0; i < chunks.Count; i++)
-            Apply(chunks[i], player);
+            Apply(chunks[i]);
     }
 
     void Adopt(Terrain terrain)
@@ -69,6 +64,12 @@ public class TerrainStream : MonoBehaviour
         };
         terrain.allowAutoConnect = true;
         terrain.drawInstanced = false;
+        // This flag holes the ground at the edge of the view. Leave it off.
+        terrain.enableHeightmapLODFrustumCulling = false;
+        terrain.drawHeightmap = true;
+        terrain.drawTreesAndFoliage = true;
+        if (chunk.solid != null)
+            chunk.solid.enabled = true;
         chunks.Add(chunk);
     }
 
@@ -119,78 +120,24 @@ public class TerrainStream : MonoBehaviour
         return overlap > Mathf.Min(sizeA, sizeB) * 0.35f;
     }
 
-    void Apply(Chunk chunk, Vector3 player)
+    void Apply(Chunk chunk)
     {
         if (chunk.terrain == null)
             return;
 
-        float distance = DistanceTo(chunk, player);
-        bool draw = distance <= DrawRadius;
-        bool solid = distance <= SolidRadius;
-        chunk.terrain.drawHeightmap = draw;
-        chunk.terrain.drawTreesAndFoliage = draw;
-        if (chunk.solid != null)
-            chunk.solid.enabled = solid;
+        // Ground, trees, and colliders stay on. Quality is set once. Switching it
+        // by distance rebuilt the mesh and made the forest pop back in.
+        if (!chunk.terrain.drawHeightmap)
+            chunk.terrain.drawHeightmap = true;
+        if (!chunk.terrain.drawTreesAndFoliage)
+            chunk.terrain.drawTreesAndFoliage = true;
+        if (chunk.solid != null && !chunk.solid.enabled)
+            chunk.solid.enabled = true;
 
-        if (!draw)
+        if (chunk.tuned)
             return;
 
-        if (distance < 380f)
-        {
-            chunk.terrain.heightmapPixelError = 5f;
-            chunk.terrain.basemapDistance = 450f;
-            chunk.terrain.treeDistance = 520f;
-            chunk.terrain.treeBillboardDistance = 160f;
-            chunk.terrain.detailObjectDistance = 95f;
-            chunk.terrain.detailObjectDensity = 0.7f;
-            chunk.terrain.shadowCastingMode = ShadowCastingMode.On;
-        }
-        else if (distance < 850f)
-        {
-            chunk.terrain.heightmapPixelError = 14f;
-            chunk.terrain.basemapDistance = 220f;
-            chunk.terrain.treeDistance = 260f;
-            chunk.terrain.treeBillboardDistance = 70f;
-            chunk.terrain.detailObjectDistance = 28f;
-            chunk.terrain.detailObjectDensity = 0.35f;
-            chunk.terrain.shadowCastingMode = ShadowCastingMode.Off;
-        }
-        else
-        {
-            chunk.terrain.heightmapPixelError = 32f;
-            chunk.terrain.basemapDistance = 60f;
-            chunk.terrain.treeDistance = 90f;
-            chunk.terrain.treeBillboardDistance = 30f;
-            chunk.terrain.detailObjectDistance = 0f;
-            chunk.terrain.detailObjectDensity = 0.15f;
-            chunk.terrain.shadowCastingMode = ShadowCastingMode.Off;
-        }
-
-        chunk.terrain.enableHeightmapLODFrustumCulling = true;
-    }
-
-    static float DistanceTo(Chunk chunk, Vector3 player)
-    {
-        float dx = 0f;
-        if (player.x < chunk.origin.x)
-            dx = chunk.origin.x - player.x;
-        else if (player.x > chunk.origin.x + chunk.size.x)
-            dx = player.x - (chunk.origin.x + chunk.size.x);
-
-        float dz = 0f;
-        if (player.z < chunk.origin.z)
-            dz = chunk.origin.z - player.z;
-        else if (player.z > chunk.origin.z + chunk.size.z)
-            dz = player.z - (chunk.origin.z + chunk.size.z);
-
-        return Mathf.Sqrt(dx * dx + dz * dz);
-    }
-
-    static Vector3 PlayerPosition()
-    {
-        GameObject player = GameObject.Find("Player");
-        if (player != null)
-            return player.transform.position;
-        return Vector3.zero;
+        chunk.tuned = true;
+        GameCulling.ApplyToTerrain(chunk.terrain);
     }
 }

@@ -488,6 +488,16 @@ public class GameHUD : MonoBehaviour
                 line += "<color=#8C8C86>   ·   </color><color=#FF6A5C><b>FIND A FIRE</b></color>";
         }
 
+        if (MountainHermit.Instance != null && !MountainHermit.HasMetPlayer)
+        {
+            float dist = MountainHermit.DistanceFromPlayer();
+            if (dist < 250f)
+            {
+                int meters = Mathf.RoundToInt(dist);
+                line += "<color=#8C8C86>   ·   </color><color=#F5C466><b>HERMIT " + meters + "m</b></color>";
+            }
+        }
+
         return line;
     }
 
@@ -698,8 +708,8 @@ public class GameHUD : MonoBehaviour
         string[,] keys =
         {
             { "F", "Light fire" }, { "C", "Cook" }, { "Q", "Eat" }, { "X", "Bait" }, { "E", "Chop" },
-            { "B", "Build" }, { "G", "Inventory" }, { "2", "Shotgun" }, { "RMB", "Aim" }, { "3", "Pickaxe" },
-            { "Z", "Drink" }, { "1", "Sell meat" }, { "V", "Camera" }, { "T", "Challenge" },
+            { "B", "Build" }, { "G", "Inventory" }, { "1-5", "Hotbar" }, { "RMB", "Aim" }, { "LMB", "Fire" },
+            { "Z", "Drink" }, { "Trader", "1 2 3" }, { "V", "Camera" }, { "T", "Challenge" },
         };
 
         const float width = 300f;

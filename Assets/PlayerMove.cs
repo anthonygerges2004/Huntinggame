@@ -54,6 +54,11 @@ public class PlayerMove : MonoBehaviour
             gameObject.AddComponent<WeaponHold>();
         if (GetComponent<PlayerShotgun>() == null)
             gameObject.AddComponent<PlayerShotgun>();
+        RideableHorse.EnsureOnLivestock();
+        if (GetComponent<PlayerScentTrail>() == null)
+            gameObject.AddComponent<PlayerScentTrail>();
+        if (GetComponent<ScentWindForecast>() == null)
+            gameObject.AddComponent<ScentWindForecast>();
         cam = GetComponentInChildren<Camera>().transform;
         sprintRemaining = sprintDurationSeconds;
         Cursor.lockState = CursorLockMode.Locked;
@@ -68,6 +73,7 @@ public class PlayerMove : MonoBehaviour
 
     void Update()
     {
+        VillageReputation.Tick(transform.position);
         RefreshSurface();
 
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
@@ -95,8 +101,15 @@ public class PlayerMove : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        Vector2 look = Mouse.current.delta.ReadValue() * mouseSensitivity;
-        transform.Rotate(0f, look.x, 0f);
+        if (!MountainHermit.TryTalk())
+            RideableHorse.TryHandleMountKey(this);
+
+        float lookScale = 1f;
+        if (PlayerShotgun.IsAiming)
+            lookScale = Mathf.Lerp(1f, Mathf.Clamp(PlayerShotgun.AimFovScale, 0.18f, 1f), PlayerShotgun.Mount);
+        Vector2 look = Mouse.current.delta.ReadValue() * mouseSensitivity * lookScale;
+        Transform yawRoot = RideableHorse.Mounted != null ? RideableHorse.Mounted.transform : transform;
+        yawRoot.Rotate(0f, look.x, 0f);
 
         bool firstPerson = views == null || views.IsFirstPerson;
         xRotation -= look.y;
@@ -109,6 +122,27 @@ public class PlayerMove : MonoBehaviour
             UpdateSprint(false);
             IsCrouching = false;
             SetNoise(false, false);
+            return;
+        }
+
+        if (RideableHorse.Mounted != null)
+        {
+            IsCrouching = false;
+            bool galloping = !PlayerShotgun.IsAiming && Keyboard.current.leftShiftKey.isPressed;
+            Vector2 rideInput = Vector2.zero;
+            if (Keyboard.current.aKey.isPressed) rideInput.x -= 1f;
+            if (Keyboard.current.dKey.isPressed) rideInput.x += 1f;
+            if (Keyboard.current.sKey.isPressed) rideInput.y -= 1f;
+            if (Keyboard.current.wKey.isPressed) rideInput.y += 1f;
+            Vector3 localMove = Vector3.zero;
+            if (rideInput.sqrMagnitude > 0.0001f)
+            {
+                rideInput.Normalize();
+                localMove = yawRoot.right * rideInput.x + yawRoot.forward * rideInput.y;
+            }
+
+            UpdateSprint(galloping && localMove.sqrMagnitude > 0.0001f);
+            RideableHorse.Mounted.Drive(localMove, galloping);
             return;
         }
 

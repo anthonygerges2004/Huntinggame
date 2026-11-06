@@ -30,6 +30,18 @@ public class Animal : MonoBehaviour
     float fleeTimer;
     float attackTimer;
     bool dead;
+    bool dropping;
+    float hideLeft = 100f;
+    bool limping;
+    bool bonesCached;
+    Transform skull;
+    Transform chestBone;
+    Transform rearBone;
+    float dropTime;
+    Quaternion standRotation;
+    Quaternion laidRotation;
+    Vector3 fallFrom;
+    Vector3 fallTo;
 
     public float fleeDuration = 8f;
     public bool nocturnal;
@@ -41,6 +53,7 @@ public class Animal : MonoBehaviour
 
     public bool Dead => dead;
     public bool Fleeing => fleeing;
+    public bool Limping => limping;
     public Vector3 HomePosition => homePos;
 
     static readonly int VerticalAnimation = Animator.StringToHash("Vert");
@@ -101,6 +114,7 @@ public class Animal : MonoBehaviour
         {
             if (brain != null && brain.isActiveAndEnabled)
                 brain.Tick(delta);
+            TickDrop(delta);
             return;
         }
 
@@ -380,7 +394,7 @@ public class Animal : MonoBehaviour
             direction = transform.forward;
         direction.Normalize();
         if (kind == AnimalKind.Bird)
-            transform.forward = (direction + Vector3.up * 0.25f).normalized;
+            transform.forward = direction;
         else
             transform.forward = direction;
     }
@@ -486,7 +500,129 @@ public class Animal : MonoBehaviour
 
     public void Hit()
     {
+        Hit(transform.forward);
+    }
+
+    public void Hit(Vector3 shotDirection)
+    {
+        Vector3 point = transform.position + Vector3.up * 1.05f;
+        ApplyHit(shotDirection, point, Vector3.up, true);
+    }
+
+    public void Hit(Vector3 shotDirection, Vector3 point, Vector3 normal)
+    {
+        ApplyHit(shotDirection, point, normal, false);
+    }
+
+    enum ShotPlace
+    {
+        Head,
+        Chest,
+        Body,
+        Legs
+    }
+
+    void ApplyHit(Vector3 shotDirection, Vector3 point, Vector3 normal, bool killingBlow)
+    {
         if (dead || !present)
+            return;
+
+        if (normal.sqrMagnitude < 0.001f)
+            normal = Vector3.up;
+        ShotBlood.Play(point, normal, transform);
+
+        if (killingBlow || kind != AnimalKind.Deer)
+        {
+            FinishKill(shotDirection);
+            return;
+        }
+
+        ShotPlace place = Classify(point);
+        float amount = DamageFor(place);
+        hideLeft -= amount;
+        if (place == ShotPlace.Legs)
+            limping = true;
+
+        transform.Rotate(0f, Random.Range(-14f, 14f), 0f);
+        Vector3 shooter = point - shotDirection;
+        FleeFrom(shooter);
+
+        if (hideLeft <= 0f)
+        {
+            FinishKill(shotDirection);
+            return;
+        }
+
+        if (Inventory.Instance != null)
+            Inventory.Instance.ShowNotice(WoundLine(place, amount));
+    }
+
+    ShotPlace Classify(Vector3 point)
+    {
+        CacheBones();
+        if (skull != null && Vector3.Distance(point, skull.position) <= 0.62f)
+            return ShotPlace.Head;
+
+        Vector3 local = transform.InverseTransformPoint(point);
+        if (local.y < 0.72f)
+            return ShotPlace.Legs;
+
+        float chestDist = chestBone != null ? Vector3.Distance(point, chestBone.position) : 99f;
+        float rearDist = rearBone != null ? Vector3.Distance(point, rearBone.position) : 99f;
+        if (chestBone != null && chestDist < rearDist && chestDist <= 0.7f)
+            return ShotPlace.Chest;
+
+        if (local.y > 1.15f)
+            return ShotPlace.Chest;
+
+        return ShotPlace.Body;
+    }
+
+    void CacheBones()
+    {
+        if (bonesCached)
+            return;
+
+        bonesCached = true;
+        Transform[] bones = GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < bones.Length; i++)
+        {
+            string boneName = bones[i].name;
+            if (skull == null && boneName == "scull")
+                skull = bones[i];
+            else if (chestBone == null && (boneName == "spine.003" || boneName == "spine.004"))
+                chestBone = bones[i];
+            else if (rearBone == null && (boneName == "thigh.L" || boneName == "spine.001"))
+                rearBone = bones[i];
+        }
+    }
+
+    static float DamageFor(ShotPlace place)
+    {
+        switch (place)
+        {
+            case ShotPlace.Head: return 50f;
+            case ShotPlace.Chest: return 34f;
+            case ShotPlace.Legs: return 15f;
+            default: return 20f;
+        }
+    }
+
+    string WoundLine(ShotPlace place, float amount)
+    {
+        int left = Mathf.CeilToInt(hideLeft / Mathf.Max(1f, amount));
+        if (place == ShotPlace.Legs)
+            return left <= 1 ? "Leg shot. One more drops it." : "Leg shot. It limps.";
+        if (place == ShotPlace.Head)
+            return left <= 1 ? "Head shot. One more there drops it." : "Head shot. It is still up.";
+        if (place == ShotPlace.Chest)
+            return left <= 1 ? "Chest shot. One more there drops it." : "Chest shot. It runs on.";
+        return left <= 1 ? "Body shot. One more there drops it." : "Body shot. It keeps going.";
+    }
+
+    void FinishKill(Vector3 shotDirection)
+    {
+        if (dead)
             return;
 
         dead = true;
@@ -509,7 +645,53 @@ public class Animal : MonoBehaviour
         }
 
         MeatPickup.Spawn(transform.position, meatAmount);
-        Destroy(gameObject);
+        BeginDrop(shotDirection);
+        if (Inventory.Instance != null)
+            Inventory.Instance.ShowNotice(kind == AnimalKind.Deer ? "Deer down." : "It drops.");
+    }
+
+    void BeginDrop(Vector3 shotDirection)
+    {
+        if (animalAnimator == null)
+            animalAnimator = GetComponentInChildren<Animator>();
+        if (animalAnimator != null)
+            animalAnimator.enabled = false;
+
+        Collider[] colliders = GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] != null)
+                colliders[i].enabled = false;
+        }
+
+        Vector3 flatShot = shotDirection;
+        flatShot.y = 0f;
+        if (flatShot.sqrMagnitude < 0.001f)
+            flatShot = transform.forward;
+        flatShot.Normalize();
+        Vector3 axis = Vector3.Cross(Vector3.up, flatShot);
+        if (axis.sqrMagnitude < 0.001f)
+            axis = transform.right;
+
+        standRotation = transform.rotation;
+        laidRotation = Quaternion.AngleAxis(80f, axis.normalized) * standRotation;
+        fallFrom = transform.position;
+        fallTo = WorldGround.Snap(transform.position) + Vector3.up * 0.2f;
+        dropTime = 0f;
+        dropping = true;
+    }
+
+    void TickDrop(float delta)
+    {
+        if (!dropping)
+            return;
+
+        dropTime += delta;
+        float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(dropTime / 0.45f));
+        transform.rotation = Quaternion.Slerp(standRotation, laidRotation, t);
+        transform.position = Vector3.Lerp(fallFrom, fallTo, t);
+        if (t >= 1f)
+            dropping = false;
     }
 
     void LeaveBlood(Vector3 position)

@@ -19,9 +19,12 @@ namespace HuntingGame.Animals
         Vector3 heading = Vector3.forward;
         float timer = 1f;
         float lastNotice = -1000f;
+        float gradedFleeSeconds;
+        float calmScale = 1f;
         bool hasThreat;
         bool homing;
         bool bound;
+        bool alertHolds;
 
         public AnimalAiState State => state;
         public SpeciesData Species => species;
@@ -60,6 +63,36 @@ namespace HuntingGame.Animals
             heading = transform.forward;
         }
 
+        /// <summary>
+        /// Deer fuzzy threat. Flee is urgent and scales speed and how long they stay gone.
+        /// A middling score only makes them watch, and they relax if it drops.
+        /// </summary>
+        public void ReactToThreat(Vector3 threat, float level, bool flee)
+        {
+            if (animal == null || animal.Dead || state == AnimalAiState.Dead)
+                return;
+            if (species == null)
+                Bind();
+            if (species == null)
+                return;
+
+            if (flee)
+            {
+                float t = Mathf.InverseLerp(0.58f, 1f, Mathf.Clamp01(level));
+                // A mild flush is a short bound. A hard scare is a longer, faster run.
+                gradedFleeSeconds = Mathf.Lerp(3.2f, 7.5f, t);
+                calmScale = Mathf.Lerp(0.65f, 1.05f, t);
+                if (species.fleeSpeed > 0.1f)
+                    animal.fleeSpeed = species.fleeSpeed * Mathf.Lerp(0.95f, 1.2f, t);
+                alertHolds = false;
+                Notice(threat, true);
+                return;
+            }
+
+            alertHolds = true;
+            Notice(threat, false);
+        }
+
         public void Notice(Vector3 threat, bool urgent)
         {
             if (animal == null || animal.Dead || state == AnimalAiState.Dead)
@@ -78,7 +111,7 @@ namespace HuntingGame.Animals
                 if (!urgent)
                     return;
 
-                timer = species.fleeSeconds;
+                timer = FleeSpan();
                 heading = FleeHeading();
                 animal.BeginFlee(heading, timer);
                 return;
@@ -86,12 +119,15 @@ namespace HuntingGame.Animals
 
             if (urgent)
             {
+                alertHolds = false;
                 EnterFlee();
                 return;
             }
 
             if (state != AnimalAiState.Alert)
                 EnterAlert();
+            else if (alertHolds)
+                timer = species.alertSeconds > 0.05f ? species.alertSeconds : 1.15f;
         }
 
         public void Tick(float delta)
@@ -183,7 +219,16 @@ namespace HuntingGame.Animals
 
             timer -= delta;
             if (timer <= 0f)
-                EnterFlee();
+            {
+                // Fuzzy alert watches, then settles. A hard notice still bolts when the pause ends.
+                if (alertHolds)
+                {
+                    alertHolds = false;
+                    EnterIdle();
+                }
+                else
+                    EnterFlee();
+            }
         }
 
         void TickFleeState(float delta)
@@ -195,15 +240,26 @@ namespace HuntingGame.Animals
                 return;
             }
 
-            float speed = species.fleeSpeed > 0.1f ? species.fleeSpeed : animal.fleeSpeed;
+            float speed = animal.fleeSpeed > 0.1f ? animal.fleeSpeed : species.fleeSpeed;
+            if (animal.Limping)
+                speed *= 0.42f;
             if (!animal.MoveHeading(heading, speed))
             {
                 heading = Quaternion.Euler(0f, 110f, 0f) * heading;
                 animal.MoveHeading(heading, speed);
             }
 
-            float calm = species.calmSeconds > 0.05f ? species.calmSeconds : 0.05f;
-            if (Time.time - lastNotice < calm)
+            timer -= delta;
+            float calm = (species.calmSeconds > 0.05f ? species.calmSeconds : 0.05f) * Mathf.Max(1f, calmScale);
+            bool recent = Time.time - lastNotice < calm;
+            // Deer keep the longer of the fuzzy run and the calm tail, so a harder scare lasts longer.
+            // Other animals still stop on the calm tail alone.
+            if (animal.kind == AnimalKind.Deer)
+            {
+                if (recent || timer > 0f)
+                    return;
+            }
+            else if (recent)
                 return;
 
             animal.EndFlee();
@@ -214,6 +270,9 @@ namespace HuntingGame.Animals
         {
             state = AnimalAiState.Idle;
             homing = false;
+            alertHolds = false;
+            calmScale = 1f;
+            RestoreFleeSpeed();
             timer = species.idleSeconds > 0.05f ? species.idleSeconds : 0.05f;
         }
 
@@ -242,10 +301,26 @@ namespace HuntingGame.Animals
         {
             state = AnimalAiState.Flee;
             homing = false;
+            alertHolds = false;
             lastNotice = Time.time;
-            timer = species.fleeSeconds > 0.05f ? species.fleeSeconds : animal.fleeDuration;
+            timer = FleeSpan();
             heading = FleeHeading();
             animal.BeginFlee(heading, timer);
+        }
+
+        float FleeSpan()
+        {
+            float seconds = gradedFleeSeconds > 0.05f
+                ? gradedFleeSeconds
+                : (species.fleeSeconds > 0.05f ? species.fleeSeconds : animal.fleeDuration);
+            gradedFleeSeconds = 0f;
+            return seconds;
+        }
+
+        void RestoreFleeSpeed()
+        {
+            if (animal != null && species != null && species.fleeSpeed > 0.1f)
+                animal.fleeSpeed = species.fleeSpeed;
         }
 
         public void UseSpecies(SpeciesData data)
@@ -262,7 +337,27 @@ namespace HuntingGame.Animals
             state = AnimalAiState.Idle;
             homing = false;
             hasThreat = false;
+            alertHolds = false;
+            calmScale = 1f;
+            RestoreFleeSpeed();
             timer = species != null && species.idleSeconds > 0.05f ? species.idleSeconds : 2f;
+            if (animal != null)
+                animal.EndFlee();
+        }
+
+        /// <summary>Walk toward a world point (migration, river crossings).</summary>
+        public void GoToPoint(Vector3 worldPoint, float seconds = 14f)
+        {
+            if (species == null)
+                Bind();
+            state = AnimalAiState.Graze;
+            homing = false;
+            hasThreat = false;
+            alertHolds = false;
+            calmScale = 1f;
+            RestoreFleeSpeed();
+            grazePoint = WorldGround.Snap(worldPoint);
+            timer = seconds > 0.5f ? seconds : 14f;
             if (animal != null)
                 animal.EndFlee();
         }
@@ -271,6 +366,9 @@ namespace HuntingGame.Animals
         {
             state = AnimalAiState.Graze;
             homing = true;
+            alertHolds = false;
+            calmScale = 1f;
+            RestoreFleeSpeed();
             grazePoint = animal.HomePosition;
         }
 

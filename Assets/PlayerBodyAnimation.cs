@@ -142,6 +142,9 @@ public class PlayerBodyAnimation : MonoBehaviour
         speedBlend = Mathf.MoveTowards(speedBlend, speedParam, Time.deltaTime * 5f);
         airBlend = Mathf.MoveTowards(airBlend, grounded ? 0f : 1f, Time.deltaTime * 6f);
 
+        bool riding = RideableHorse.IsRiding;
+        float rideGait = RideableHorse.RideGait01;
+
         float idleW;
         float walkW;
         float runW;
@@ -200,7 +203,30 @@ public class PlayerBodyAnimation : MonoBehaviour
             hangR += 6f;
         }
 
-        if (airBlend > 0.01f)
+        if (riding)
+        {
+            float bounce = Mathf.Sin(Time.time * (4f + rideGait * 8f)) * (0.012f + rideGait * 0.022f);
+            idleW = 0f;
+            walkW = 0f;
+            runW = 0f;
+            leftThigh = 62f;
+            rightThigh = 62f;
+            leftKnee = -78f;
+            rightKnee = -78f;
+            leftArmPitch = -42f;
+            rightArmPitch = -42f;
+            leftElbow = 52f;
+            rightElbow = 52f;
+            hangL = 34f;
+            hangR = -34f;
+            spinePitch = 10f + rideGait * 4f;
+            spineTwist = 0f;
+            hipYaw = 0f;
+            hipRoll = 0f;
+            hipBob = bounce;
+        }
+
+        if (airBlend > 0.01f && !riding)
         {
             leftThigh = Mathf.Lerp(leftThigh, 22f, airBlend);
             rightThigh = Mathf.Lerp(rightThigh, 22f, airBlend);
@@ -213,8 +239,8 @@ public class PlayerBodyAnimation : MonoBehaviour
             spinePitch = Mathf.Lerp(spinePitch, -8f, airBlend);
         }
 
-        bool holdingShotgun = PlayerShotgun.IsEquipped;
-        bool holdingAxe = AxeSwing.HasAxe && !holdingShotgun;
+        bool holdingShotgun = !riding && PlayerShotgun.IsEquipped;
+        bool holdingAxe = !riding && AxeSwing.HasAxe && !holdingShotgun;
         float shotgunMount = holdingShotgun ? PlayerShotgun.Mount : 0f;
         float shotgunRecoil = holdingShotgun ? PlayerShotgun.RecoilKick : 0f;
         float shotgunPump = holdingShotgun ? PlayerShotgun.PumpPull : 0f;
