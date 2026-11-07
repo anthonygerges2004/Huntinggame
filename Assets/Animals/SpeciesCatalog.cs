@@ -18,7 +18,10 @@ namespace HuntingGame.Animals
                 return large != null ? large : (large = Make(kind, false, 2.4f, 7.5f, 2.5f, 6f, 0.8f, 6f, 8f, 40f, 110f, 0f));
             if (kind == AnimalKind.Legendary)
                 return legendary != null ? legendary : (legendary = Make(kind, false, 2.6f, 9f, 2f, 6f, 0.6f, 7f, 10f, 50f, 130f, 0f));
-            return deer != null ? deer : (deer = Make(kind, true, 2f, 8f, 2.2f, 7f, 1.15f, 8f, 6f, 45f, 120f, 1.2f));
+            SpeciesData data = deer != null ? deer : (deer = Make(kind, true, 2f, 8f, 2.2f, 7f, 1.15f, 8f, 6f, 210f, 260f, 1.2f));
+            data.fullLodRadius = 210f;
+            data.reducedLodRadius = 260f;
+            return data;
         }
 
         static SpeciesData Make(

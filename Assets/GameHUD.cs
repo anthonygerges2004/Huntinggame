@@ -104,7 +104,7 @@ public class GameHUD : MonoBehaviour
     TMP_Text challengeCount;
     RectTransform challengeProgress;
     CanvasGroup challengeGroup;
-    readonly ChallengeRow[] challenges = new ChallengeRow[4];
+    readonly ChallengeRow[] challenges = new ChallengeRow[5];
 
     CanvasGroup controlsGroup;
     CanvasGroup controlsHintGroup;
@@ -620,7 +620,7 @@ public class GameHUD : MonoBehaviour
         const float width = 300f;
         const float rowH = 24f;
         const float pad = 16f;
-        float height = pad + 18f + 12f + rowH * 4f + pad - 6f;
+        float height = pad + 18f + 12f + rowH * 5f + pad - 6f;
         challengesHeight = height;
 
         RectTransform panel = Panel(canvas.transform, "Challenges", new Vector2(1f, 1f), new Vector2(-Margin, -Margin),
@@ -631,7 +631,7 @@ public class GameHUD : MonoBehaviour
         title.characterSpacing = 6f;
         Place(title.rectTransform, new Vector2(0f, 1f), new Vector2(pad, -pad), new Vector2(180f, 16f), new Vector2(0f, 1f));
 
-        challengeCount = Text(panel, "0 / 4", 14f, Gold, TextAlignmentOptions.MidlineRight, true);
+        challengeCount = Text(panel, "0 / 5", 14f, Gold, TextAlignmentOptions.MidlineRight, true);
         Place(challengeCount.rectTransform, new Vector2(1f, 1f), new Vector2(-pad, -pad), new Vector2(80f, 16f), new Vector2(1f, 1f));
 
         RectTransform track = Img(panel, "Progress", roundSprite, TrackColor, 4f).rectTransform;
@@ -646,6 +646,7 @@ public class GameHUD : MonoBehaviour
             "Hit an animal from 20 m",
             "Kill a deer while crouching",
             "Win the bird challenge",
+            "Win the sniper challenge",
         };
 
         for (int i = 0; i < tasks.Length; i++)
@@ -672,6 +673,7 @@ public class GameHUD : MonoBehaviour
             hc != null && hc.LongShotDone,
             hc != null && hc.QuietDeerDone,
             BirdChallenge.Won,
+            hc != null && hc.SniperVitalDone,
         };
 
         int count = 0;
@@ -692,11 +694,11 @@ public class GameHUD : MonoBehaviour
             row.label.color = done[i] ? TextDim : TextMain;
         }
 
-        string countText = count + " / 4";
+        string countText = count + " / 5";
         if (challengeCount.text != countText)
             challengeCount.text = countText;
-        challengeCount.color = count == 4 ? GoodColor : Gold;
-        float target = count / 4f;
+        challengeCount.color = count == 5 ? GoodColor : Gold;
+        float target = count / 5f;
         float current = challengeProgress.anchorMax.x;
         challengeProgress.anchorMax = new Vector2(Mathf.MoveTowards(current, target, Time.unscaledDeltaTime * 1.5f), 1f);
     }

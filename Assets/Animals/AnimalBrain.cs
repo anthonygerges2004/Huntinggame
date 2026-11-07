@@ -111,9 +111,10 @@ namespace HuntingGame.Animals
                 if (!urgent)
                     return;
 
-                timer = FleeSpan();
+                float span = FleeSpan();
+                if (timer < span)
+                    timer = span;
                 heading = FleeHeading();
-                animal.BeginFlee(heading, timer);
                 return;
             }
 

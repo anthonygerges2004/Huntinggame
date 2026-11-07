@@ -128,32 +128,18 @@ public class OpenWorld : MonoBehaviour
         KeepPlayerOnLand();
     }
 
-    static void ApplyCreatureLod(Vector3 player)
+    static void HoldDeadPoses()
     {
         Animal[] animals = Object.FindObjectsByType<Animal>(FindObjectsInactive.Exclude);
         for (int i = 0; i < animals.Length; i++)
         {
             Animal animal = animals[i];
-            if (animal == null)
+            if (animal == null || !animal.Dead)
                 continue;
 
-            bool near = FlatDistance(animal.transform.position, player) < 85f;
             Animator animator = animal.GetComponentInChildren<Animator>();
-            if (animal.Dead)
-            {
-                if (animator != null && animator.enabled)
-                    animator.enabled = false;
-            }
-            else if (animator != null && animator.enabled != near)
-                animator.enabled = near;
-
-            Renderer[] renderers = animal.GetComponentsInChildren<Renderer>(true);
-            ShadowCastingMode mode = near ? ShadowCastingMode.On : ShadowCastingMode.Off;
-            for (int r = 0; r < renderers.Length; r++)
-            {
-                if (renderers[r] != null && renderers[r].shadowCastingMode != mode)
-                    renderers[r].shadowCastingMode = mode;
-            }
+            if (animator != null && animator.enabled)
+                animator.enabled = false;
         }
     }
 
@@ -528,7 +514,7 @@ public class OpenWorld : MonoBehaviour
                 Count(den.kind, ref deer, ref birds, ref large);
         }
 
-        ApplyCreatureLod(player.position);
+        HoldDeadPoses();
 
         for (int n = 0; n < MaxDeer + MaxBirds + MaxLarge; n++)
         {

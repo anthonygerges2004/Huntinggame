@@ -92,7 +92,7 @@ public class BirdChallenge : MonoBehaviour
                 return;
             }
 
-            if (PlayerNearCage() && !WoodBuilder.IsBuilding)
+            if (PlayerNearCage() && !WoodBuilder.IsBuilding && !DeerChallenge.Active)
             {
                 Begin();
                 return;

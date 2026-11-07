@@ -25,6 +25,7 @@ public static class AnimalVisuals
 
         if (HasSkinnedModel(animal))
         {
+            StripImportedControllers(animal.gameObject);
             FixAnimalShading(animal.gameObject);
             EnsureAvatar(animal.gameObject, animal.kind);
             FitCollider(animal);
@@ -190,6 +191,7 @@ public static class AnimalVisuals
 
         animator.applyRootMotion = false;
         animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        animator.keepAnimatorStateOnDisable = true;
         if (animator.avatar != null)
             return;
 

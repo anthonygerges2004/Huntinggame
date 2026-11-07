@@ -77,6 +77,8 @@ public class Inventory : MonoBehaviour
             gameObject.AddComponent<HuntChallenges>();
         if (GetComponent<BirdChallenge>() == null)
             gameObject.AddComponent<BirdChallenge>();
+        if (GetComponent<DeerChallenge>() == null)
+            gameObject.AddComponent<DeerChallenge>();
         if (GetComponent<AmbientFlyers>() == null)
             gameObject.AddComponent<AmbientFlyers>();
         if (GetComponent<FoliageDistanceCull>() == null)
@@ -93,6 +95,8 @@ public class Inventory : MonoBehaviour
             gameObject.AddComponent<CraftBook>();
         if (GetComponent<BallisticsGun>() == null)
             gameObject.AddComponent<BallisticsGun>();
+        if (GetComponent<GunAdvisor>() == null)
+            gameObject.AddComponent<GunAdvisor>();
 
         slots[0] = new Slot { kind = ItemKind.Shotgun, count = 1 };
         slots[1] = new Slot { kind = ItemKind.Rifle, count = 1 };
@@ -407,8 +411,41 @@ public class Inventory : MonoBehaviour
         else
             DrawHotbar();
 
+        DrawGunTip();
+
         if (Time.time <= noticeUntil && !string.IsNullOrEmpty(notice))
             ScreenText.Centered(notice, Screen.height * 0.7f);
+    }
+
+    void DrawGunTip()
+    {
+        if (string.IsNullOrEmpty(GunAdvisor.Line))
+            return;
+
+        float y;
+        if (inventoryOpen)
+            y = inventoryRect.yMax + 22f;
+        else
+        {
+            float size = Mathf.Clamp(Screen.height * 0.09f, 64f, 110f);
+            y = Screen.height - size - 46f;
+        }
+
+        ScreenText.Centered(GunAdvisor.Line, y, 20);
+    }
+
+    public int HotbarKeyFor(HuntWeapon weapon)
+    {
+        if (weapon == HuntWeapon.None)
+            return 0;
+
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (slots[i].count > 0 && ToWeapon(slots[i].kind) == weapon)
+                return i < GridColumns ? i + 1 : 0;
+        }
+
+        return 0;
     }
 
     void DrawInventoryWindow()

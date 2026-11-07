@@ -203,6 +203,13 @@ namespace HuntingGame.Ballistics
                     heavy = animal.kind == AnimalKind.Large || animal.kind == AnimalKind.Legendary;
                     animal.Hit(direction, hit.point, hit.normal);
                     PushBody(animal, direction, speed);
+                    if (animal.kind == AnimalKind.Deer)
+                    {
+                        Vector3 barrel = hit.point - direction;
+                        if (PlayerShotgun.Instance != null && PlayerShotgun.Instance.TryMuzzle(out Vector3 muzzle))
+                            barrel = muzzle;
+                        ShotTracer.Play(barrel, hit.point);
+                    }
                 }
             }
 

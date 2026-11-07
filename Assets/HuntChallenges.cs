@@ -10,10 +10,12 @@ public class HuntChallenges : MonoBehaviour
     bool shadeBird;
     bool longShot;
     bool quietDeer;
+    bool sniperVital;
 
     public bool ShadeBirdDone => shadeBird;
     public bool LongShotDone => longShot;
     public bool QuietDeerDone => quietDeer;
+    public bool SniperVitalDone => sniperVital;
     Transform player;
 
     void Awake()
@@ -27,6 +29,15 @@ public class HuntChallenges : MonoBehaviour
     {
         if (Instance != null && animal != null)
             Instance.CheckKill(animal);
+    }
+
+    public static void CompleteSniperChallenge(float distance)
+    {
+        if (Instance == null || Instance.sniperVital)
+            return;
+
+        Instance.sniperVital = true;
+        Instance.Announce("Sniper vitals, " + Mathf.RoundToInt(distance) + " m");
     }
 
     void CheckKill(Animal animal)

@@ -435,7 +435,8 @@ public class Animal : MonoBehaviour
         if (WorldGround.InsideWater(next))
             return false;
 
-        transform.forward = direction;
+        Quaternion facing = Quaternion.LookRotation(direction);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, facing, 360f * step);
         transform.position = next;
         UpdateAnimation(true);
         return true;
@@ -549,7 +550,9 @@ public class Animal : MonoBehaviour
 
         if (hideLeft <= 0f)
         {
-            FinishKill(shotDirection);
+            bool sniperVital = SniperEquipped() && (place == ShotPlace.Head || place == ShotPlace.Chest);
+            float shotDistance = Vector3.Distance(PlayerView.Position(), point);
+            FinishKill(shotDirection, sniperVital, shotDistance);
             return;
         }
 
@@ -620,7 +623,12 @@ public class Animal : MonoBehaviour
         return left <= 1 ? "Body shot. One more there drops it." : "Body shot. It keeps going.";
     }
 
-    void FinishKill(Vector3 shotDirection)
+    static bool SniperEquipped()
+    {
+        return PlayerShotgun.Instance != null && PlayerShotgun.Instance.Equipped == HuntWeapon.Sniper;
+    }
+
+    void FinishKill(Vector3 shotDirection, bool sniperVital = false, float shotDistance = 0f)
     {
         if (dead)
             return;
@@ -629,6 +637,7 @@ public class Animal : MonoBehaviour
         LeaveBlood(transform.position);
 
         HuntChallenges.ReportKill(this);
+        DeerChallenge.NotifyKill(this, sniperVital, shotDistance);
         WildlifeAlarm.NotifyShot(transform.position);
         Overhunt.RegisterKill(transform.position);
 

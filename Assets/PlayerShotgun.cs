@@ -178,6 +178,29 @@ public class PlayerShotgun : MonoBehaviour
         breakOpen = 0f;
     }
 
+    public HuntWeapon Equipped => equipped && active != null ? active.id : HuntWeapon.None;
+
+    public bool TryRounds(HuntWeapon weapon, out int rounds, out int mag, out float gunRange)
+    {
+        rounds = 0;
+        mag = 0;
+        gunRange = 0f;
+        if (built == null || weapon == HuntWeapon.None)
+            return false;
+
+        int index = (int)weapon;
+        if (index < 0 || index >= built.Length || built[index] == null)
+            return false;
+
+        Rig rig = built[index];
+        mag = rig.magSize;
+        gunRange = rig.gunRange;
+        rounds = active == rig ? shells : rig.ammo;
+        if (rounds < 0)
+            rounds = 0;
+        return true;
+    }
+
     public void Equip(HuntWeapon weapon)
     {
         if (built == null)
@@ -237,8 +260,25 @@ public class PlayerShotgun : MonoBehaviour
         Equip(equipped ? HuntWeapon.None : HuntWeapon.Shotgun);
     }
 
+    public bool TryMuzzle(out Vector3 world)
+    {
+        Transform gun = CameraViewSwitcher.Instance != null && CameraViewSwitcher.Instance.IsFirstPerson
+            ? viewGun
+            : handGun;
+        if (gun == null || active == null)
+        {
+            world = gun != null ? gun.position : transform.position;
+            return gun != null;
+        }
+
+        world = gun.TransformPoint(active.muzzle);
+        return true;
+    }
+
     public void TryFire()
     {
+        if (!DeerChallenge.AllowFire())
+            return;
         if (!equipped || reloading)
             return;
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
@@ -255,6 +295,7 @@ public class PlayerShotgun : MonoBehaviour
         fireTime = 0f;
         mount = 1f;
         recoil = 1f;
+        DeerChallenge.CountShot();
         shells--;
         if (active != null)
             active.ammo = shells;
