@@ -32,7 +32,15 @@ public class Animal : MonoBehaviour
     bool dead;
     bool dropping;
     float hideLeft = 100f;
-    bool limping;
+    bool wounded;
+    ShotPlace woundPlace;
+    float woundSide = 1f;
+    float stumbleLeft;
+    float boltLeft;
+    float bleedLeft;
+    Vector3 bleedAnchor;
+    bool bleedAnchorSet;
+    DeerWoundPose woundPose;
     bool bonesCached;
     Transform skull;
     Transform chestBone;
@@ -53,7 +61,35 @@ public class Animal : MonoBehaviour
 
     public bool Dead => dead;
     public bool Fleeing => fleeing;
-    public bool Limping => limping;
+
+    /// <summary>True once the adrenaline bolt or the stumble is over and the deer is favoring a side.</summary>
+    public bool Limping => wounded && stumbleLeft <= 0f && boltLeft <= 0f;
+
+    /// <summary>
+    /// Speed scale for a wounded deer. A leg or head hit nearly stops them, then they limp.
+    /// A body or chest hit keeps a short bolt before the stride falls apart.
+    /// </summary>
+    public float WoundMoveScale
+    {
+        get
+        {
+            if (!wounded)
+                return 1f;
+            if (stumbleLeft > 0f)
+                return 0.06f;
+            if (boltLeft > 0f)
+                return woundPlace == ShotPlace.Chest ? 1f : 0.86f;
+
+            switch (woundPlace)
+            {
+                case ShotPlace.Legs: return 0.34f;
+                case ShotPlace.Head: return 0.38f;
+                case ShotPlace.Chest: return 0.46f;
+                default: return 0.55f;
+            }
+        }
+    }
+
     public Vector3 HomePosition => homePos;
 
     static readonly int VerticalAnimation = Animator.StringToHash("Vert");
@@ -118,6 +154,7 @@ public class Animal : MonoBehaviour
             return;
         }
 
+        TickWound(delta);
         SimulatePresence();
         if (!present)
             return;
@@ -138,19 +175,20 @@ public class Animal : MonoBehaviour
         if (fleeing)
         {
             fleeTimer -= step;
+            float flee = fleeSpeed * WoundMoveScale;
             Vector3 away = transform.position + transform.forward * 2f;
             Vector3 next = WorldGround.Snap(
-                Vector3.MoveTowards(transform.position, away, fleeSpeed * step));
+                Vector3.MoveTowards(transform.position, away, flee * step));
             if (WorldGround.InsideWater(next))
             {
                 transform.Rotate(0f, 110f, 0f);
                 away = transform.position + transform.forward * 2f;
                 next = WorldGround.Snap(
-                    Vector3.MoveTowards(transform.position, away, fleeSpeed * step));
+                    Vector3.MoveTowards(transform.position, away, flee * step));
             }
 
             transform.position = next;
-            UpdateAnimation(true);
+            UpdateAnimation(flee > fleeSpeed * 0.7f);
 
             if (fleeTimer <= 0f)
                 StartReturningHome();
@@ -163,7 +201,7 @@ public class Animal : MonoBehaviour
             Vector3 home = WorldGround.Snap(homePos);
             FaceDirection(home - transform.position);
             transform.position = WorldGround.Snap(
-                Vector3.MoveTowards(transform.position, home, moveSpeed * step));
+                Vector3.MoveTowards(transform.position, home, moveSpeed * WoundMoveScale * step));
             UpdateAnimation(false);
 
             if (Vector3.Distance(Flat(transform.position), Flat(home)) < 0.6f)
@@ -195,7 +233,7 @@ public class Animal : MonoBehaviour
 
         FaceDirection(wanderTarget - transform.position);
         transform.position = WorldGround.Snap(
-            Vector3.MoveTowards(transform.position, wanderTarget, moveSpeed * step));
+            Vector3.MoveTowards(transform.position, wanderTarget, moveSpeed * WoundMoveScale * step));
         if (Vector3.Distance(Flat(transform.position), Flat(wanderTarget)) < 0.5f)
             PickWanderTarget();
 
@@ -304,6 +342,11 @@ public class Animal : MonoBehaviour
     {
         if (animalAnimator == null)
             return;
+
+        if (Limping)
+            running = false;
+
+        animalAnimator.speed = Limping ? 0.68f : 1f;
 
         float distanceMoved = Vector3.Distance(transform.position, previousPosition);
         bool moving = distanceMoved > 0.0001f;
@@ -438,8 +481,20 @@ public class Animal : MonoBehaviour
         Quaternion facing = Quaternion.LookRotation(direction);
         transform.rotation = Quaternion.RotateTowards(transform.rotation, facing, 360f * step);
         transform.position = next;
-        UpdateAnimation(true);
+        UpdateAnimation(!Limping && speed > fleeSpeed * 0.7f);
         return true;
+    }
+
+    /// <summary>A head hit weaves. Other wounds keep the heading the caller chose.</summary>
+    public Vector3 Steer(Vector3 heading)
+    {
+        heading.y = 0f;
+        if (heading.sqrMagnitude < 0.0001f || !wounded || woundPlace != ShotPlace.Head)
+            return heading;
+
+        float amount = stumbleLeft > 0f ? 0.65f : 0.22f;
+        Vector3 side = Vector3.Cross(Vector3.up, heading.normalized);
+        return (heading + side * (Mathf.Sin(Time.time * 6.5f) * amount)).normalized;
     }
 
     void FleeImmediate(Vector3 danger)
@@ -541,8 +596,7 @@ public class Animal : MonoBehaviour
         ShotPlace place = Classify(point);
         float amount = DamageFor(place);
         hideLeft -= amount;
-        if (place == ShotPlace.Legs)
-            limping = true;
+        BeginWound(place, point);
 
         transform.Rotate(0f, Random.Range(-14f, 14f), 0f);
         Vector3 shooter = point - shotDirection;
@@ -614,13 +668,119 @@ public class Animal : MonoBehaviour
     string WoundLine(ShotPlace place, float amount)
     {
         int left = Mathf.CeilToInt(hideLeft / Mathf.Max(1f, amount));
+        if (left <= 1)
+        {
+            if (place == ShotPlace.Legs)
+                return "Leg shot. One more drops it.";
+            if (place == ShotPlace.Head)
+                return "Head shot. One more there drops it.";
+            if (place == ShotPlace.Chest)
+                return "Chest shot. One more there drops it.";
+            return "Body shot. One more there drops it.";
+        }
+
         if (place == ShotPlace.Legs)
-            return left <= 1 ? "Leg shot. One more drops it." : "Leg shot. It limps.";
+            return "Leg shot. It stumbles and limps.";
         if (place == ShotPlace.Head)
-            return left <= 1 ? "Head shot. One more there drops it." : "Head shot. It is still up.";
+            return "Head shot. It staggers.";
         if (place == ShotPlace.Chest)
-            return left <= 1 ? "Chest shot. One more there drops it." : "Chest shot. It runs on.";
-        return left <= 1 ? "Body shot. One more there drops it." : "Body shot. It keeps going.";
+            return "Chest shot. It bolts, then slows.";
+        return "Body shot. It runs, then limps.";
+    }
+
+    void BeginWound(ShotPlace place, Vector3 point)
+    {
+        bool alreadyLimping = Limping;
+        Vector3 local = transform.InverseTransformPoint(point);
+        woundSide = Mathf.Abs(local.x) < 0.04f
+            ? (Random.value < 0.5f ? -1f : 1f)
+            : (local.x >= 0f ? 1f : -1f);
+        wounded = true;
+        woundPlace = place;
+
+        // A broken leg or a head hit cannot carry a clean sprint. Gut and chest shots do,
+        // for a moment, the way a deer runs off before the wound shows in the stride.
+        switch (place)
+        {
+            case ShotPlace.Legs:
+                stumbleLeft = 0.45f;
+                boltLeft = 0f;
+                break;
+            case ShotPlace.Head:
+                stumbleLeft = 0.55f;
+                boltLeft = 0f;
+                break;
+            case ShotPlace.Chest:
+                stumbleLeft = 0f;
+                boltLeft = alreadyLimping ? 0.55f : 1.7f;
+                break;
+            default:
+                stumbleLeft = 0f;
+                boltLeft = alreadyLimping ? 0.4f : 1.15f;
+                break;
+        }
+
+        PoseWound();
+    }
+
+    void TickWound(float delta)
+    {
+        if (!wounded)
+            return;
+
+        stumbleLeft = Mathf.Max(0f, stumbleLeft - delta);
+        boltLeft = Mathf.Max(0f, boltLeft - delta);
+        PoseWound();
+    }
+
+    void LateUpdate()
+    {
+        if (!wounded || dead)
+            return;
+
+        if (!bleedAnchorSet)
+        {
+            bleedAnchor = transform.position;
+            bleedAnchorSet = true;
+            return;
+        }
+
+        float moved = Vector3.Distance(transform.position, bleedAnchor);
+        bleedAnchor = transform.position;
+        if (moved < 0.04f)
+            return;
+
+        bleedLeft -= Time.deltaTime;
+        if (bleedLeft > 0f)
+            return;
+
+        bleedLeft = Limping ? 0.7f : 1.35f;
+        DripBlood();
+    }
+
+    void PoseWound()
+    {
+        if (woundPose == null)
+            woundPose = GetComponent<DeerWoundPose>() ?? gameObject.AddComponent<DeerWoundPose>();
+
+        float missing = 1f - Mathf.Clamp01(hideLeft / 100f);
+        float shown = Limping
+            ? Mathf.Clamp01(0.62f + missing * 0.3f + (woundPlace == ShotPlace.Legs ? 0.2f : 0f))
+            : (stumbleLeft > 0f ? 0.78f : 0.36f);
+        bool tuck = woundPlace == ShotPlace.Legs || Limping;
+        bool low = woundPlace == ShotPlace.Head || woundPlace == ShotPlace.Chest || Limping;
+        woundPose.Show(shown, woundSide, tuck, low);
+    }
+
+    void DripBlood()
+    {
+        TrackPool pool = TrackPool.Current;
+        if (pool == null)
+            return;
+
+        Vector3 ground = WorldGround.Snap(transform.position);
+        ground.y += 0.05f;
+        pool.Place(TrackKind.Blood, ground, 0f, 0.22f, 0f);
     }
 
     static bool SniperEquipped()
@@ -664,7 +824,13 @@ public class Animal : MonoBehaviour
         if (animalAnimator == null)
             animalAnimator = GetComponentInChildren<Animator>();
         if (animalAnimator != null)
+        {
+            animalAnimator.speed = 1f;
             animalAnimator.enabled = false;
+        }
+
+        if (woundPose != null)
+            woundPose.Clear();
 
         Collider[] colliders = GetComponentsInChildren<Collider>(true);
         for (int i = 0; i < colliders.Length; i++)

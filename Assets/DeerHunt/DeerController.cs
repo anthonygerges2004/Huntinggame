@@ -173,10 +173,38 @@ namespace DeerHunt
                 return;
             }
 
-            if (zone.Kind == HitZone.Zone.Legs)
-                StartCoroutine(StumbleThenLimp());
+            float side = HitSide(point);
+            if (zone.Kind == HitZone.Zone.Chest)
+                BeginCollapse(side);
+            else if (zone.Kind == HitZone.Zone.Legs)
+                StartReaction(StumbleThenLimp(side));
             else
-                EnterFlee();
+                StartReaction(BoltThenLimp(side));
+        }
+
+        Coroutine reaction;
+
+        void StartReaction(IEnumerator routine)
+        {
+            if (reaction != null)
+                StopCoroutine(reaction);
+            reaction = StartCoroutine(routine);
+        }
+
+        float HitSide(Vector3 point)
+        {
+            float x = transform.InverseTransformPoint(point).x;
+            if (Mathf.Abs(x) < 0.04f)
+                return Random.value < 0.5f ? -1f : 1f;
+            return x >= 0f ? 1f : -1f;
+        }
+
+        void ShowWound(float side, float severity, bool tuckLeg, bool dropHead)
+        {
+            DeerWoundPose pose = GetComponent<DeerWoundPose>();
+            if (pose == null)
+                pose = gameObject.AddComponent<DeerWoundPose>();
+            pose.Show(severity, side, tuckLeg, dropHead);
         }
 
         void TickIdle()
@@ -321,37 +349,61 @@ namespace DeerHunt
             SetAwayDestination();
         }
 
-        void BeginCollapse()
+        void BeginCollapse(float side)
         {
-            if (collapsing)
+            if (collapsing || health.Dead)
                 return;
 
             collapsing = true;
+            StartReaction(CollapseRoutine(side));
+        }
+
+        IEnumerator CollapseRoutine(float side)
+        {
+            // A chest hit runs off, then the stride breaks, then the deer goes down.
+            ShowWound(side, 0.34f, false, true);
             EnterFlee();
-            StartCoroutine(CollapseAfter(Random.Range(2f, 3f)));
+            yield return new WaitForSeconds(1.1f);
+            if (health.Dead)
+                yield break;
+
+            ShowWound(side, 0.9f, true, true);
+            EnterWounded();
+            yield return new WaitForSeconds(Random.Range(1.6f, 2.4f));
+            if (health.Dead)
+                yield break;
+
+            PlayerController body = FindAnyObjectByType<PlayerController>();
+            float distance = body == null ? 0f : Vector3.Distance(transform.position, body.transform.position);
+            GameManager.Instance?.RegisterKill(FindZone(HitZone.Zone.Chest), distance);
+            health.Kill();
         }
 
-        IEnumerator CollapseAfter(float delay)
+        IEnumerator StumbleThenLimp(float side)
         {
-            yield return new WaitForSeconds(delay);
-            if (!health.Dead)
+            ShowWound(side, 0.75f, true, false);
+            if (OnMesh())
             {
-                PlayerController body = FindAnyObjectByType<PlayerController>();
-                float distance = body == null ? 0f : Vector3.Distance(transform.position, body.transform.position);
-                health.Kill();
-                GameManager.Instance?.RegisterKill(FindZone(HitZone.Zone.Chest), distance);
+                agent.speed = 0f;
+                agent.isStopped = true;
             }
-        }
 
-        IEnumerator StumbleThenLimp()
-        {
-            float previous = agent.speed;
-            agent.speed = 0f;
-            agent.isStopped = true;
             yield return new WaitForSeconds(0.45f);
             if (!health.Dead)
             {
-                agent.speed = previous;
+                ShowWound(side, 0.9f, true, true);
+                EnterWounded();
+            }
+        }
+
+        IEnumerator BoltThenLimp(float side)
+        {
+            ShowWound(side, 0.3f, false, true);
+            EnterFlee();
+            yield return new WaitForSeconds(1.15f);
+            if (!health.Dead)
+            {
+                ShowWound(side, 0.8f, true, true);
                 EnterWounded();
             }
         }
@@ -372,6 +424,11 @@ namespace DeerHunt
 
             state = State.Dead;
             StopAllCoroutines();
+            DeerWoundPose pose = GetComponent<DeerWoundPose>();
+            if (pose != null)
+                pose.Clear();
+            if (animator != null)
+                animator.speed = 1f;
             if (OnMesh())
             {
                 agent.isStopped = true;
@@ -463,8 +520,10 @@ namespace DeerHunt
             // The deer model already in this project blends idle / walk / run on Vert and State.
             if (Has(VertId))
                 animator.SetFloat(VertId, speed > 0.25f ? 1f : 0f);
+            bool running = state != State.Wounded && speed > 3.2f;
             if (Has(StateId))
-                animator.SetFloat(StateId, speed > 3.2f ? 1f : 0f);
+                animator.SetFloat(StateId, running ? 1f : 0f);
+            animator.speed = state == State.Wounded ? 0.68f : 1f;
         }
 
         void BuildHitZones()

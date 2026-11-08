@@ -191,6 +191,7 @@ namespace HuntingGame.Animals
             }
 
             float speed = species.grazeSpeed > 0.1f ? species.grazeSpeed : animal.moveSpeed;
+            speed *= animal.WoundMoveScale;
             animal.MoveOnGround(grazePoint, speed, false);
 
             if (Arrived(grazePoint))
@@ -242,12 +243,11 @@ namespace HuntingGame.Animals
             }
 
             float speed = animal.fleeSpeed > 0.1f ? animal.fleeSpeed : species.fleeSpeed;
-            if (animal.Limping)
-                speed *= 0.42f;
-            if (!animal.MoveHeading(heading, speed))
+            speed *= animal.WoundMoveScale;
+            if (!animal.MoveHeading(animal.Steer(heading), speed))
             {
                 heading = Quaternion.Euler(0f, 110f, 0f) * heading;
-                animal.MoveHeading(heading, speed);
+                animal.MoveHeading(animal.Steer(heading), speed);
             }
 
             timer -= delta;
