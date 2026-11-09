@@ -13,6 +13,13 @@ public class DeerChallenge : MonoBehaviour
     public static DeerChallenge Instance;
     public static bool Active { get; private set; }
 
+    /// <summary>Where the sniper post stands, for the compass.</summary>
+    public static bool TryGetPost(out Vector3 point)
+    {
+        point = Instance != null ? Instance.standPoint : Vector3.zero;
+        return Instance != null && Instance.standPoint != Vector3.zero;
+    }
+
     public int deerToWin = 2;
     public int maxShots = 10;
     public float timeLimit = 90f;

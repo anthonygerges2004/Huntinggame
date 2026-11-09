@@ -81,7 +81,7 @@ public class AxeSwing : MonoBehaviour
 
     bool SwingPressed()
     {
-        if (Inventory.IsOpen || WoodBuilder.IsBuilding || BirdChallenge.Active || PlayerShotgun.IsEquipped) return false;
+        if (Inventory.IsOpen || WoodBuilder.IsBuilding || BirdChallenge.Active || PlayerShotgun.IsEquipped || !Inventory.AxeInHand) return false;
         if (RideableHorse.BlocksAxeSwing() || MountainHermit.InTalkRange()) return false;
 #if ENABLE_INPUT_SYSTEM
         var kb = Keyboard.current; var ms = Mouse.current;
@@ -95,7 +95,7 @@ public class AxeSwing : MonoBehaviour
 
     bool ThrowPressed()
     {
-        if (Inventory.IsOpen || !throwOnRightClick || WoodBuilder.IsBuilding || BirdChallenge.Active || PlayerShotgun.IsEquipped) return false;
+        if (Inventory.IsOpen || !throwOnRightClick || WoodBuilder.IsBuilding || BirdChallenge.Active || PlayerShotgun.IsEquipped || !Inventory.AxeInHand) return false;
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;

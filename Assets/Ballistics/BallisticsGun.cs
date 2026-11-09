@@ -193,6 +193,7 @@ namespace HuntingGame.Ballistics
         void Resolve(RaycastHit hit, Vector3 direction, float speed)
         {
             bool heavy = false;
+            bool bled = false;
             if (hit.collider.GetComponentInParent<HarvestableTree>() == null)
             {
                 Animal animal = hit.collider.GetComponentInParent<Animal>();
@@ -200,6 +201,7 @@ namespace HuntingGame.Ballistics
                 {
                     found[foundCount].animal = animal;
                     foundCount++;
+                    bled = true;
                     heavy = animal.kind == AnimalKind.Large || animal.kind == AnimalKind.Legendary;
                     animal.Hit(direction, hit.point, hit.normal);
                     PushBody(animal, direction, speed);
@@ -213,7 +215,8 @@ namespace HuntingGame.Ballistics
                 }
             }
 
-            if (WoundPool.Current != null)
+            // Blood only where a living animal was actually struck. Ground, rocks and trees stay clean.
+            if (bled && WoundPool.Current != null)
                 WoundPool.Current.Mark(hit.point, heavy);
         }
 

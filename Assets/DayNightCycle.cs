@@ -12,6 +12,8 @@ public class DayNightCycle : MonoBehaviour
     public float dayLengthMinutes = 12f;
     public float dayLengthSeconds => Mathf.Max(0.1f, dayLengthMinutes) * 60f;
     public bool IsNight { get; private set; }
+    /// <summary>Days survived, starting at 1. Ticks over each time the clock wraps.</summary>
+    public int Day { get; private set; } = 1;
 
     public Color ambientSky = new Color(0.68f, 0.73f, 0.80f);
     public Color ambientHorizon = new Color(0.58f, 0.58f, 0.54f);
@@ -41,7 +43,10 @@ public class DayNightCycle : MonoBehaviour
     {
         timeOfDay += Time.deltaTime / dayLengthSeconds;
         if (timeOfDay > 1f)
+        {
             timeOfDay -= 1f;
+            Day++;
+        }
 
         IsNight = timeOfDay >= 0.5f && timeOfDay < 0.7f;
 

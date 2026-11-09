@@ -240,7 +240,7 @@ public class PlayerBodyAnimation : MonoBehaviour
         }
 
         bool holdingShotgun = !riding && PlayerShotgun.IsEquipped;
-        bool holdingAxe = !riding && AxeSwing.HasAxe && !holdingShotgun;
+        bool holdingAxe = !riding && AxeSwing.HasAxe && !holdingShotgun && Inventory.AxeInHand;
         float shotgunMount = holdingShotgun ? PlayerShotgun.Mount : 0f;
         float shotgunRecoil = holdingShotgun ? PlayerShotgun.RecoilKick : 0f;
         float shotgunPump = holdingShotgun ? PlayerShotgun.PumpPull : 0f;

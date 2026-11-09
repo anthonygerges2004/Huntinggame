@@ -7,7 +7,7 @@ using HuntingGame.Wounds;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class Inventory : MonoBehaviour
+public partial class Inventory : MonoBehaviour
 {
     enum ItemKind
     {
@@ -18,7 +18,8 @@ public class Inventory : MonoBehaviour
         Wood,
         Shotgun,
         Rifle,
-        Sniper
+        Sniper,
+        Axe
     }
 
     struct Slot
@@ -28,7 +29,20 @@ public class Inventory : MonoBehaviour
     }
 
     public static Inventory Instance;
-    public static bool IsOpen => Instance != null && Instance.inventoryOpen;
+    // True while the bag or the pause menu is open; gameplay input everywhere checks this.
+    public static bool IsOpen => Instance != null && (Instance.inventoryOpen || GamePause.Active);
+
+    /// <summary>The hand axe is out only while its hotbar slot is selected.</summary>
+    public static bool AxeInHand
+    {
+        get
+        {
+            if (Instance == null)
+                return true;
+            int i = Instance.selectedHotbar;
+            return i >= 0 && i < Instance.slots.Length && Instance.slots[i].count > 0 && Instance.slots[i].kind == ItemKind.Axe;
+        }
+    }
 
     public int meat;
     public int cookedMeat;
@@ -51,19 +65,21 @@ public class Inventory : MonoBehaviour
     string notice;
     float noticeUntil;
     bool inventoryOpen;
+
+    /// <summary>The bag itself, not counting the pause menu.</summary>
+    public bool BagOpen => inventoryOpen;
+
+    public void CloseBag()
+    {
+        if (!inventoryOpen)
+            return;
+        if (dragging)
+            ReturnDraggedToSource();
+        inventoryOpen = false;
+    }
     bool dragging;
     Slot draggedSlot;
     int dragFromIndex = -1;
-    Rect inventoryRect;
-    float slotSizeUi;
-    float gapUi;
-    float padUi;
-    float headerUi;
-    float footerUi;
-
-    GUIStyle inventoryTextStyle;
-    GUIStyle inventoryCountStyle;
-    GUIStyle inventoryTitleStyle;
 
     void Awake()
     {
@@ -101,6 +117,7 @@ public class Inventory : MonoBehaviour
         slots[0] = new Slot { kind = ItemKind.Shotgun, count = 1 };
         slots[1] = new Slot { kind = ItemKind.Rifle, count = 1 };
         slots[2] = new Slot { kind = ItemKind.Sniper, count = 1 };
+        slots[3] = new Slot { kind = ItemKind.Axe, count = 1 };
         selectedHotbar = 0;
 
         int startMeat = meat;
@@ -127,6 +144,10 @@ public class Inventory : MonoBehaviour
 
     void Update()
     {
+        // Gun pictures are photographed once from the real models. Rendering has to happen here, not in OnGUI.
+        WeaponIcons.Warm();
+        UpdateView();
+
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
         {
             if (dragging)
@@ -134,6 +155,9 @@ public class Inventory : MonoBehaviour
             inventoryOpen = false;
             return;
         }
+
+        if (GamePause.Active)
+            return;
 
         if (Keyboard.current != null && Keyboard.current.gKey.wasPressedThisFrame)
         {
@@ -291,8 +315,8 @@ public class Inventory : MonoBehaviour
         if (remaining <= 0 || kind == ItemKind.None)
             return 0;
 
-        int cap = IsWeapon(kind) ? 1 : maxStackSize;
-        if (IsWeapon(kind))
+        int cap = IsGear(kind) ? 1 : maxStackSize;
+        if (IsGear(kind))
         {
             for (int i = 0; i < slots.Length; i++)
             {
@@ -396,22 +420,22 @@ public class Inventory : MonoBehaviour
 
     public void ShowNotice(string text)
     {
+        if (GameHUD.Instance != null && GameHUD.Instance.Toast(text))
+            return;
+
         notice = text;
         noticeUntil = Time.time + 2f;
     }
 
     void OnGUI()
     {
-        if (inventoryOpen)
-        {
-            DrawInventoryWindow();
-            HandleInventoryDrag(Event.current);
-            DrawDraggedSlot(Event.current.mousePosition);
-        }
-        else
-            DrawHotbar();
+        if (GamePause.Active || (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead))
+            return;
 
-        DrawGunTip();
+        // The backpack and hotbar are drawn by Inventory.View.cs on their own canvas.
+        // With the HUD up, the gun tip lives in its weapon panel and notices in its message feed.
+        if (GameHUD.Instance == null)
+            DrawGunTip();
 
         if (Time.time <= noticeUntil && !string.IsNullOrEmpty(notice))
             ScreenText.Centered(notice, Screen.height * 0.7f);
@@ -422,14 +446,7 @@ public class Inventory : MonoBehaviour
         if (string.IsNullOrEmpty(GunAdvisor.Line))
             return;
 
-        float y;
-        if (inventoryOpen)
-            y = inventoryRect.yMax + 22f;
-        else
-        {
-            float size = Mathf.Clamp(Screen.height * 0.09f, 64f, 110f);
-            y = Screen.height - size - 46f;
-        }
+        float y = inventoryOpen ? Screen.height * 0.92f : Screen.height - 130f;
 
         ScreenText.Centered(GunAdvisor.Line, y, 20);
     }
@@ -446,154 +463,6 @@ public class Inventory : MonoBehaviour
         }
 
         return 0;
-    }
-
-    void DrawInventoryWindow()
-    {
-        EnsureInventoryStyles();
-
-        gapUi = Mathf.Max(12f, Screen.width * 0.006f);
-        padUi = Mathf.Max(24f, Screen.width * 0.01f);
-        headerUi = Mathf.Max(56f, Screen.height * 0.05f);
-        footerUi = Mathf.Max(24f, Screen.height * 0.02f);
-
-        float maxWidth = Screen.width * 0.92f;
-        float maxHeight = Screen.height * 0.92f;
-        float slotByWidth = (maxWidth - padUi * 2f - gapUi * (GridColumns - 1)) / GridColumns;
-        float slotByHeight = (maxHeight - headerUi - footerUi - gapUi * (GridRows - 1)) / GridRows;
-        slotSizeUi = Mathf.Max(140f, Mathf.Min(slotByWidth, slotByHeight));
-
-        float gridWidth = GridColumns * slotSizeUi + (GridColumns - 1) * gapUi;
-        float gridHeight = GridRows * slotSizeUi + (GridRows - 1) * gapUi;
-        float width = gridWidth + padUi * 2f;
-        float height = headerUi + gridHeight + footerUi;
-
-        Color prevContent = GUI.contentColor;
-        GUI.contentColor = Color.white;
-
-        inventoryRect = new Rect((Screen.width - width) * 0.5f, (Screen.height - height) * 0.5f, width, height);
-        GUI.Box(inventoryRect, "Inventory", inventoryTitleStyle);
-
-        for (int row = 0; row < GridRows; row++)
-        {
-            for (int col = 0; col < GridColumns; col++)
-            {
-                int index = row * GridColumns + col;
-                float x = inventoryRect.x + padUi + col * (slotSizeUi + gapUi);
-                float y = inventoryRect.y + headerUi + row * (slotSizeUi + gapUi);
-                int hotkey = row == 0 ? col + 1 : 0;
-                DrawSlot(new Rect(x, y, slotSizeUi, slotSizeUi), slots[index], hotkey, index == selectedHotbar);
-            }
-        }
-
-        GUI.contentColor = prevContent;
-    }
-
-    void DrawHotbar()
-    {
-        EnsureInventoryStyles();
-        float size = Mathf.Clamp(Screen.height * 0.09f, 64f, 110f);
-        float gap = 8f;
-        float total = GridColumns * size + (GridColumns - 1) * gap;
-        float x0 = (Screen.width - total) * 0.5f;
-        float y = Screen.height - size - 18f;
-        for (int i = 0; i < GridColumns; i++)
-            DrawSlot(new Rect(x0 + i * (size + gap), y, size, size), slots[i], i + 1, i == selectedHotbar);
-    }
-
-    void DrawSlot(Rect rect, Slot slot, int hotkey, bool selected)
-    {
-        Color prev = GUI.color;
-        if (selected)
-        {
-            GUI.color = new Color(0.95f, 0.78f, 0.2f, 1f);
-            GUI.Box(new Rect(rect.x - 4f, rect.y - 4f, rect.width + 8f, rect.height + 8f), GUIContent.none);
-        }
-
-        GUI.color = slot.count > 0 ? ItemColor(slot.kind) : new Color(0.24f, 0.24f, 0.24f, 1f);
-        GUI.Box(rect, GUIContent.none);
-        GUI.color = prev;
-
-        if (hotkey > 0)
-            GUI.Label(new Rect(rect.x + 8f, rect.y + rect.height - 28f, 36f, 24f), hotkey.ToString(), inventoryTextStyle);
-
-        if (slot.count <= 0)
-            return;
-
-        GUI.Label(new Rect(rect.x + 8f, rect.y + 8f, rect.width - 16f, 24f), ItemShortName(slot.kind), inventoryTextStyle);
-        if (!IsWeapon(slot.kind))
-            GUI.Label(new Rect(rect.x + 8f, rect.y + rect.height - 30f, rect.width - 16f, 24f), slot.count.ToString(), inventoryCountStyle);
-    }
-
-    void DrawDraggedSlot(Vector2 mouse)
-    {
-        if (!dragging || draggedSlot.count <= 0)
-            return;
-
-        float preview = Mathf.Clamp(slotSizeUi * 0.85f, 92f, 180f);
-        Rect rect = new Rect(mouse.x - preview * 0.5f, mouse.y - preview * 0.5f, preview, preview);
-        Slot previewSlot = draggedSlot;
-        DrawSlot(rect, previewSlot, 0, false);
-    }
-
-    void HandleInventoryDrag(Event e)
-    {
-        if (e == null)
-            return;
-
-        if (e.type == EventType.MouseDown && e.button == 0)
-        {
-            int index = SlotIndexAtPoint(e.mousePosition);
-            if (index >= 0 && slots[index].count > 0)
-            {
-                dragging = true;
-                draggedSlot = slots[index];
-                dragFromIndex = index;
-                slots[index] = default;
-                RecalculatePublicCounts();
-                e.Use();
-            }
-            return;
-        }
-
-        if (!dragging)
-            return;
-
-        if (e.type == EventType.MouseUp && e.button == 0)
-        {
-            int target = SlotIndexAtPoint(e.mousePosition);
-            if (target >= 0)
-                PlaceDraggedIntoSlot(target);
-            else if (!inventoryRect.Contains(e.mousePosition))
-                DropDraggedStack();
-            else
-                ReturnDraggedToSource();
-
-            e.Use();
-        }
-    }
-
-    int SlotIndexAtPoint(Vector2 point)
-    {
-        if (!inventoryRect.Contains(point))
-            return -1;
-
-        float localX = point.x - (inventoryRect.x + padUi);
-        float localY = point.y - (inventoryRect.y + headerUi);
-        if (localX < 0f || localY < 0f)
-            return -1;
-
-        int col = Mathf.FloorToInt(localX / (slotSizeUi + gapUi));
-        int row = Mathf.FloorToInt(localY / (slotSizeUi + gapUi));
-        if (col < 0 || col >= GridColumns || row < 0 || row >= GridRows)
-            return -1;
-
-        float offsetX = localX - col * (slotSizeUi + gapUi);
-        float offsetY = localY - row * (slotSizeUi + gapUi);
-        if (offsetX > slotSizeUi || offsetY > slotSizeUi)
-            return -1;
-
-        return row * GridColumns + col;
     }
 
     void PlaceDraggedIntoSlot(int target)
@@ -618,7 +487,7 @@ public class Inventory : MonoBehaviour
             return;
         }
 
-        int stackCap = IsWeapon(targetSlot.kind) ? 1 : maxStackSize;
+        int stackCap = IsGear(targetSlot.kind) ? 1 : maxStackSize;
         if (targetSlot.kind == draggedSlot.kind && targetSlot.count < stackCap)
         {
             int move = Mathf.Min(stackCap - targetSlot.count, draggedSlot.count);
@@ -642,7 +511,7 @@ public class Inventory : MonoBehaviour
 
     void DropDraggedStack()
     {
-        if (IsWeapon(draggedSlot.kind))
+        if (IsGear(draggedSlot.kind))
         {
             ReturnDraggedToSource();
             ShowNotice("That stays in the bag.");
@@ -688,6 +557,8 @@ public class Inventory : MonoBehaviour
                 return "Rifle";
             case ItemKind.Sniper:
                 return "Sniper";
+            case ItemKind.Axe:
+                return "Axe";
             default:
                 return "";
         }
@@ -733,7 +604,10 @@ public class Inventory : MonoBehaviour
         {
             ItemKind kind = slots[selectedHotbar].kind;
             weapon = ToWeapon(kind);
-            line = weapon == HuntWeapon.None ? ItemShortName(kind) : WeaponNotice(weapon);
+            if (kind == ItemKind.Axe)
+                line = AxeSwing.HasAxe ? "Hand axe. Click or E to chop, right-click to throw." : "Your axe is out there. Walk over it to pick it up.";
+            else
+                line = weapon == HuntWeapon.None ? ItemShortName(kind) : WeaponNotice(weapon);
         }
 
         if (PlayerShotgun.Instance != null)
@@ -747,6 +621,30 @@ public class Inventory : MonoBehaviour
     {
         if (Keyboard.current == null || dragging || BirdChallenge.Active || WoodBuilder.IsBuilding || NearTrader())
             return;
+
+        // With the bag open, 1-5 over a slot puts that item on the key instead of selecting it.
+        if (inventoryOpen && hoverIndex >= 0)
+        {
+            int key = -1;
+            if (Keyboard.current.digit1Key.wasPressedThisFrame) key = 0;
+            else if (Keyboard.current.digit2Key.wasPressedThisFrame) key = 1;
+            else if (Keyboard.current.digit3Key.wasPressedThisFrame) key = 2;
+            else if (Keyboard.current.digit4Key.wasPressedThisFrame) key = 3;
+            else if (Keyboard.current.digit5Key.wasPressedThisFrame) key = 4;
+            if (key >= 0)
+            {
+                if (key != hoverIndex)
+                {
+                    Slot moved = slots[hoverIndex];
+                    slots[hoverIndex] = slots[key];
+                    slots[key] = moved;
+                    RecalculatePublicCounts();
+                    ApplySelectedWeapon(false);
+                }
+                detailIndex = key;
+                return;
+            }
+        }
 
         if (Keyboard.current.digit1Key.wasPressedThisFrame)
             SelectHotbar(0, true);
@@ -764,6 +662,12 @@ public class Inventory : MonoBehaviour
     {
         return Trader.Instance != null
             && Vector3.Distance(Trader.Instance.transform.position, PlayerView.Position()) <= Trader.Instance.tradeRange;
+    }
+
+    /// <summary>One-of-a-kind items that never stack or drop: the guns and the axe.</summary>
+    static bool IsGear(ItemKind kind)
+    {
+        return IsWeapon(kind) || kind == ItemKind.Axe;
     }
 
     static bool IsWeapon(ItemKind kind)
@@ -799,41 +703,6 @@ public class Inventory : MonoBehaviour
             default:
                 return "Empty hands.";
         }
-    }
-
-    void EnsureInventoryStyles()
-    {
-        if (inventoryTextStyle != null)
-            return;
-
-        inventoryTextStyle = new GUIStyle(GUI.skin.label);
-        inventoryTextStyle.fontSize = 20;
-        inventoryTextStyle.normal.textColor = Color.white;
-        inventoryTextStyle.hover.textColor = Color.white;
-        inventoryTextStyle.active.textColor = Color.white;
-        inventoryTextStyle.focused.textColor = Color.white;
-        inventoryTextStyle.onNormal.textColor = Color.white;
-        inventoryTextStyle.onHover.textColor = Color.white;
-        inventoryTextStyle.onActive.textColor = Color.white;
-        inventoryTextStyle.onFocused.textColor = Color.white;
-        inventoryTextStyle.alignment = TextAnchor.UpperLeft;
-
-        inventoryCountStyle = new GUIStyle(inventoryTextStyle);
-        inventoryCountStyle.fontSize = 24;
-        inventoryCountStyle.fontStyle = FontStyle.Bold;
-        inventoryCountStyle.alignment = TextAnchor.UpperRight;
-
-        inventoryTitleStyle = new GUIStyle(GUI.skin.box);
-        inventoryTitleStyle.fontSize = 26;
-        inventoryTitleStyle.alignment = TextAnchor.UpperCenter;
-        inventoryTitleStyle.normal.textColor = Color.white;
-        inventoryTitleStyle.hover.textColor = Color.white;
-        inventoryTitleStyle.active.textColor = Color.white;
-        inventoryTitleStyle.focused.textColor = Color.white;
-        inventoryTitleStyle.onNormal.textColor = Color.white;
-        inventoryTitleStyle.onHover.textColor = Color.white;
-        inventoryTitleStyle.onActive.textColor = Color.white;
-        inventoryTitleStyle.onFocused.textColor = Color.white;
     }
 
     void DropItemToWorld(ItemKind kind, int amount)

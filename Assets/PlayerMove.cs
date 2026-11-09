@@ -107,15 +107,18 @@ public class PlayerMove : MonoBehaviour
         float lookScale = 1f;
         if (PlayerShotgun.IsAiming)
             lookScale = Mathf.Lerp(1f, Mathf.Clamp(PlayerShotgun.AimFovScale, 0.18f, 1f), PlayerShotgun.Mount);
-        Vector2 look = Mouse.current.delta.ReadValue() * mouseSensitivity * lookScale;
+        Vector2 look = Mouse.current.delta.ReadValue() * mouseSensitivity * lookScale * GameSettings.Sensitivity;
+        if (GameSettings.InvertY)
+            look.y = -look.y;
         Transform yawRoot = RideableHorse.Mounted != null ? RideableHorse.Mounted.transform : transform;
         yawRoot.Rotate(0f, look.x, 0f);
 
         bool firstPerson = views == null || views.IsFirstPerson;
         xRotation -= look.y;
         xRotation = Mathf.Clamp(xRotation, firstPerson ? -85f : -80f, firstPerson ? 85f : 70f);
+        Vector2 sway = ScopeSteady.Tick(Time.deltaTime, firstPerson, Keyboard.current.leftShiftKey.isPressed);
         if (firstPerson && cam != null)
-            cam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+            cam.localRotation = Quaternion.Euler(xRotation + sway.x, sway.y, 0f);
 
         if (Frozen)
         {
@@ -249,7 +252,7 @@ public class PlayerMove : MonoBehaviour
             return;
 
         surfaceTimer = 0.4f;
-        SurfaceNoise = SampleSurface(transform.position);
+        SurfaceNoise = SampleSurface(transform.position) * HuntProgress.FootstepNoise;
     }
 
     static float SampleSurface(Vector3 position)

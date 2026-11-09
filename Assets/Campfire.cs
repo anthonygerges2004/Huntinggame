@@ -47,7 +47,7 @@ public class Campfire : MonoBehaviour
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
 
-        if (Keyboard.current == null)
+        if (Keyboard.current == null || GamePause.Active)
             return;
 
         if (Keyboard.current[fireKey].wasPressedThisFrame)

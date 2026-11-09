@@ -26,7 +26,7 @@ public class Trader : MonoBehaviour
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
 
-        if (Keyboard.current == null)
+        if (Keyboard.current == null || GamePause.Active)
             return;
 
         if (Vector3.Distance(transform.position, PlayerView.Position()) > tradeRange)

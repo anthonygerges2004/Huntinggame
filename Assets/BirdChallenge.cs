@@ -9,6 +9,13 @@ public class BirdChallenge : MonoBehaviour
     public static bool Active { get; private set; }
     public static bool Won { get; private set; }
 
+    /// <summary>Where the bird cage stands, for the compass.</summary>
+    public static bool TryGetCage(out Vector3 point)
+    {
+        point = Instance != null ? Instance.cagePoint : Vector3.zero;
+        return Instance != null && Instance.cagePoint != Vector3.zero;
+    }
+
     public int birdsToWin = 5;
     public int maxShots = 8;
     public float timeLimit = 60f;
@@ -74,7 +81,7 @@ public class BirdChallenge : MonoBehaviour
 
     void Update()
     {
-        if (!ready || player == null || Keyboard.current == null)
+        if (!ready || player == null || Keyboard.current == null || GamePause.Active)
             return;
 
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)

@@ -29,6 +29,7 @@ public static class AnimalVisuals
             FixAnimalShading(animal.gameObject);
             EnsureAvatar(animal.gameObject, animal.kind);
             FitCollider(animal);
+            AnimalGrounding.Ensure(animal);
             return;
         }
 
@@ -48,6 +49,7 @@ public static class AnimalVisuals
         FixAnimalShading(visual);
         EnsureAvatar(visual, animal.kind);
         FitCollider(animal);
+        AnimalGrounding.Ensure(animal);
     }
 
     static void FixAnimalShading(GameObject visual)

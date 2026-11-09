@@ -6,10 +6,12 @@ public static class GameCulling
     public const float MainCameraFarClip = 2000f;
     public const float MinimapCameraFarClip = 500f;
 
-    public const float TerrainTreeDistance = 650f;
-    public const float TerrainTreeBillboard = 220f;
-    public const float TerrainDetailDistance = 80f;
-    public const float TerrainDetailDensity = 0.6f;
+    // Billboards closer than ~500 m read as blurry flat cards, which made the whole
+    // forest look low-resolution. Keep real 3D trees out to a sensible range.
+    public const float TerrainTreeDistance = 1500f;
+    public const float TerrainTreeBillboard = 550f;
+    public const float TerrainDetailDistance = 110f;
+    public const float TerrainDetailDensity = 0.8f;
     public const float TerrainPixelError = 5f;
     public const float TerrainBasemapDistance = 1200f;
 

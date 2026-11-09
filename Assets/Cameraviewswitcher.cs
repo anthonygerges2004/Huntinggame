@@ -123,6 +123,9 @@ public class CameraViewSwitcher : MonoBehaviour
     float savedFov = -1f;
     float aimFov;
 
+    /// <summary>The unzoomed field of view the camera returns to when not aiming.</summary>
+    public float BaseFov => savedFov > 1f ? savedFov : (playerCamera != null ? playerCamera.fieldOfView : 70f);
+
     void ApplyAimZoom()
     {
         if (playerCamera == null)
@@ -130,6 +133,9 @@ public class CameraViewSwitcher : MonoBehaviour
 
         if (savedFov < 1f)
             savedFov = playerCamera.fieldOfView;
+        // The pause menu FOV slider overrides the scene's camera once the player has set it.
+        if (GameSettings.Fov > 1f)
+            savedFov = GameSettings.Fov;
 
         float zoom = PlayerShotgun.AimFovScale;
         playerCamera.fieldOfView = Mathf.Lerp(savedFov, savedFov * zoom, aimFov);
@@ -384,7 +390,7 @@ public class CameraViewSwitcher : MonoBehaviour
         if (weaponRenderers == null)
             return;
 
-        bool axeOut = AxeSwing.HasAxe && !PlayerShotgun.IsEquipped;
+        bool axeOut = AxeSwing.HasAxe && !PlayerShotgun.IsEquipped && Inventory.AxeInHand;
         SetRenderersEnabled(weaponRenderers, isFirstPerson && axeOut);
         SetRenderersEnabled(handAxeRenderers, !isFirstPerson && axeOut);
     }

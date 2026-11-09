@@ -15,8 +15,11 @@ using UnityEngine.InputSystem;
 //   under that   a small "H Controls" tag; H opens the key list
 //   centre        crosshair that tightens while aiming
 //   full screen   red vignette on damage and at low health
-public class GameHUD : MonoBehaviour
+public partial class GameHUD : MonoBehaviour
 {
+    public static GameHUD Instance { get; private set; }
+    public TMP_FontAsset HudFont => font;
+
     [Tooltip("Optional: any TMP text whose font the HUD should use. It is hidden at runtime.")]
     public TMP_Text hudText;
 
@@ -94,6 +97,8 @@ public class GameHUD : MonoBehaviour
     TMP_Text infoText;
     const float CompassWidth = 480f;
     const float PixelsPerDegree = 3.4f;
+    const float StripHeight = 46f;
+    RectTransform compassStrip;
 
     TMP_Text meatCount, meatTimer, cookedCount, spoiledCount, woodCount;
     RectTransform meatSpoilFill;
@@ -110,6 +115,7 @@ public class GameHUD : MonoBehaviour
     CanvasGroup controlsHintGroup;
     bool controlsVisible;
     float challengesHeight;
+    int challengesDone;
 
     RectTransform crosshairRoot;
     RectTransform crossLeft, crossRight, crossTop, crossBottom;
@@ -119,6 +125,11 @@ public class GameHUD : MonoBehaviour
 
     // ---------------------------------------------------------------- lifecycle
 
+    void Awake()
+    {
+        Instance = this;
+    }
+
     void Start()
     {
         TryBuild();
@@ -126,8 +137,14 @@ public class GameHUD : MonoBehaviour
 
     void OnDestroy()
     {
+        if (Instance == this)
+            Instance = null;
+        if (GamePause.Active)
+            GamePause.Set(false);
         if (canvas != null)
             Destroy(canvas.gameObject);
+        if (pauseCanvas != null)
+            Destroy(pauseCanvas.gameObject);
     }
 
     void Update()
@@ -146,6 +163,7 @@ public class GameHUD : MonoBehaviour
         rootGroup.alpha = Mathf.MoveTowards(rootGroup.alpha, hidden ? 0f : 1f, dt * 6f);
 
         HandleControlsToggle();
+        UpdatePause(dt);
 
         UpdateVitals(dt);
         UpdateCompass();
@@ -153,6 +171,8 @@ public class GameHUD : MonoBehaviour
         UpdateChallenges();
         UpdateControls(dt);
         UpdateCrosshair(dt);
+        UpdateHunt(dt);
+        UpdateCareer(dt);
     }
 
     void TryBuild()
@@ -176,6 +196,11 @@ public class GameHUD : MonoBehaviour
         BuildChallenges();
         BuildControls();
         BuildCrosshair();
+        BuildHunt();
+        BuildPause();
+        BuildCareer();
+        if (GetComponent<HuntExtras>() == null)
+            gameObject.AddComponent<HuntExtras>();
 
         built = true;
     }
@@ -249,7 +274,7 @@ public class GameHUD : MonoBehaviour
             statusDots[i].color = statusList[i].color;
             float w = 24f + statusTexts[i].preferredWidth + 12f;
             statusPills[i].rectTransform.sizeDelta = new Vector2(w, 26f);
-            statusPills[i].rectTransform.anchoredPosition = new Vector2(x, Margin + vitalsHeight + 8f);
+            statusPills[i].rectTransform.anchoredPosition = new Vector2(x, Margin + vitalsHeight + 8f + CareerStripHeight + 8f);
             x += w + 6f;
         }
     }
@@ -363,10 +388,11 @@ public class GameHUD : MonoBehaviour
         GameObject groupGo = new GameObject("Compass", typeof(RectTransform), typeof(CanvasGroup));
         groupGo.transform.SetParent(canvas.transform, false);
         RectTransform group = groupGo.GetComponent<RectTransform>();
-        Place(group, new Vector2(0.5f, 1f), new Vector2(0f, -Margin + 6f), new Vector2(CompassWidth, 80f), new Vector2(0.5f, 1f));
+        Place(group, new Vector2(0.5f, 1f), new Vector2(0f, -Margin + 6f), new Vector2(CompassWidth, 92f), new Vector2(0.5f, 1f));
         compassGroup = groupGo.GetComponent<CanvasGroup>();
 
-        RectTransform bar = Panel(group, "Strip", new Vector2(0.5f, 1f), Vector2.zero, new Vector2(CompassWidth, 34f), PanelColor, 8f);
+        RectTransform bar = Panel(group, "Strip", new Vector2(0.5f, 1f), Vector2.zero, new Vector2(CompassWidth, StripHeight), PanelColor, 8f);
+        compassStrip = bar;
         bar.pivot = new Vector2(0.5f, 1f);
         bar.anchoredPosition = Vector2.zero;
         bar.gameObject.AddComponent<RectMask2D>();
@@ -380,7 +406,7 @@ public class GameHUD : MonoBehaviour
             GameObject go = new GameObject("Mark" + a, typeof(RectTransform));
             go.transform.SetParent(bar, false);
             RectTransform rect = go.GetComponent<RectTransform>();
-            Place(rect, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40f, 34f), new Vector2(0.5f, 0.5f));
+            Place(rect, new Vector2(0.5f, 0.5f), new Vector2(0f, 6f), new Vector2(40f, 30f), new Vector2(0.5f, 0.5f));
 
             List<Graphic> graphics = new List<Graphic>();
             if (cardinal || inter)
@@ -405,15 +431,15 @@ public class GameHUD : MonoBehaviour
 
         // Centre marker: a small gold notch hanging under the strip.
         Image notch = Img(group, "Notch", roundSprite, Gold, 1.5f);
-        Place(notch.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(3f, 10f), new Vector2(0.5f, 1f));
+        Place(notch.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -StripHeight + 4f), new Vector2(3f, 10f), new Vector2(0.5f, 1f));
 
         headingText = Text(group, "000", 12f, Gold, TextAlignmentOptions.Center, true);
         headingText.characterSpacing = 4f;
-        Place(headingText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -42f), new Vector2(80f, 14f), new Vector2(0.5f, 1f));
+        Place(headingText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -StripHeight - 8f), new Vector2(80f, 14f), new Vector2(0.5f, 1f));
 
         infoText = Text(group, "", 15f, TextMain, TextAlignmentOptions.Center, false);
         infoText.richText = true;
-        Place(infoText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(CompassWidth + 200f, 20f), new Vector2(0.5f, 1f));
+        Place(infoText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -StripHeight - 24f), new Vector2(CompassWidth + 200f, 20f), new Vector2(0.5f, 1f));
     }
 
     void UpdateCompass()
@@ -436,7 +462,7 @@ public class GameHUD : MonoBehaviour
             if (!visible)
                 continue;
 
-            m.rect.anchoredPosition = new Vector2(x, 0f);
+            m.rect.anchoredPosition = new Vector2(x, 6f);
             float fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(half * 0.6f, half, Mathf.Abs(x)));
             for (int g = 0; g < m.graphics.Length; g++)
             {
@@ -460,7 +486,8 @@ public class GameHUD : MonoBehaviour
         bool night = day != null && day.IsNight;
         string phaseHex = night ? "#9FB8FF" : "#F5C466";
 
-        string line = "<color=" + phaseHex + "><b>" + phase + "</b></color>";
+        string line = (day != null ? "<color=#8C8C86>DAY </color><b>" + day.Day + "</b><color=#8C8C86>   ·   </color>" : "")
+                      + "<color=" + phaseHex + "><b>" + phase + "</b></color>";
         if (WorldWeather.Instance != null)
             line += "<color=#8C8C86>   ·   </color>" + WorldWeather.Instance.Label;
 
@@ -486,16 +513,6 @@ public class GameHUD : MonoBehaviour
             SurvivalStats stats = SurvivalStats.Current;
             if (night && !Campfire.PlayerIsSafe() && stats != null && stats.Cold)
                 line += "<color=#8C8C86>   ·   </color><color=#FF6A5C><b>FIND A FIRE</b></color>";
-        }
-
-        if (MountainHermit.Instance != null && !MountainHermit.HasMetPlayer)
-        {
-            float dist = MountainHermit.DistanceFromPlayer();
-            if (dist < 250f)
-            {
-                int meters = Mathf.RoundToInt(dist);
-                line += "<color=#8C8C86>   ·   </color><color=#F5C466><b>HERMIT " + meters + "m</b></color>";
-            }
         }
 
         return line;
@@ -617,10 +634,10 @@ public class GameHUD : MonoBehaviour
 
     void BuildChallenges()
     {
-        const float width = 300f;
+        const float width = 320f;
         const float rowH = 24f;
         const float pad = 16f;
-        float height = pad + 18f + 12f + rowH * 5f + pad - 6f;
+        float height = pad + 18f + 12f + rowH * 5f + pad - 6f + ContractsBlockHeight;
         challengesHeight = height;
 
         RectTransform panel = Panel(canvas.transform, "Challenges", new Vector2(1f, 1f), new Vector2(-Margin, -Margin),
@@ -660,11 +677,14 @@ public class GameHUD : MonoBehaviour
             Place(row.label.rectTransform, new Vector2(0f, 1f), new Vector2(pad + 20f, y), new Vector2(width - pad * 2f - 20f, 16f), new Vector2(0f, 1f));
             challenges[i] = row;
         }
+
+        BuildContractRows(panel, width, pad, -pad - 36f - rowH * tasks.Length - 10f);
     }
 
     void UpdateChallenges()
     {
         challengeGroup.alpha = BirdChallenge.Active ? 0.35f : 1f;
+        UpdateContractRows();
 
         HuntChallenges hc = HuntChallenges.Instance;
         bool[] done =
@@ -694,6 +714,7 @@ public class GameHUD : MonoBehaviour
             row.label.color = done[i] ? TextDim : TextMain;
         }
 
+        challengesDone = count;
         string countText = count + " / 5";
         if (challengeCount.text != countText)
             challengeCount.text = countText;
@@ -711,7 +732,9 @@ public class GameHUD : MonoBehaviour
         {
             { "F", "Light fire" }, { "C", "Cook" }, { "Q", "Eat" }, { "X", "Bait" }, { "E", "Chop" },
             { "B", "Build" }, { "G", "Inventory" }, { "1-5", "Hotbar" }, { "RMB", "Aim" }, { "LMB", "Fire" },
-            { "Z", "Drink" }, { "Trader", "1 2 3" }, { "V", "Camera" }, { "T", "Challenge" },
+            { "Z", "Drink" }, { "R", "Reload" }, { "Shift", "Steady aim" }, { "V", "Camera" },
+            { "T", "Bird cage" }, { "Y", "Sniper post" }, { "Trader", "1 2 3" }, { "Esc", "Pause" },
+            { "Tab", "Instinct" }, { "P", "Photo" }, { "J", "Journal" },
         };
 
         const float width = 300f;
@@ -749,19 +772,21 @@ public class GameHUD : MonoBehaviour
             int row = i % rows;
             float x = pad + col * colW;
             float y = -pad - 28f - row * rowH;
-            KeyCap(card, keys[i, 0], new Vector2(x, y));
+            float capW = KeyCap(card, keys[i, 0], new Vector2(x, y));
+            float textX = Mathf.Max(46f, capW + 8f);
             TMP_Text action = Text(card, keys[i, 1], 14f, TextMain, TextAlignmentOptions.MidlineLeft, false);
-            Place(action.rectTransform, new Vector2(0f, 1f), new Vector2(x + 46f, y), new Vector2(colW - 46f, 20f), new Vector2(0f, 1f));
+            Place(action.rectTransform, new Vector2(0f, 1f), new Vector2(x + textX, y), new Vector2(colW - textX, 20f), new Vector2(0f, 1f));
         }
     }
 
-    void KeyCap(Transform parent, string key, Vector2 topLeft)
+    float KeyCap(Transform parent, string key, Vector2 topLeft)
     {
-        float w = key.Length > 1 ? 38f : 22f;
+        float w = key.Length > 1 ? Mathf.Max(38f, key.Length * 8f + 8f) : 22f;
         Image cap = Img(parent, "Key_" + key, roundSprite, new Color(0.93f, 0.91f, 0.86f, 0.95f), 4f);
         Place(cap.rectTransform, new Vector2(0f, 1f), topLeft, new Vector2(w, 20f), new Vector2(0f, 1f));
         TMP_Text label = Text(cap.rectTransform, key, 11.5f, new Color(0.08f, 0.08f, 0.09f), TextAlignmentOptions.Center, true);
         Stretch(label.rectTransform);
+        return w;
     }
 
     void HandleControlsToggle()
@@ -818,7 +843,7 @@ public class GameHUD : MonoBehaviour
 
     void UpdateCrosshair(float dt)
     {
-        bool show = !Inventory.IsOpen && !WoodBuilder.IsBuilding;
+        bool show = !Inventory.IsOpen && !WoodBuilder.IsBuilding && !PlayerShotgun.ScopeIsUp;
         if (crosshairRoot.gameObject.activeSelf != show)
             crosshairRoot.gameObject.SetActive(show);
 

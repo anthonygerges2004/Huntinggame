@@ -45,6 +45,7 @@ public class Animal : MonoBehaviour
     Transform skull;
     Transform chestBone;
     Transform rearBone;
+    string lastHitPlace = "";
     float dropTime;
     Quaternion standRotation;
     Quaternion laidRotation;
@@ -99,6 +100,7 @@ public class Animal : MonoBehaviour
     {
         ApplyKindFromName();
         AnimalVisuals.Attach(this);
+        AnimalTrophy.Roll(this);
         homePos = WorldGround.Snap(transform.position);
         if (kind != AnimalKind.Bird)
             transform.position = homePos;
@@ -594,6 +596,7 @@ public class Animal : MonoBehaviour
         }
 
         ShotPlace place = Classify(point);
+        lastHitPlace = place.ToString();
         float amount = DamageFor(place);
         hideLeft -= amount;
         BeginWound(place, point);
@@ -610,6 +613,7 @@ public class Animal : MonoBehaviour
             return;
         }
 
+        HuntFeedback.Hit(lastHitPlace);
         if (Inventory.Instance != null)
             Inventory.Instance.ShowNotice(WoundLine(place, amount));
     }
@@ -794,7 +798,13 @@ public class Animal : MonoBehaviour
             return;
 
         dead = true;
+        if (kind != AnimalKind.Bird)
+            meatAmount += HuntProgress.BonusMeat;
         LeaveBlood(transform.position);
+        float killDistance = shotDistance > 0.1f
+            ? shotDistance
+            : Vector3.Distance(PlayerView.Position(), transform.position);
+        HuntFeedback.Kill(this, lastHitPlace, killDistance, meatAmount);
 
         HuntChallenges.ReportKill(this);
         DeerChallenge.NotifyKill(this, sniperVital, shotDistance);
@@ -844,14 +854,22 @@ public class Animal : MonoBehaviour
         if (flatShot.sqrMagnitude < 0.001f)
             flatShot = transform.forward;
         flatShot.Normalize();
-        Vector3 axis = Vector3.Cross(Vector3.up, flatShot);
-        if (axis.sqrMagnitude < 0.001f)
-            axis = transform.right;
+
+        // Always roll onto a side, never pitch over the nose or tail. Pitching around the
+        // feet pivot lifted the hindquarters a metre into the air on front and back shots.
+        Vector3 along = transform.forward;
+        along.y = 0f;
+        if (along.sqrMagnitude < 0.001f)
+            along = Vector3.forward;
+        along.Normalize();
+        Vector3 right = Vector3.Cross(Vector3.up, along);
+        // A positive roll about forward tips the back toward the left, so fall away from the shot.
+        float roll = Vector3.Dot(flatShot, right) >= 0f ? -84f : 84f;
 
         standRotation = transform.rotation;
-        laidRotation = Quaternion.AngleAxis(80f, axis.normalized) * standRotation;
+        laidRotation = Quaternion.AngleAxis(roll, along) * standRotation;
         fallFrom = transform.position;
-        fallTo = WorldGround.Snap(transform.position) + Vector3.up * 0.2f;
+        fallTo = WorldGround.Snap(transform.position) + Vector3.up * 0.28f;
         dropTime = 0f;
         dropping = true;
     }

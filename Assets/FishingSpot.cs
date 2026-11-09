@@ -46,7 +46,7 @@ public class FishingSpot : MonoBehaviour
 
     void Update()
     {
-        if (player == null || cam == null || Keyboard.current == null)
+        if (player == null || cam == null || Keyboard.current == null || GamePause.Active)
             return;
 
         if ((PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) || BirdChallenge.Active)

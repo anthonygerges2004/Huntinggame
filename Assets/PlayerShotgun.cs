@@ -18,6 +18,27 @@ public class PlayerShotgun : MonoBehaviour
     public static bool ScopeIsUp => Instance != null && Instance.equipped && Instance.active != null
         && Instance.active.scope && Instance.mount > 0.72f;
 
+    public static bool IsReloading => Instance != null && Instance.equipped && Instance.reloading;
+    public static string ActiveLabel => Instance != null && Instance.equipped && Instance.active != null
+        ? Instance.active.label
+        : "";
+
+    /// <summary>0 at the start of a reload, 1 when the gun is ready again.</summary>
+    public static float Reload01
+    {
+        get
+        {
+            if (Instance == null || !Instance.reloading)
+                return 1f;
+            return Mathf.Clamp01(Instance.fireTime / Instance.ReloadSeconds());
+        }
+    }
+
+    float ReloadSeconds()
+    {
+        return active == null || active.id == HuntWeapon.Shotgun ? 1.38f : 0.7f;
+    }
+
     public int pellets = 24;
     public float spreadAngle = 10f;
     public float range = 120f;
@@ -108,6 +129,12 @@ public class PlayerShotgun : MonoBehaviour
             && (PlayerHealth.Instance == null || !PlayerHealth.Instance.isDead);
         aimHeld = canAim && Mouse.current != null && Mouse.current.rightButton.isPressed;
 
+        // R tops the gun up early instead of waiting for it to run dry.
+        if (canAim && !reloading && active != null && shells < active.magSize
+            && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame
+            && (fireTime < 0f || fireTime > 0.18f))
+            StartReload();
+
         TickAction(Time.deltaTime);
     }
 
@@ -145,8 +172,7 @@ public class PlayerShotgun : MonoBehaviour
 
         if (reloading)
         {
-            bool shotgun = active == null || active.id == HuntWeapon.Shotgun;
-            float done = shotgun ? 1.38f : 0.7f;
+            float done = ReloadSeconds();
             if (fireTime < 0.20f)
                 breakOpen = 0f;
             else if (fireTime < done * 0.45f)
@@ -296,6 +322,7 @@ public class PlayerShotgun : MonoBehaviour
         mount = 1f;
         recoil = 1f;
         DeerChallenge.CountShot();
+        HuntFeedback.ShotFired();
         shells--;
         if (active != null)
             active.ammo = shells;
@@ -304,7 +331,8 @@ public class PlayerShotgun : MonoBehaviour
         WildlifeAlarm.NotifyShot(PlayerView.Position());
         Flash();
         FirePellets();
-        if (Inventory.Instance != null)
+        // The HUD weapon panel shows the rounds left, so only the empty gun needs a word.
+        if (Inventory.Instance != null && shells <= 0)
             Inventory.Instance.ShowNotice(ShotLine());
 
         if (shells <= 0)

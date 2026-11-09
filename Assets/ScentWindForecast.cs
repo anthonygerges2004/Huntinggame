@@ -12,6 +12,11 @@ public class ScentWindForecast : MonoBehaviour
 
     void OnGUI()
     {
+        // The HUD now shows wind all the time next to the compass. This old box sat on top of
+        // the vitals panel, so it only draws when there is no HUD.
+        if (GameHUD.Instance != null)
+            return;
+
         if (Inventory.IsOpen || BirdChallenge.Active)
             return;
 
