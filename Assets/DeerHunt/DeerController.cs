@@ -110,6 +110,9 @@ namespace DeerHunt
 
         void Start()
         {
+            // Keep the hooves on the terrain (the nav mesh sits above it on slopes).
+            if (GetComponent<AnimalGrounding>() == null)
+                gameObject.AddComponent<AnimalGrounding>();
             PlayerController body = FindAnyObjectByType<PlayerController>();
             player = body != null ? body.transform : null;
             if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 6f, NavMesh.AllAreas))

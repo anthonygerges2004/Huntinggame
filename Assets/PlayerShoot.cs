@@ -16,7 +16,9 @@ public class PlayerShoot : MonoBehaviour
         if (Inventory.IsOpen)
             return;
 
-        if (!Mouse.current.leftButton.wasPressedThisFrame)
+        bool held = Mouse.current.leftButton.isPressed && PlayerShotgun.IsEquipped
+            && PlayerShotgun.Instance != null && PlayerShotgun.Instance.IsAutomatic && !BirdChallenge.Active;
+        if (!Mouse.current.leftButton.wasPressedThisFrame && !held)
             return;
 
         if (WoodBuilder.IsBuilding)

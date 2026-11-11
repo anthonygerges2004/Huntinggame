@@ -102,6 +102,16 @@ public class HuntExtras : MonoBehaviour
         BuildHeart();
     }
 
+    void OnEnable()
+    {
+        // After a script reload the overlay canvas survives but its markers are lost: rebuild it.
+        if (canvas == null || markers.Count > 0)
+            return;
+        Destroy(canvas.gameObject);
+        canvas = null;
+        BuildUi();
+    }
+
     void Update()
     {
         if (canvas == null)

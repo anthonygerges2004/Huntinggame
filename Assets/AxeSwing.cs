@@ -83,6 +83,7 @@ public class AxeSwing : MonoBehaviour
     {
         if (Inventory.IsOpen || WoodBuilder.IsBuilding || BirdChallenge.Active || PlayerShotgun.IsEquipped || !Inventory.AxeInHand) return false;
         if (RideableHorse.BlocksAxeSwing() || MountainHermit.InTalkRange()) return false;
+        if (AnimalCarcass.PlayerNear) return false; // E is for the carcass at your feet
 #if ENABLE_INPUT_SYSTEM
         var kb = Keyboard.current; var ms = Mouse.current;
         return (swingOnE && kb != null && kb.eKey.wasPressedThisFrame)

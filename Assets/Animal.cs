@@ -53,6 +53,7 @@ public class Animal : MonoBehaviour
     Transform chestBone;
     Transform rearBone;
     string lastHitPlace = "";
+    int hitsTaken; // every hit marks the hide; three or more costs the pelt a grade
     float dropTime;
     Quaternion standRotation;
     Vector3 fallFrom;
@@ -676,6 +677,7 @@ public class Animal : MonoBehaviour
 
         ShotPlace place = PlaceOf(point);
         lastHitPlace = place.ToString();
+        hitsTaken++;
         if (killingBlow || kind != AnimalKind.Deer)
         {
             FinishKill(shotDirection, false, 0f, place);
@@ -968,10 +970,12 @@ public class Animal : MonoBehaviour
             return;
         }
 
-        MeatPickup.Spawn(transform.position, meatAmount);
+        // The animal stays as a carcass: take it to the tanner whole, or skin it on the spot.
+        HuntWeapon weapon = PlayerShotgun.Instance != null ? PlayerShotgun.Instance.Equipped : HuntWeapon.None;
+        AnimalCarcass.Create(this, HuntGoods.FromAnimal(this, lastHitPlace, weapon, killDistance, hitsTaken));
         BeginDrop(shotDirection, place);
         if (Inventory.Instance != null)
-            Inventory.Instance.ShowNotice(DownedLine());
+            Inventory.Instance.ShowNotice(DownedLine() + "  Walk up to it: E takes the carcass, hold E skins it.");
     }
 
     void BeginDrop(Vector3 shotDirection, ShotPlace place)

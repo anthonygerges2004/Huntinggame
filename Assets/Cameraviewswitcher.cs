@@ -53,6 +53,8 @@ public class CameraViewSwitcher : MonoBehaviour
     private Vector3 followVelocity;
     private float orbitPitch;
     private float currentDistance;
+    const float ShoulderDistance = 3.3f;
+    const float ShoulderOffset = 0.48f;
     private PlayerMove playerMove;
 
     private void Awake()
@@ -69,13 +71,8 @@ public class CameraViewSwitcher : MonoBehaviour
         if (playerCamera != null)
             cameraParent = playerCamera.transform.parent;
         orbitPitch = thirdPersonPitch;
-        currentDistance = Mathf.Clamp(followDistance, minDistance, maxDistance);
-        if (thirdPersonPoint != null)
-        {
-            float z = Mathf.Abs(thirdPersonPoint.localPosition.z);
-            if (z > 1.5f)
-                currentDistance = Mathf.Clamp(Mathf.Max(followDistance, z), minDistance, maxDistance);
-        }
+        // Over-the-shoulder framing: close enough that the hunter fills the shot (scroll to zoom out).
+        currentDistance = Mathf.Clamp(Mathf.Min(followDistance, ShoulderDistance), minDistance, maxDistance);
 
         CacheWeaponRenderers();
         CreateHandAxe();
@@ -162,10 +159,12 @@ public class CameraViewSwitcher : MonoBehaviour
 
         float aim = aimFov;
         float height = Mathf.Lerp(lookHeight, lookHeight + 0.12f, aim);
-        float distance = Mathf.Lerp(currentDistance, Mathf.Min(currentDistance, 2.35f), aim);
+        float distance = Mathf.Lerp(currentDistance, Mathf.Min(currentDistance, 2.0f), aim);
         Vector3 lookPoint = transform.position + Vector3.up * height;
         Quaternion orbit = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
-        Vector3 pivot = lookPoint + Vector3.up * 0.2f;
+        // The camera sits over the right shoulder, so the crosshair has a clear line past the hunter.
+        float shoulder = Mathf.Lerp(ShoulderOffset, ShoulderOffset + 0.12f, aim);
+        Vector3 pivot = lookPoint + Vector3.up * 0.2f + transform.right * shoulder;
         Vector3 desired = ResolveCollision(pivot, pivot + orbit * Vector3.back * distance);
 
         Vector3 smoothed = Vector3.SmoothDamp(cam.position, desired, ref followVelocity, followSmooth);
@@ -195,7 +194,7 @@ public class CameraViewSwitcher : MonoBehaviour
         orbitPitch = Mathf.Clamp(ReadLookPitch(), minPitch, maxPitch);
         Vector3 lookPoint = transform.position + Vector3.up * lookHeight;
         Quaternion orbit = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
-        Vector3 pivot = lookPoint + Vector3.up * 0.2f;
+        Vector3 pivot = lookPoint + Vector3.up * 0.2f + transform.right * ShoulderOffset;
         Vector3 desired = pivot + orbit * Vector3.back * currentDistance;
         cam.position = ResolveCollision(pivot, desired);
         cam.rotation = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
@@ -359,7 +358,7 @@ public class CameraViewSwitcher : MonoBehaviour
                 continue;
             if (playerCamera != null && r.transform.IsChildOf(playerCamera.transform))
                 continue;
-            if (UnderName(r.transform, "HandAxe") || UnderName(r.transform, "FallingAxe") || UnderName(r.transform, "Shotgun") || UnderName(r.transform, "Rifle") || UnderName(r.transform, "Sniper"))
+            if (UnderName(r.transform, "HandAxe") || UnderName(r.transform, "FallingAxe") || UnderName(r.transform, "Shotgun") || UnderName(r.transform, "Rifle") || UnderName(r.transform, "Sniper") || UnderName(r.transform, "Pistol") || UnderName(r.transform, "SMG"))
                 continue;
             found.Add(r);
         }

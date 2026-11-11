@@ -124,7 +124,8 @@ public partial class GameHUD
             ("Accuracy", () => HuntFeedback.ShotsFired > 0
                 ? Mathf.RoundToInt(HuntFeedback.Accuracy01 * 100f) + "%  (" + HuntFeedback.ShotsLanded + " of " + HuntFeedback.ShotsFired + ")"
                 : "—"),
-            ("Meat harvested", () => HuntFeedback.MeatTaken.ToString()),
+            ("Pelts sold", () => HuntProgress.PeltsSold.ToString()),
+            ("Coins earned", () => HuntProgress.CoinsEarned.ToString()),
             ("Challenges", () => challengesDone + " / 5"),
         };
 

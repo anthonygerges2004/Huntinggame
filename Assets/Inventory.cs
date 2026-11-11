@@ -19,13 +19,18 @@ public partial class Inventory : MonoBehaviour
         Shotgun,
         Rifle,
         Sniper,
-        Axe
+        Axe,
+        Carcass,
+        Pelt,
+        Pistol,
+        SMG
     }
 
     struct Slot
     {
         public ItemKind kind;
         public int count;
+        public HuntGoods goods; // carcasses and pelts: the one animal this slot holds
     }
 
     public static Inventory Instance;
@@ -54,7 +59,21 @@ public partial class Inventory : MonoBehaviour
     public float lighterSeconds;
     bool toldLighterExpired;
 
-    public bool LighterWorks => ownsLighter || (rentedLighter && lighterSeconds > 0f);
+    [Tooltip("Starter matches: each lights one fire, so the first nights are survivable before a lighter is bought.")]
+    public int matches = 3;
+    public bool LighterLit => ownsLighter || (rentedLighter && lighterSeconds > 0f);
+    public bool LighterWorks => LighterLit || matches > 0;
+
+    /// <summary>Uses a match if there is no working lighter. Returns a line to show, or null.</summary>
+    public string StrikeFire()
+    {
+        if (LighterLit || matches <= 0)
+            return null;
+        matches--;
+        return matches > 0
+            ? "Struck a match. " + matches + (matches == 1 ? " match" : " matches") + " left."
+            : "That was your last match. Buy or rent a lighter at the castle gun shop.";
+    }
     public bool LighterDueBack => rentedLighter && !ownsLighter;
 
     public const float LighterRentSeconds = 180f;
@@ -125,10 +144,9 @@ public partial class Inventory : MonoBehaviour
         if (GetComponent<GunAdvisor>() == null)
             gameObject.AddComponent<GunAdvisor>();
 
-        slots[0] = new Slot { kind = ItemKind.Shotgun, count = 1 };
-        slots[1] = new Slot { kind = ItemKind.Rifle, count = 1 };
-        slots[2] = new Slot { kind = ItemKind.Sniper, count = 1 };
-        slots[3] = new Slot { kind = ItemKind.Axe, count = 1 };
+        // You start with a pistol and the axe; every other gun is bought at the castle gun shop.
+        slots[0] = new Slot { kind = ItemKind.Pistol, count = 1 };
+        slots[1] = new Slot { kind = ItemKind.Axe, count = 1 };
         selectedHotbar = 0;
 
         int startMeat = meat;
@@ -190,6 +208,9 @@ public partial class Inventory : MonoBehaviour
             PlaceOneBait();
 
         TryHotbarKeys();
+        TickGoods();
+        if (!inventoryOpen)
+            AnimalCarcass.Tick(this);
 
         if (meat <= 0)
         {
@@ -527,7 +548,7 @@ public partial class Inventory : MonoBehaviour
             return;
         }
 
-        int stackCap = IsGear(targetSlot.kind) ? 1 : maxStackSize;
+        int stackCap = IsSingle(targetSlot.kind) ? 1 : maxStackSize;
         if (targetSlot.kind == draggedSlot.kind && targetSlot.count < stackCap)
         {
             int move = Mathf.Min(stackCap - targetSlot.count, draggedSlot.count);
@@ -551,6 +572,13 @@ public partial class Inventory : MonoBehaviour
 
     void DropDraggedStack()
     {
+        if (IsGoods(draggedSlot.kind))
+        {
+            ReturnDraggedToSource();
+            ShowNotice("Sell it to the tanner, or use Discard in its details.");
+            return;
+        }
+
         if (IsGear(draggedSlot.kind))
         {
             ReturnDraggedToSource();
@@ -597,8 +625,16 @@ public partial class Inventory : MonoBehaviour
                 return "Rifle";
             case ItemKind.Sniper:
                 return "Sniper";
+            case ItemKind.Pistol:
+                return "Pistol";
+            case ItemKind.SMG:
+                return "SMG";
             case ItemKind.Axe:
                 return "Axe";
+            case ItemKind.Carcass:
+                return "Carcass";
+            case ItemKind.Pelt:
+                return "Pelt";
             default:
                 return "";
         }
@@ -622,6 +658,10 @@ public partial class Inventory : MonoBehaviour
                 return new Color(0.36f, 0.24f, 0.14f, 1f);
             case ItemKind.Sniper:
                 return new Color(0.12f, 0.16f, 0.20f, 1f);
+            case ItemKind.Pistol:
+                return new Color(0.22f, 0.22f, 0.24f, 1f);
+            case ItemKind.SMG:
+                return new Color(0.18f, 0.20f, 0.18f, 1f);
             default:
                 return new Color(0.24f, 0.24f, 0.24f, 1f);
         }
@@ -775,6 +815,10 @@ public partial class Inventory : MonoBehaviour
             kind = ItemKind.Rifle;
         else if (weapon == HuntWeapon.Sniper)
             kind = ItemKind.Sniper;
+        else if (weapon == HuntWeapon.Pistol)
+            kind = ItemKind.Pistol;
+        else if (weapon == HuntWeapon.SMG)
+            kind = ItemKind.SMG;
         if (kind == ItemKind.None)
             return false;
 
@@ -848,7 +892,7 @@ public partial class Inventory : MonoBehaviour
 
     static bool IsWeapon(ItemKind kind)
     {
-        return kind == ItemKind.Shotgun || kind == ItemKind.Rifle || kind == ItemKind.Sniper;
+        return kind == ItemKind.Shotgun || kind == ItemKind.Rifle || kind == ItemKind.Sniper || kind == ItemKind.Pistol || kind == ItemKind.SMG;
     }
 
     static HuntWeapon ToWeapon(ItemKind kind)
@@ -861,6 +905,10 @@ public partial class Inventory : MonoBehaviour
                 return HuntWeapon.Rifle;
             case ItemKind.Sniper:
                 return HuntWeapon.Sniper;
+            case ItemKind.Pistol:
+                return HuntWeapon.Pistol;
+            case ItemKind.SMG:
+                return HuntWeapon.SMG;
             default:
                 return HuntWeapon.None;
         }
@@ -870,12 +918,16 @@ public partial class Inventory : MonoBehaviour
     {
         switch (weapon)
         {
+            case HuntWeapon.Pistol:
+                return "Pistol. Twelve rounds, quick to draw.";
             case HuntWeapon.Shotgun:
-                return "Double barrel. Two shots, then it breaks open.";
+                return "Combat shotgun. Six shells of buckshot.";
+            case HuntWeapon.SMG:
+                return "SMG. Hold the trigger for full auto.";
             case HuntWeapon.Rifle:
-                return "Hunting rifle. Five rounds.";
+                return "Assault rifle. Thirty rounds, full auto.";
             case HuntWeapon.Sniper:
-                return "Sniper. Hold right mouse for the scope.";
+                return "Sniper rifle. Hold right mouse for the scope.";
             default:
                 return "Empty hands.";
         }

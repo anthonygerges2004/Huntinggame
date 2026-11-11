@@ -245,6 +245,55 @@ public class MountainHermit : MonoBehaviour
         var shape = ps.shape;
         shape.shapeType = ParticleSystemShapeType.Circle;
         shape.radius = 0.2f;
+
+        // Without a material the particle renderer falls back to a shader URP cannot draw (pink squares).
+        // Soft grey puffs that grow and fade as they rise.
+        var size = ps.sizeOverLifetime;
+        size.enabled = true;
+        size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.6f, 1f, 2.2f));
+        var colour = ps.colorOverLifetime;
+        colour.enabled = true;
+        Gradient fade = new Gradient();
+        fade.SetKeys(
+            new[] { new GradientColorKey(new Color(0.78f, 0.78f, 0.76f), 0f), new GradientColorKey(new Color(0.62f, 0.62f, 0.60f), 1f) },
+            new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(0.55f, 0.15f), new GradientAlphaKey(0f, 1f) });
+        colour.color = fade;
+        ps.GetComponent<ParticleSystemRenderer>().sharedMaterial = SmokeMaterial();
+    }
+
+    static Material smokeMaterial;
+
+    static Material SmokeMaterial()
+    {
+        if (smokeMaterial != null)
+            return smokeMaterial;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        smokeMaterial = new Material(shader != null ? shader : Shader.Find("Sprites/Default")) { name = "HermitSmoke" };
+        const int n = 64;
+        Texture2D puff = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        var px = new Color[n * n];
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(n * 0.5f, n * 0.5f)) / (n * 0.5f);
+                float a = Mathf.Clamp01(1f - d);
+                px[y * n + x] = new Color(1f, 1f, 1f, a * a * (0.8f + 0.2f * Mathf.PerlinNoise(x * 0.2f, y * 0.2f)));
+            }
+        puff.SetPixels(px);
+        puff.Apply();
+        smokeMaterial.SetTexture("_BaseMap", puff);
+        smokeMaterial.mainTexture = puff;
+        // Transparent, alpha-blended.
+        smokeMaterial.SetFloat("_Surface", 1f);
+        smokeMaterial.SetFloat("_Blend", 0f);
+        smokeMaterial.SetOverrideTag("RenderType", "Transparent");
+        smokeMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        smokeMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        smokeMaterial.SetInt("_ZWrite", 0);
+        smokeMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        smokeMaterial.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        return smokeMaterial;
     }
 
     void SpawnHorse(Vector3 hermitPos)
@@ -374,9 +423,27 @@ public class MountainHermit : MonoBehaviour
         return tips[pick];
     }
 
+    // With the HUD up, the hints float over the hermit instead of sitting in the middle of the screen.
+    void LateUpdate()
+    {
+        GameHUD hud = GameHUD.Instance;
+        if (hud == null || Inventory.IsOpen || BirdChallenge.Active)
+            return;
+
+        Vector3 head = transform.position + Vector3.up * 2.4f;
+        if (IsPlayerNear(hintRange))
+            hud.ShowWorldTag(head, "THE HERMIT", "E  ask for advice");
+        else if (!HasMetPlayer)
+        {
+            float dist = DistanceFromPlayer();
+            if (dist < 220f)
+                hud.ShowWorldTag(head + Vector3.up * 3f, "HERMIT  ·  " + Mathf.RoundToInt(dist) + " m", "Gold post and smoke");
+        }
+    }
+
     void OnGUI()
     {
-        if (Inventory.IsOpen || BirdChallenge.Active)
+        if (GameHUD.Instance != null || Inventory.IsOpen || BirdChallenge.Active)
             return;
 
         if (!HasMetPlayer)

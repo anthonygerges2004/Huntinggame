@@ -25,16 +25,20 @@ public class AmbientGame : MonoBehaviour
         GameObject tent = GameObject.Find("FCP_Tent_Type1_Color1");
         Vector3 camp = WorldGround.Snap(tent != null ? tent.transform.position : transform.position);
 
-        Spawn(QuarryKind.Pig, Ring(camp, 96f, 0.4f));
-        Spawn(QuarryKind.Pig, Ring(camp, 104f, 0.7f));
-        Spawn(QuarryKind.Pig, Ring(camp, 112f, 1.1f));
-        Spawn(QuarryKind.Boar, Ring(camp, 128f, 2.2f));
-        Spawn(QuarryKind.Rabbit, Ring(camp, 88f, 3.1f));
-        Spawn(QuarryKind.Rabbit, Ring(camp, 94f, 3.6f));
-        Spawn(QuarryKind.Rabbit, Ring(camp, 102f, 4.2f));
-        Spawn(QuarryKind.Fox, Ring(camp, 118f, 5.1f));
-        Spawn(QuarryKind.Fox, Ring(camp, 136f, 5.8f));
-        Spawn(QuarryKind.Wolf, Ring(camp, 150f, 0.15f));
+        // Close enough to see from camp at the start (they were 90-150 m out, usually behind trees).
+        Spawn(QuarryKind.Pig, Ring(camp, 42f, 0.4f));
+        Spawn(QuarryKind.Pig, Ring(camp, 46f, 0.6f));
+        Spawn(QuarryKind.Pig, Ring(camp, 50f, 0.85f));
+        Spawn(QuarryKind.Boar, Ring(camp, 64f, 2.2f));
+        Spawn(QuarryKind.Boar, Ring(camp, 72f, 4.6f));
+        Spawn(QuarryKind.Rabbit, Ring(camp, 34f, 3.1f));
+        Spawn(QuarryKind.Rabbit, Ring(camp, 37f, 3.4f));
+        Spawn(QuarryKind.Rabbit, Ring(camp, 40f, 1.6f));
+        Spawn(QuarryKind.Rabbit, Ring(camp, 44f, 5.5f));
+        Spawn(QuarryKind.Fox, Ring(camp, 58f, 5.1f));
+        Spawn(QuarryKind.Fox, Ring(camp, 66f, 1.3f));
+        Spawn(QuarryKind.Wolf, Ring(camp, 90f, 0.15f));
+        Spawn(QuarryKind.Wolf, Ring(camp, 96f, 3.9f));
     }
 
     static void Spawn(QuarryKind kind, Vector3 position)

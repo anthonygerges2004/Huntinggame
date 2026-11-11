@@ -4,7 +4,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Five stalls in the castle courtyard: guns, clothes, wood, meat, and a butcher who cooks.
+/// Four stalls in the castle courtyard, each with a keeper: guns, clothes, a tanner who skins
+/// carcasses and buys pelts (the main source of coins), and a butcher who cooks.
+/// Food and timber are sold at the Castle town market just outside (VillageMarket), so they
+/// are not repeated here.
 /// </summary>
 public class CastleMarket : MonoBehaviour
 {
@@ -52,11 +55,11 @@ public class CastleMarket : MonoBehaviour
         float z = Mathf.Clamp(-3f * step, -10f, -2f);
         float y = floorY;
 
-        Add(root.transform, CastleShop.Kind.Guns, -2f * gap, y, z, range);
-        Add(root.transform, CastleShop.Kind.Clothes, -gap, y, z, range);
-        Add(root.transform, CastleShop.Kind.Wood, 0f, y, z, range);
-        Add(root.transform, CastleShop.Kind.Meat, gap, y, z, range);
-        Add(root.transform, CastleShop.Kind.Butchery, 2f * gap, y, z, range);
+        // Narrower than the old five-stall row, so every stall stands clear of the walls.
+        Add(root.transform, CastleShop.Kind.Guns, -1.5f * gap, y, z, range);
+        Add(root.transform, CastleShop.Kind.Clothes, -0.5f * gap, y, z, range);
+        Add(root.transform, CastleShop.Kind.Tanner, 0.5f * gap, y, z, range);
+        Add(root.transform, CastleShop.Kind.Butchery, 1.5f * gap, y, z, range);
 
         MarkPlaced(root.transform);
     }
@@ -135,8 +138,17 @@ public class CastleShop : MonoBehaviour
         Clothes,
         Wood,
         Meat,
-        Butchery
+        Butchery,
+        Tanner
     }
+
+    /// <summary>Goods are bought with coins at the old wood prices times this.</summary>
+    public const int CoinRate = 3;
+
+    /// <summary>Stalls that sell goods for coins and take bargaining. Wood barters; the tanner buys; the butcher cooks.</summary>
+    bool Sells => ShopKind == Kind.Guns || ShopKind == Kind.Clothes || ShopKind == Kind.Meat;
+
+    int CoinPrice(int cost) => Price(cost) * CoinRate;
 
     static readonly List<CastleShop> Shops = new List<CastleShop>();
 
@@ -174,7 +186,7 @@ public class CastleShop : MonoBehaviour
                 nextKeeperStrike = Time.time + 1.5f;
                 punchUntil = Time.time + 0.4f;
                 health.TakeDamage(5f, "Overdue lighter rental");
-                Notice("Return my lighter! Press 6 at the gun shop, or buy it with 5.");
+                Notice("Return my lighter! Press 6 at the gun shop, or buy it.");
             }
         }
         if (Time.time < punchUntil && lighterKeeper.armR != null)
@@ -231,10 +243,11 @@ public class CastleShop : MonoBehaviour
 
     void Update()
     {
+        PushHud();
         if (!Ready() || Keyboard.current == null)
             return;
 
-        if (Keyboard.current.nKey.wasPressedThisFrame && ShopKind != Kind.Wood && ShopKind != Kind.Butchery) { Bargain(); return; }
+        if (Keyboard.current.nKey.wasPressedThisFrame && Sells) { Bargain(); return; }
         if (ShopKind == Kind.Guns)
             TickGuns();
         else if (ShopKind == Kind.Clothes)
@@ -243,10 +256,47 @@ public class CastleShop : MonoBehaviour
             TickWood();
         else if (ShopKind == Kind.Meat)
             TickMeat();
+        else if (ShopKind == Kind.Tanner)
+            TickTanner();
+    }
+
+    /// <summary>Sends the stall menu (or the gun-shop sign) to the HUD, which draws it in the game's style.</summary>
+    void PushHud()
+    {
+        GameHUD hud = GameHUD.Instance;
+        if (hud == null)
+            return;
+
+        if (!Ready())
+        {
+            if (ShopKind == Kind.Guns && !Inventory.IsOpen)
+            {
+                float distance = Vector3.Distance(PlayerView.Position(), transform.position);
+                if (distance < 65f)
+                    hud.ShowWorldTag(transform.position + Vector3.up * 2.8f, "GUN SHOP  " + Mathf.RoundToInt(distance) + " m",
+                                     "Weapons  ·  Ammo  ·  Lighters");
+            }
+            return;
+        }
+
+        string status = "";
+        if (Sells)
+            status = Time.time < bargainUntil && discount > 0f
+                ? "<color=#8FDB75>DEAL ACTIVE  ·  " + Mathf.RoundToInt(discount * 100f) + "% OFF</color>"
+                : "N  BARGAIN FOR A DISCOUNT";
+        string[] lines = OfferLines();
+        if (Sells)
+            for (int n = 0; n < lines.Length; n++)
+                lines[n] = System.Text.RegularExpressions.Regex.Replace(lines[n], @"\b(\d+) wood", m => CoinPrice(int.Parse(m.Groups[1].Value)) + " coins");
+        hud.ShowShop(Title(), status, lines);
     }
 
     void OnGUI()
     {
+        // With the HUD up, PushHud draws all of this in the game's style.
+        if (GameHUD.Instance != null)
+            return;
+
         if (!Ready())
         {
             if (ShopKind == Kind.Guns && Camera.main != null && !Inventory.IsOpen)
@@ -263,12 +313,12 @@ public class CastleShop : MonoBehaviour
         float y = Screen.height * 0.56f;
         float line = 22f * ScreenText.Scale;
         ScreenText.Centered(Title(), y, 26);
-        if (ShopKind != Kind.Wood && ShopKind != Kind.Butchery)
+        if (Sells)
             ScreenText.Centered("N: bargain | " + (Time.time < bargainUntil && discount > 0f ? "Deal active" : "Standard prices"), y - 24f * ScreenText.Scale, 18);
         string[] lines = OfferLines();
-        if (ShopKind != Kind.Wood && ShopKind != Kind.Butchery)
+        if (Sells)
             for (int n = 0; n < lines.Length; n++)
-                lines[n] = System.Text.RegularExpressions.Regex.Replace(lines[n], @"\b(\d+) wood", m => Price(int.Parse(m.Groups[1].Value)) + " wood");
+                lines[n] = System.Text.RegularExpressions.Regex.Replace(lines[n], @"\b(\d+) wood", m => CoinPrice(int.Parse(m.Groups[1].Value)) + " coins");
         for (int i = 0; i < lines.Length; i++)
             ScreenText.Centered(lines[i], y + line * (i + 1), 18);
     }
@@ -310,12 +360,16 @@ public class CastleShop : MonoBehaviour
     void TickGuns()
     {
         if (Keyboard.current.digit1Key.wasPressedThisFrame)
-            BuyCartridges(HuntWeapon.Shotgun, 8, 2, "shotgun");
+            GunOrAmmo(0);
         else if (Keyboard.current.digit2Key.wasPressedThisFrame)
-            BuyCartridges(HuntWeapon.Rifle, 6, 2, "rifle");
+            GunOrAmmo(1);
         else if (Keyboard.current.digit3Key.wasPressedThisFrame)
-            BuyCartridges(HuntWeapon.Sniper, 4, 3, "sniper");
+            GunOrAmmo(2);
         else if (Keyboard.current.digit4Key.wasPressedThisFrame)
+            GunOrAmmo(3);
+        else if (Keyboard.current.digit7Key.wasPressedThisFrame)
+            GunOrAmmo(4);
+        else if (Keyboard.current.digit8Key.wasPressedThisFrame)
             BuyHuntingGear();
         else if (Keyboard.current.digit5Key.wasPressedThisFrame)
             BuyLighter();
@@ -347,6 +401,83 @@ public class CastleShop : MonoBehaviour
             BuyMeat(false, 3);
         else if (Keyboard.current.digit2Key.wasPressedThisFrame)
             BuyMeat(true, 5);
+        else if (Keyboard.current.digit3Key.wasPressedThisFrame)
+            SellMeat(false, RawMeatPrice);
+        else if (Keyboard.current.digit4Key.wasPressedThisFrame)
+            SellMeat(true, CookedMeatPrice);
+    }
+
+    const int RawMeatPrice = 4;
+    const int CookedMeatPrice = 7;
+
+    void SellMeat(bool cooked, int coins)
+    {
+        Inventory inv = Inventory.Instance;
+        if (inv == null)
+            return;
+        if (!(cooked ? inv.SpendCooked(1) : inv.SpendRaw(1)))
+        {
+            Notice(cooked ? "No cooked meat to sell." : "No raw meat to sell.");
+            return;
+        }
+
+        inv.AddCoins(coins);
+        Notice("Sold " + (cooked ? "cooked" : "raw") + " meat for " + coins + " coins.");
+    }
+
+    // ---------------------------------------------------------------- tanner
+
+    void TickTanner()
+    {
+        Inventory inv = Inventory.Instance;
+        if (inv == null)
+            return;
+
+        if (Keyboard.current.digit1Key.wasPressedThisFrame)
+        {
+            int skinned = inv.SkinAllCarcasses(out int meat);
+            Notice(skinned == 0
+                ? "No carcasses to skin. Bring me whole animals: tap E on a kill to take it."
+                : "Skinned " + skinned + (skinned == 1 ? " carcass" : " carcasses") + ". The pelts and " + meat
+                  + " meat are in your bag. The butcher next door will cook the meat.");
+        }
+        else if (Keyboard.current.digit2Key.wasPressedThisFrame)
+        {
+            int earned = inv.SellAllPelts(out int sold);
+            Notice(sold == 0
+                ? "No pelts to sell."
+                : "Sold " + sold + (sold == 1 ? " pelt" : " pelts") + " for " + earned + " coins.");
+        }
+    }
+
+    string[] TannerLines()
+    {
+        Inventory inv = Inventory.Instance;
+        if (inv == null)
+            return new[] { "Bring me carcasses and pelts." };
+
+        var lines = new List<string>();
+        int carcasses = inv.CarcassCount;
+        int pelts = inv.PeltCount;
+        lines.Add(carcasses > 0
+            ? "1  Skin " + carcasses + (carcasses == 1 ? " carcass" : " carcasses") + " cleanly   free"
+            : "Bring whole carcasses and I skin them cleanly, for free.");
+        lines.Add(pelts > 0
+            ? "2  Sell " + pelts + (pelts == 1 ? " pelt" : " pelts") + "   +" + inv.TotalPeltValue() + " coins"
+            : "No pelts to sell yet.");
+
+        float now = Time.time;
+        List<HuntGoods> best = inv.PeltsByValue();
+        for (int i = 0; i < best.Count && i < 4; i++)
+        {
+            HuntGoods g = best[i];
+            string title = g.Title.Substring(0, 1) + g.Title.Substring(1).ToLowerInvariant();
+            lines.Add(title + " pelt · " + g.ConditionLabel.ToLowerInvariant() + "   worth " + g.PeltValue(now));
+        }
+
+        if (best.Count > 4)
+            lines.Add("…and " + (best.Count - 4) + " more");
+        return lines.ToArray();
     }
 
     void BuyCartridges(HuntWeapon weapon, int count, int cost, string label)
@@ -363,12 +494,88 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayWood(cost))
+        if (!Pay(cost))
             return;
 
         PlayerShotgun.Instance.AddCartridges(weapon, count);
         Notice("Bought " + count + " " + label + " cartridges. "
             + PlayerShotgun.Instance.CartridgeCount(weapon) + " carried.");
+    }
+
+    // The gun rack: key, weapon, gun price, ammo per box, ammo price (prices in coins).
+    struct GunOffer
+    {
+        public string key;
+        public HuntWeapon weapon;
+        public int gunCoins;
+        public int box;
+        public int boxCoins;
+        public string ammo;
+    }
+
+    static readonly GunOffer[] Rack =
+    {
+        new GunOffer { key = "1", weapon = HuntWeapon.Shotgun, gunCoins = 45, box = 8, boxCoins = 6, ammo = "shotgun shells" },
+        new GunOffer { key = "2", weapon = HuntWeapon.SMG, gunCoins = 70, box = 30, boxCoins = 8, ammo = "SMG rounds" },
+        new GunOffer { key = "3", weapon = HuntWeapon.Rifle, gunCoins = 110, box = 30, boxCoins = 10, ammo = "rifle rounds" },
+        new GunOffer { key = "4", weapon = HuntWeapon.Sniper, gunCoins = 160, box = 5, boxCoins = 9, ammo = "sniper rounds" },
+        new GunOffer { key = "7", weapon = HuntWeapon.Pistol, gunCoins = 20, box = 12, boxCoins = 3, ammo = "pistol rounds" },
+    };
+
+    void GunOrAmmo(int index)
+    {
+        Inventory inv = Inventory.Instance;
+        if (inv == null || PlayerShotgun.Instance == null)
+            return;
+        GunOffer o = Rack[index];
+        string name = WeaponVisual.DisplayName(o.weapon).ToLowerInvariant();
+        if (inv.OwnsWeapon(o.weapon))
+        {
+            if (PlayerShotgun.Instance.CartridgeCount(o.weapon) + o.box > 240)
+            {
+                Notice("You can't carry more " + o.ammo + ".");
+                return;
+            }
+            if (!PayCoins(o.boxCoins))
+                return;
+            PlayerShotgun.Instance.AddCartridges(o.weapon, o.box);
+            Notice("Bought " + o.box + " " + o.ammo + ". " + PlayerShotgun.Instance.CartridgeCount(o.weapon) + " carried.");
+            return;
+        }
+
+        if (!PayCoins(o.gunCoins))
+            return;
+        if (!inv.TryAddWeapon(o.weapon))
+        {
+            inv.RefundCoins(lastPaid);
+            Notice("Make room in the bag.");
+            return;
+        }
+        Notice("Bought the " + name + ". Find it in your bag (Tab) or press its hotbar number.");
+    }
+
+    bool PayCoins(int coins)
+    {
+        Inventory inv = Inventory.Instance;
+        if (inv == null)
+            return false;
+        if (inv.coins < coins)
+        {
+            Notice("Need " + coins + " coins. Sell pelts at the tanner.");
+            return false;
+        }
+        if (!inv.SpendCoins(coins))
+            return false;
+        lastPaid = coins;
+        return true;
+    }
+
+    static string RackLine(GunOffer o)
+    {
+        Inventory inv = Inventory.Instance;
+        if (inv != null && inv.OwnsWeapon(o.weapon))
+            return o.key + "  " + o.box + " " + o.ammo + "   " + o.boxCoins + " coins";
+        return o.key + "  " + WeaponVisual.DisplayName(o.weapon) + "   " + o.gunCoins + " coins";
     }
 
     void BuyHuntingGear()
@@ -377,13 +584,7 @@ public class CastleShop : MonoBehaviour
         if (inv == null)
             return;
 
-        if (!inv.OwnsWeapon(HuntWeapon.Shotgun))
-            BuyGun(HuntWeapon.Shotgun, 8, "shotgun");
-        else if (!inv.OwnsWeapon(HuntWeapon.Rifle))
-            BuyGun(HuntWeapon.Rifle, 10, "rifle");
-        else if (!inv.OwnsWeapon(HuntWeapon.Sniper))
-            BuyGun(HuntWeapon.Sniper, 14, "sniper");
-        else if (!inv.hasPickaxe)
+        if (!inv.hasPickaxe)
             BuyPickaxe();
         else
             BuyBait();
@@ -400,12 +601,12 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayWood(cost))
+        if (!Pay(cost))
             return;
 
         if (!inv.TryAddWeapon(weapon))
         {
-            inv.GiveWood(lastPaid);
+            inv.RefundCoins(lastPaid);
             Notice("Make room in the bag.");
             return;
         }
@@ -424,7 +625,7 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayWood(5))
+        if (!Pay(5))
             return;
 
         inv.hasPickaxe = true;
@@ -442,7 +643,7 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayWood(6))
+        if (!Pay(6))
             return;
 
         inv.BuyLighter();
@@ -467,12 +668,12 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayWood(2))
+        if (!Pay(2))
             return;
 
         if (!inv.BeginLighterRental())
         {
-            inv.GiveWood(lastPaid);
+            inv.RefundCoins(lastPaid);
             Notice("Return the rented lighter before taking another.");
             return;
         }
@@ -491,13 +692,13 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayWood(2))
+        if (!Pay(2))
             return;
 
         int bait = inv.GiveBait(3);
         if (bait <= 0)
         {
-            inv.GiveWood(lastPaid);
+            inv.RefundCoins(lastPaid);
             Notice("Make room for the bait.");
             return;
         }
@@ -516,7 +717,7 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayWood(6))
+        if (!Pay(6))
             return;
 
         body.GiveHuntingCoat();
@@ -534,7 +735,7 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayWood(5))
+        if (!Pay(5))
             return;
 
         body.GiveOilskin();
@@ -587,13 +788,13 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayWood(cost))
+        if (!Pay(cost))
             return;
 
         int got = cooked ? inv.GiveCooked(1) : inv.GiveRawMeat(1);
         if (got < 1)
         {
-            inv.GiveWood(lastPaid);
+            inv.RefundCoins(lastPaid);
             Notice("Make room in the bag.");
             return;
         }
@@ -601,19 +802,19 @@ public class CastleShop : MonoBehaviour
         Notice(cooked ? "Bought cooked meat." : "Bought raw meat. Cook it before it spoils.");
     }
 
-    bool PayWood(int cost)
+    bool Pay(int cost)
     {
-        cost = Price(cost);
+        cost = CoinPrice(cost);
         Inventory inv = Inventory.Instance;
         if (inv == null)
             return false;
-        if (inv.wood < cost)
+        if (inv.coins < cost)
         {
-            Notice("Need " + cost + " wood.");
+            Notice("Need " + cost + " coins. Sell pelts at the tanner.");
             return false;
         }
 
-        if (!inv.UseWood(cost)) return false;
+        if (!inv.SpendCoins(cost)) return false;
         lastPaid = cost;
         return true;
     }
@@ -632,6 +833,7 @@ public class CastleShop : MonoBehaviour
             case Kind.Clothes: return "CLOTHES";
             case Kind.Wood: return "TIMBER & FURNITURE";
             case Kind.Meat: return "MEAT MARKET";
+            case Kind.Tanner: return "TANNER";
             default: return "BUTCHERY";
         }
     }
@@ -642,10 +844,12 @@ public class CastleShop : MonoBehaviour
         {
             return new[]
             {
-                "1  8 shotgun shells   2 wood",
-                "2  6 rifle rounds   2 wood",
-                "3  4 sniper rounds   3 wood",
-                "4  " + GearLine(),
+                RackLine(Rack[0]),
+                RackLine(Rack[1]),
+                RackLine(Rack[2]),
+                RackLine(Rack[3]),
+                RackLine(Rack[4]),
+                "8  " + GearLine(),
                 LighterBuyLine(),
                 LighterRentLine()
             };
@@ -675,9 +879,14 @@ public class CastleShop : MonoBehaviour
             return new[]
             {
                 "1  Raw meat   3 wood",
-                "2  Cooked meat   5 wood"
+                "2  Cooked meat   5 wood",
+                "3  Sell 1 raw meat   +" + RawMeatPrice + " coins",
+                "4  Sell 1 cooked meat   +" + CookedMeatPrice + " coins"
             };
         }
+
+        if (ShopKind == Kind.Tanner)
+            return TannerLines();
 
         return new[] { "Press C to cook the raw meat you are carrying" };
     }
@@ -687,12 +896,6 @@ public class CastleShop : MonoBehaviour
         Inventory inv = Inventory.Instance;
         if (inv == null)
             return "Hunting supplies";
-        if (!inv.OwnsWeapon(HuntWeapon.Shotgun))
-            return "Shotgun   8 wood";
-        if (!inv.OwnsWeapon(HuntWeapon.Rifle))
-            return "Rifle   10 wood";
-        if (!inv.OwnsWeapon(HuntWeapon.Sniper))
-            return "Sniper   14 wood";
         if (!inv.hasPickaxe)
             return "Pickaxe   5 wood";
         return "Bait x3   2 wood";
@@ -732,17 +935,10 @@ public class CastleShop : MonoBehaviour
         Material cloth = Mat(roof, 0.1f);
 
         Box(transform, "Shop sign board", wood, new Vector3(0f, 2.35f, 0f), new Vector3(2.6f, 0.65f, 0.1f), false);
+        // One readable face on each side of the board; depth-tested so the back never bleeds through.
         for (int face = 0; face < 2; face++)
-        {
-            GameObject sign = new GameObject("Readable shop sign");
-            sign.transform.SetParent(transform, false);
-            sign.transform.localPosition = new Vector3(0f, 2.35f, face == 0 ? 0.065f : -0.065f);
-            sign.transform.localRotation = Quaternion.Euler(0f, face == 0 ? 180f : 0f, 0f);
-            TextMesh text = sign.AddComponent<TextMesh>();
-            text.text = Title(); text.anchor = TextAnchor.MiddleCenter;
-            text.alignment = TextAlignment.Center; text.fontSize = 64;
-            text.characterSize = 0.055f; text.color = new Color(1f, 0.87f, 0.58f);
-        }
+            SignText.Make(transform, Title(), new Vector3(0f, 2.35f, face == 0 ? 0.056f : -0.056f),
+                          Quaternion.Euler(0f, face == 0 ? 180f : 0f, 0f), new Vector2(2.4f, 0.5f), new Color(1f, 0.87f, 0.58f));
         Box(transform, "Counter front", wood, new Vector3(0f, 0.43f, 0.25f), new Vector3(1.7f, 0.8f, 0.1f), true);
         Box(transform, "Counter leg left", wood, new Vector3(-0.7f, 0.4f, 0f), new Vector3(0.12f, 0.8f, 0.5f), true);
         Box(transform, "Counter leg right", wood, new Vector3(0.7f, 0.4f, 0f), new Vector3(0.12f, 0.8f, 0.5f), true);
@@ -764,18 +960,22 @@ public class CastleShop : MonoBehaviour
         Box(transform, "Roof", roofMat, new Vector3(0f, 1.95f, 0.05f), new Vector3(1.9f, 0.06f, 1.15f), false);
         Box(transform, "Flag", cloth, new Vector3(0f, 2.25f, -0.28f), new Vector3(0.55f, 0.4f, 0.04f), false);
 
-        if (ShopKind == Kind.Guns)
+        // Every stall is staffed: the keeper stands behind the counter facing customers.
+        var palette = new Villager.Palette
         {
-            var palette = new Villager.Palette
-            {
-                skin = new[] { Mat(new Color(0.65f, 0.43f, 0.3f), 0.1f) },
-                cloth = new[] { cloth }, trousers = new[] { wood }, hair = new[] { wood },
-                dark = wood, straw = roofMat, metal = counterMat, wood = wood
-            };
-            lighterKeeper = Villager.Create(transform, transform.TransformPoint(new Vector3(0f, 0f, -0.8f)),
-                transform.rotation, Villager.Role.Shopkeeper, palette, new System.Random(47), "Gun shop owner");
-            lighterKeeper.snapToGround = false;
-        }
+            skin = new[] { Mat(KeeperSkin(), 0.1f) },
+            cloth = new[] { ShopKind == Kind.Guns ? cloth : Mat(KeeperCloth(), 0.1f) },
+            trousers = new[] { wood }, hair = new[] { wood },
+            dark = wood, straw = roofMat, metal = counterMat, wood = wood
+        };
+        Villager keeper = Villager.Create(transform, transform.TransformPoint(new Vector3(0f, 0f, -0.8f)),
+            transform.rotation, Villager.Role.Shopkeeper, palette, new System.Random(47 + (int)ShopKind * 13), KeeperName());
+        keeper.snapToGround = false;
+        if (ShopKind == Kind.Guns)
+            lighterKeeper = keeper;
+
+        if (ShopKind == Kind.Tanner)
+            BuildHides(wood);
 
         if (ShopKind == Kind.Guns)
             Box(transform, "Rifle", Mat(new Color(0.18f, 0.18f, 0.2f), 0.6f), new Vector3(0.1f, 0.98f, 0.05f), new Vector3(0.9f, 0.05f, 0.08f), false);
@@ -788,8 +988,58 @@ public class CastleShop : MonoBehaviour
         }
         else if (ShopKind == Kind.Meat)
             Box(transform, "Slab", Mat(new Color(0.55f, 0.16f, 0.14f), 0.2f), new Vector3(0f, 1.0f, 0.05f), new Vector3(0.55f, 0.1f, 0.35f), false);
-        else
+        else if (ShopKind == Kind.Butchery)
             BuildHearth();
+    }
+
+    string KeeperName()
+    {
+        switch (ShopKind)
+        {
+            case Kind.Guns: return "Gun shop owner";
+            case Kind.Clothes: return "Tailor";
+            case Kind.Wood: return "Carpenter";
+            case Kind.Meat: return "Meat seller";
+            case Kind.Tanner: return "Tanner";
+            default: return "Butcher";
+        }
+    }
+
+    Color KeeperSkin()
+    {
+        switch (ShopKind)
+        {
+            case Kind.Clothes: return new Color(0.86f, 0.68f, 0.55f);
+            case Kind.Tanner: return new Color(0.72f, 0.52f, 0.38f);
+            case Kind.Butchery: return new Color(0.55f, 0.38f, 0.27f);
+            default: return new Color(0.65f, 0.43f, 0.3f);
+        }
+    }
+
+    Color KeeperCloth()
+    {
+        switch (ShopKind)
+        {
+            case Kind.Clothes: return new Color(0.30f, 0.42f, 0.66f);
+            case Kind.Tanner: return new Color(0.42f, 0.30f, 0.20f);
+            case Kind.Butchery: return new Color(0.88f, 0.86f, 0.80f); // apron white
+            default: return new Color(0.45f, 0.32f, 0.20f);
+        }
+    }
+
+    // Hides stretched on a rack behind the counter, and one being scraped on it.
+    void BuildHides(Material wood)
+    {
+        Box(transform, "Hide rack", wood, new Vector3(0f, 1.62f, -1.05f), new Vector3(1.7f, 0.08f, 0.08f), false);
+        Color[] hides = { new Color(0.55f, 0.36f, 0.20f), new Color(0.78f, 0.44f, 0.18f), new Color(0.48f, 0.47f, 0.45f) };
+        for (int i = 0; i < hides.Length; i++)
+        {
+            float x = -0.55f + i * 0.55f;
+            Box(transform, "Hanging hide", Mat(hides[i], 0.05f), new Vector3(x, 1.22f, -1.05f), new Vector3(0.42f, 0.7f, 0.03f), false);
+        }
+
+        Box(transform, "Hide on counter", Mat(new Color(0.62f, 0.42f, 0.24f), 0.05f), new Vector3(0f, 0.95f, 0.02f),
+            new Vector3(0.8f, 0.03f, 0.5f), false);
     }
 
     void BuildHearth()
@@ -822,6 +1072,7 @@ public class CastleShop : MonoBehaviour
             case Kind.Clothes: return new Color(0.25f, 0.38f, 0.62f);
             case Kind.Wood: return new Color(0.45f, 0.28f, 0.14f);
             case Kind.Meat: return new Color(0.55f, 0.18f, 0.16f);
+            case Kind.Tanner: return new Color(0.50f, 0.36f, 0.20f);
             default: return new Color(0.42f, 0.28f, 0.18f);
         }
     }
@@ -834,6 +1085,7 @@ public class CastleShop : MonoBehaviour
             case Kind.Clothes: return new Color(0.55f, 0.32f, 0.38f);
             case Kind.Wood: return new Color(0.40f, 0.26f, 0.14f);
             case Kind.Meat: return new Color(0.72f, 0.7f, 0.64f);
+            case Kind.Tanner: return new Color(0.46f, 0.34f, 0.22f);
             default: return new Color(0.32f, 0.31f, 0.29f);
         }
     }

@@ -75,9 +75,17 @@ public class FurniturePlacement : MonoBehaviour
         Destroy(gameObject);
     }
 
+    void LateUpdate()
+    {
+        GameHUD hud = GameHUD.Instance;
+        if (hud == null || Inventory.IsOpen) return;
+        hud.ShowShop("WOODEN TABLE", canPlace ? "PLACE IT ON CLEAR, LEVEL GROUND" : "<color=#FF6A5C>FIND CLEAR, LEVEL GROUND</color>",
+                     new[] { "Enter  Buy and place   6 wood", "Backspace  Cancel" });
+    }
+
     void OnGUI()
     {
-        if (Inventory.IsOpen) return;
+        if (GameHUD.Instance != null || Inventory.IsOpen) return;
         ScreenText.Centered("WOODEN TABLE - 6 wood", Screen.height * 0.73f, 24);
         ScreenText.Centered("Enter: buy and place   |   Backspace: cancel", Screen.height * 0.78f, 18);
         if (!canPlace) ScreenText.Centered("Find clear, level ground", Screen.height * 0.82f, 18);

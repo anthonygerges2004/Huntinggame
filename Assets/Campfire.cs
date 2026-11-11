@@ -88,7 +88,7 @@ public class Campfire : MonoBehaviour
             if (Inventory.Instance.LighterDueBack)
                 Notice("The rented lighter's time is up. Return it to the gun shop.");
             else
-                Notice("You need a lighter. Buy or rent one at the castle gun shop.");
+                Notice("No lighter or matches left. Buy or rent a lighter at the castle gun shop.");
             return;
         }
 
@@ -106,6 +106,12 @@ public class Campfire : MonoBehaviour
 
         if (!CampfireBuild.Begin(this, woodCost))
             Inventory.Instance.GiveWood(woodCost);
+        else
+        {
+            string strike = Inventory.Instance.StrikeFire();
+            if (strike != null)
+                Notice(strike);
+        }
     }
 
     public void AdoptPile(GameObject pile)

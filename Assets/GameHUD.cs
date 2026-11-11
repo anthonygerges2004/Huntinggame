@@ -15,6 +15,8 @@ using UnityEngine.InputSystem;
 //   under that   a small "H Controls" tag; H opens the key list
 //   centre        crosshair that tightens while aiming
 //   full screen   red vignette on damage and at low health
+// Runs after gameplay scripts so the shop panel and world tags they ask for this frame are drawn this frame.
+[DefaultExecutionOrder(500)]
 public partial class GameHUD : MonoBehaviour
 {
     public static GameHUD Instance { get; private set; }
@@ -75,7 +77,9 @@ public partial class GameHUD : MonoBehaviour
     }
 
     TMP_FontAsset font;
-    bool built;
+    // Not kept across a script reload: after one, the helper objects behind the HUD are gone,
+    // so the HUD must know it is no longer built.
+    [System.NonSerialized] bool built;
     Canvas canvas;
     CanvasGroup rootGroup;
     Camera cam;
@@ -105,6 +109,9 @@ public partial class GameHUD : MonoBehaviour
     GameObject meatSpoilTrack;
     Image firePillBg, fireDot;
     TMP_Text fireLabel;
+    TMP_Text coinLabel;
+    int shownCoins = -1;
+    float coinFlash;
 
     TMP_Text challengeCount;
     RectTransform challengeProgress;
@@ -128,6 +135,17 @@ public partial class GameHUD : MonoBehaviour
     void Awake()
     {
         Instance = this;
+    }
+
+    void OnEnable()
+    {
+        // A script reload during play keeps the canvases but loses everything that drives them.
+        // Swap in a fresh HUD (OnDestroy clears the old canvases) instead of running half-built.
+        if (built || canvas == null)
+            return;
+        GameHUD fresh = gameObject.AddComponent<GameHUD>();
+        fresh.hudText = hudText;
+        Destroy(this);
     }
 
     void Start()
@@ -199,8 +217,11 @@ public partial class GameHUD : MonoBehaviour
         BuildHunt();
         BuildPause();
         BuildCareer();
+        BuildShop();
         if (GetComponent<HuntExtras>() == null)
             gameObject.AddComponent<HuntExtras>();
+        GameAudio.Ensure(gameObject);
+        CinematicLook.Ensure(gameObject);
 
         built = true;
     }
@@ -253,6 +274,7 @@ public partial class GameHUD : MonoBehaviour
             else if (stats.Cold) statusList.Add(("COLD", ColdColor));
             if (stats.Wet) statusList.Add(("WET", WaterColor));
             if (stats.Recovering) statusList.Add((stats.ByFire ? "RESTING" : "RECOVERING", GoodColor));
+            if (Inventory.TooHeavyToSprint) statusList.Add(("HEAVY LOAD", WarnColor));
         }
 
         string key = "";
@@ -563,6 +585,19 @@ public partial class GameHUD : MonoBehaviour
         fireLabel = Text(pill, "NO FIRE NEARBY", 12.5f, TextDim, TextAlignmentOptions.MidlineLeft, true);
         fireLabel.characterSpacing = 5f;
         Place(fireLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(28f, 0f), new Vector2(160f, 20f), new Vector2(0f, 0.5f));
+
+        // Coin purse, beside the fire pill: earned by selling pelts at the tanner.
+        RectTransform purse = Panel(canvas.transform, "Coins", new Vector2(1f, 0f), new Vector2(-Margin - 200f - 8f, Margin + height + 8f),
+                                    new Vector2(150f, 28f), PanelColor, 14f);
+        Image coin = Img(purse, "Coin", discSprite, Gold);
+        Place(coin.rectTransform, new Vector2(0f, 0.5f), new Vector2(12f, 0f), new Vector2(12f, 12f), new Vector2(0f, 0.5f));
+        Image coinRing = Img(coin.rectTransform, "Ring", ringSprite, new Color(0.55f, 0.38f, 0.10f, 0.9f));
+        Stretch(coinRing.rectTransform);
+        coinRing.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        coinLabel = Text(purse, "0", 13f, TextMain, TextAlignmentOptions.MidlineLeft, true);
+        coinLabel.characterSpacing = 4f;
+        coinLabel.richText = true;
+        Place(coinLabel.rectTransform, new Vector2(0f, 0.5f), new Vector2(32f, 0f), new Vector2(110f, 20f), new Vector2(0f, 0.5f));
     }
 
     TMP_Text MakeTile(RectTransform panel, string label, Color accent, float x, float y, float w, float h, out RectTransform tile)
@@ -610,6 +645,18 @@ public partial class GameHUD : MonoBehaviour
         {
             meatTimer.text = "";
         }
+
+        int purse = Inventory.Coins;
+        if (purse != shownCoins)
+        {
+            if (shownCoins >= 0 && purse > shownCoins)
+                coinFlash = 1f;
+            shownCoins = purse;
+            coinLabel.text = purse + "  <color=#8C8C86>COINS</color>";
+        }
+
+        coinFlash = Mathf.MoveTowards(coinFlash, 0f, Time.unscaledDeltaTime * 1.2f);
+        coinLabel.color = Color.Lerp(TextMain, Gold, coinFlash);
 
         bool fire = Campfire.PlayerIsSafe();
         string fireText = fire ? "WARM · BY THE FIRE" : "NO FIRE NEARBY";

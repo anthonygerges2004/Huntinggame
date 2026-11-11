@@ -69,17 +69,8 @@ public class VillageMarket : MonoBehaviour
         // Retain the original canopy, counter, baskets and crates; add a hanging identity sign.
         float signY = Mathf.Clamp(bounds.max.y - center.y - 0.4f, 1.8f, 3f);
         Box(decor, "Shop sign", new Vector3(0f, signY, front), new Vector3(2.3f, 0.5f, 0.09f), timber);
-        GameObject label = new GameObject("Shop name");
-        label.transform.SetParent(decor, false);
-        label.transform.localPosition = new Vector3(0f, signY, front + 0.06f);
-        label.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-        TextMesh text = label.AddComponent<TextMesh>();
-        text.text = food ? "FOOD MARKET" : "TIMBER & FURNITURE";
-        text.anchor = TextAnchor.MiddleCenter;
-        text.alignment = TextAlignment.Center;
-        text.fontSize = 48;
-        text.characterSize = 0.065f;
-        text.color = cream.color;
+        SignText.Make(decor, food ? "FOOD MARKET" : "TIMBER & FURNITURE", new Vector3(0f, signY, front + 0.05f),
+                      Quaternion.Euler(0f, 180f, 0f), new Vector2(2.1f, 0.42f), cream.color);
 
         // A compact goods shelf sits along the side of the existing stall.
         float side = Mathf.Clamp(bounds.extents.magnitude * 0.45f, 1.3f, 2f);

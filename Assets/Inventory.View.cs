@@ -21,7 +21,7 @@ public partial class Inventory
     // ---------------------------------------------------------------- layout
 
     const float WinW = 1100f;
-    const float WinH = 660f;
+    const float WinH = 708f;
     const float GridSlot = 84f;
     const float GridGap = 8f;
     const float BarSlot = 66f;
@@ -50,7 +50,7 @@ public partial class Inventory
         public TMP_Text value;
     }
 
-    bool viewBuilt;
+    [System.NonSerialized] bool viewBuilt; // false again after a script reload, so the view rebuilds
     Canvas bagCanvas;
     CanvasGroup bagGroup;
     CanvasGroup barGroup;
@@ -130,7 +130,7 @@ public partial class Inventory
             barLabelFor = selectedHotbar;
             barLabelAge = 0f;
             bool has = selectedHotbar >= 0 && selectedHotbar < slots.Length && slots[selectedHotbar].count > 0;
-            barLabel.text = has ? ItemName(slots[selectedHotbar].kind) : "EMPTY HANDS";
+            barLabel.text = has ? SlotTitle(slots[selectedHotbar]) : "EMPTY HANDS";
         }
 
         barLabelAge += dt;
@@ -154,9 +154,71 @@ public partial class Inventory
             RefreshSlot(gridSlots[i], slots[i], i == selectedHotbar, i == ShownDetail(), i == hoverIndex);
         }
 
-        slotsUsedText.text = used + " / " + SlotCount + " SLOTS   ·   " + items + " ITEMS";
+        float kg = CarryKg;
+        slotsUsedText.text = used + " / " + SlotCount + " SLOTS   ·   <color=#F5C466>" + coins + " COINS</color>"
+                             + (kg > 0.5f ? "   ·   " + (kg > HeavyLoadKg ? "<color=#FF6A5C>" : "") + Mathf.RoundToInt(kg) + " KG HAULED"
+                                + (kg > HeavyLoadKg ? "</color>" : "") : "");
         RefreshVitals();
         RefreshDetails();
+        RefreshEquipment();
+    }
+
+    // ---------------------------------------------------------------- equipment row
+
+    readonly (Image dot, TMP_Text name, TMP_Text status)[] equipment = new (Image, TMP_Text, TMP_Text)[4];
+
+    void BuildEquipment(RectTransform win)
+    {
+        TMP_Text label = UIKit.Text(win, "EQUIPMENT", 11f, UIKit.TextDim, TextAlignmentOptions.MidlineLeft, true, 6f);
+        UIKit.Place(label.rectTransform, new Vector2(0f, 0f), new Vector2(36f, 62f), new Vector2(120f, 16f));
+
+        const float left = 152f;
+        float tileW = (WinW - left - 36f - 3f * 10f) / 4f;
+        for (int i = 0; i < equipment.Length; i++)
+        {
+            Image tile = UIKit.Img(win, "Gear" + i, UIKit.Round, new Color(1f, 1f, 1f, 0.04f), 8f);
+            UIKit.Place(tile.rectTransform, new Vector2(0f, 0f), new Vector2(left + i * (tileW + 10f), 50f), new Vector2(tileW, 40f));
+            Image dot = UIKit.Img(tile.rectTransform, "Dot", UIKit.Disc, UIKit.TextFaint);
+            UIKit.Place(dot.rectTransform, new Vector2(0f, 0.5f), new Vector2(12f, 0f), new Vector2(8f, 8f), new Vector2(0f, 0.5f));
+            TMP_Text name = UIKit.Text(tile.rectTransform, "", 12f, UIKit.TextMain, TextAlignmentOptions.MidlineLeft, true, 3f);
+            UIKit.Place(name.rectTransform, new Vector2(0f, 1f), new Vector2(28f, -4f), new Vector2(tileW - 34f, 16f));
+            TMP_Text status = UIKit.Text(tile.rectTransform, "", 11f, UIKit.TextDim, TextAlignmentOptions.MidlineLeft, false);
+            status.overflowMode = TextOverflowModes.Ellipsis;
+            UIKit.Place(status.rectTransform, new Vector2(0f, 0f), new Vector2(28f, 4f), new Vector2(tileW - 34f, 16f));
+            equipment[i] = (dot, name, status);
+        }
+    }
+
+    void RefreshEquipment()
+    {
+        // Fire starter: a lighter (owned or rented) or the starter matches.
+        if (ownsLighter)
+            SetGear(0, "LIGHTER", "Owned  ·  lights fires (F)", UIKit.Good);
+        else if (rentedLighter && lighterSeconds > 0f)
+            SetGear(0, "LIGHTER", "Rented  ·  return in " + FormatTime(lighterSeconds), UIKit.Gold);
+        else if (rentedLighter)
+            SetGear(0, "LIGHTER", "<color=#FF6A5C>Overdue! Return it (6)</color>", UIKit.Warn);
+        else if (matches > 0)
+            SetGear(0, "MATCHES", matches + (matches == 1 ? " left" : " left") + "  ·  one per fire", UIKit.Gold);
+        else
+            SetGear(0, "LIGHTER", "None  ·  buy or rent at gun shop", UIKit.TextFaint);
+
+        SurvivalStats s = SurvivalStats.Current;
+        bool coat = s != null && s.HasHuntingCoat;
+        bool oil = s != null && s.HasOilskin;
+        SetGear(1, "HUNTING COAT", coat ? "Worn  ·  the cold bites less" : "Not owned  ·  clothes stall", coat ? UIKit.Good : UIKit.TextFaint);
+        SetGear(2, "OILSKIN", oil ? "Worn  ·  rain soaks you slower" : "Not owned  ·  clothes stall", oil ? UIKit.Good : UIKit.TextFaint);
+        SetGear(3, "PICKAXE", hasPickaxe ? "Carried" : "Not owned  ·  trader", hasPickaxe ? UIKit.Good : UIKit.TextFaint);
+    }
+
+    void SetGear(int i, string name, string status, Color dot)
+    {
+        if (equipment[i].name.text != name)
+            equipment[i].name.text = name;
+        if (equipment[i].status.text != status)
+            equipment[i].status.text = status;
+        equipment[i].dot.color = dot;
+        equipment[i].name.color = dot == UIKit.TextFaint ? UIKit.TextDim : UIKit.TextMain;
     }
 
     int ShownDetail()
@@ -171,7 +233,7 @@ public partial class Inventory
         bool has = slot.count > 0;
         w.bg.color = hovered ? UIKit.TileHover : (has ? new Color(1f, 1f, 1f, 0.065f) : new Color(1f, 1f, 1f, 0.03f));
 
-        Texture icon = has ? IconFor(slot.kind) : null;
+        Texture icon = has ? IconFor(slot) : null;
         if (w.shownIcon != icon)
         {
             w.shownIcon = icon;
@@ -184,6 +246,10 @@ public partial class Inventory
         {
             if (slot.kind == ItemKind.Axe)
                 count = AxeSwing.HasAxe ? "" : "<size=70%><color=#FF6A5C>OUT</color></size>";
+            else if (slot.kind == ItemKind.Carcass && slot.goods != null)
+                count = "<size=75%>" + Mathf.RoundToInt(slot.goods.weightKg) + "kg</size>";
+            else if (slot.kind == ItemKind.Pelt && slot.goods != null)
+                count = "<size=75%><color=#F5C466>" + slot.goods.PeltValue(Time.time) + "c</color></size>";
             else if (IsWeapon(slot.kind))
             {
                 PlayerShotgun gun = PlayerShotgun.Instance;
@@ -207,12 +273,15 @@ public partial class Inventory
         if (has)
             w.strip.color = CategoryColor(slot.kind);
 
-        bool spoiling = has && slot.kind == ItemKind.RawMeat;
+        bool carcass = has && slot.kind == ItemKind.Carcass && slot.goods != null;
+        bool spoiling = has && (slot.kind == ItemKind.RawMeat || carcass);
         if (w.spoilTrack.activeSelf != spoiling)
             w.spoilTrack.SetActive(spoiling);
         if (spoiling)
         {
-            float frac = Mathf.Clamp01(SpoilSecondsLeft() / Mathf.Max(1f, meatSpoilSeconds));
+            float frac = carcass
+                ? Mathf.Clamp01(slot.goods.SecondsUntilSpoiled(Time.time) / HuntGoods.SpoilSeconds)
+                : Mathf.Clamp01(SpoilSecondsLeft() / Mathf.Max(1f, meatSpoilSeconds));
             w.spoilFill.anchorMax = new Vector2(frac, 1f);
             w.spoilFill.GetComponent<Image>().color = frac < 0.25f ? UIKit.Warn : new Color(0.95f, 0.55f, 0.45f);
         }
@@ -274,12 +343,12 @@ public partial class Inventory
 
         Slot slot = slots[index];
         ItemKind kind = slot.kind;
-        Texture icon = IconFor(kind);
+        Texture icon = IconFor(slot);
         if (detailIcon.texture != icon)
             detailIcon.texture = icon;
         detailIcon.enabled = icon != null;
 
-        detailName.text = ItemName(kind);
+        detailName.text = SlotTitle(slot);
         string category = CategoryName(kind);
         detailCategory.text = category;
         Color cat = CategoryColor(kind);
@@ -288,11 +357,15 @@ public partial class Inventory
         pill.a = 0.16f;
         detailCategoryPill.color = pill;
         detailCategoryPill.rectTransform.sizeDelta = new Vector2(detailCategory.preferredWidth + 22f, 22f);
-        detailDesc.text = ItemDescription(kind);
+        detailDesc.text = slot.goods != null ? GoodsDescription(kind) : ItemDescription(kind);
 
         string countLine;
         string extra = "";
-        if (kind == ItemKind.Axe)
+        if (IsGoods(kind) && slot.goods != null)
+        {
+            DescribeGoods(kind, slot.goods, out countLine, out extra);
+        }
+        else if (kind == ItemKind.Axe)
         {
             countLine = AxeSwing.HasAxe ? "Sharp and ready" : "<color=#FF6A5C>Thrown. Walk over it to pick it up.</color>";
             int key = index < GridColumns ? index + 1 : 0;
@@ -310,7 +383,9 @@ public partial class Inventory
             float range = 0f;
             if (PlayerShotgun.Instance != null)
                 PlayerShotgun.Instance.TryRounds(weapon, out rounds, out mag, out range);
-            countLine = rounds + " / " + mag + " loaded";
+            int spare = PlayerShotgun.Instance != null ? PlayerShotgun.Instance.CartridgeCount(weapon) : 0;
+            countLine = rounds + " / " + mag + " loaded   ·   "
+                        + (spare > 0 ? spare + " spare" : "<color=#FF6A5C>no spares</color>");
             int key = index < GridColumns ? index + 1 : 0;
             extra = index == selectedHotbar
                 ? "<color=#F5C466>EQUIPPED</color>"
@@ -369,6 +444,22 @@ public partial class Inventory
     {
         for (int i = 0; i < actionCalls.Length; i++)
             actionCalls[i] = null;
+
+        if (kind == ItemKind.Carcass)
+        {
+            SetAction(0, "SKIN IT HERE", () => SkinSlotByHand(index), true);
+            SetAction(1, "DISCARD", () => DiscardSlot(index), false);
+            SetAction(2, "", null, false);
+            return;
+        }
+
+        if (kind == ItemKind.Pelt)
+        {
+            SetAction(0, "", null, false);
+            SetAction(1, "DISCARD", () => DiscardSlot(index), false);
+            SetAction(2, "", null, false);
+            return;
+        }
 
         if (IsGear(kind))
         {
@@ -434,6 +525,8 @@ public partial class Inventory
         if (index >= 0 && index < slots.Length && slots[index].count > 0)
         {
             detailIndex = index;
+            if (IsGoods(slots[index].kind))
+                return;
             if (IsGear(slots[index].kind))
                 EquipFromSlot(index);
             else
@@ -452,8 +545,8 @@ public partial class Inventory
         slots[index] = default;
         RecalculatePublicCounts();
 
-        ghostIcon.texture = IconFor(draggedSlot.kind);
-        ghostCount.text = IsGear(draggedSlot.kind) ? "" : draggedSlot.count.ToString();
+        ghostIcon.texture = IconFor(draggedSlot);
+        ghostCount.text = IsSingle(draggedSlot.kind) ? "" : draggedSlot.count.ToString();
         ghostRect.gameObject.SetActive(true);
         SlotDragMove(screen);
     }
@@ -564,7 +657,7 @@ public partial class Inventory
 
     void DropFromSlot(int index, int amount)
     {
-        if (index < 0 || index >= slots.Length || slots[index].count <= 0 || IsGear(slots[index].kind))
+        if (index < 0 || index >= slots.Length || slots[index].count <= 0 || IsSingle(slots[index].kind))
             return;
 
         ItemKind kind = slots[index].kind;
@@ -590,6 +683,54 @@ public partial class Inventory
 
     // ---------------------------------------------------------------- item data
 
+    static Texture IconFor(Slot slot)
+    {
+        if (slot.goods != null && IsGoods(slot.kind))
+            return ItemIcons.Goods(slot.goods, slot.kind == ItemKind.Pelt);
+        return IconFor(slot.kind);
+    }
+
+    static string SlotTitle(Slot slot)
+    {
+        if (slot.goods != null && slot.kind == ItemKind.Carcass)
+            return slot.goods.Title + " CARCASS";
+        if (slot.goods != null && slot.kind == ItemKind.Pelt)
+            return slot.goods.Title + " PELT";
+        return ItemName(slot.kind);
+    }
+
+    static string GoodsDescription(ItemKind kind)
+    {
+        return kind == ItemKind.Carcass
+            ? "A whole animal. Bring it to the Tanner in the castle market: he skins it cleanly for full meat and an intact pelt. Heavy loads slow you down, and it spoils with time."
+            : "A cured hide. It keeps. Sell it to the Tanner in the castle market; its price depends on the animal, its quality and how cleanly it was taken.";
+    }
+
+    void DescribeGoods(ItemKind kind, HuntGoods g, out string countLine, out string extra)
+    {
+        float now = Time.time;
+        int value = g.PeltValue(now);
+        countLine = Mathf.RoundToInt(g.weightKg) + " kg   ·   " + g.TierLabel + "   ·   " + g.ConditionLabel;
+        if (kind == ItemKind.Carcass)
+        {
+            float left = g.SecondsUntilSpoiled(now);
+            extra = g.Spoiled(now)
+                ? "<color=#FF6A5C>Spoiled. Meat is only bait now.</color>"
+                : (now - g.killedAt > HuntGoods.FreshSeconds ? "<color=#FF6A5C>Turning · spoils in " + FormatTime(left) + "</color>"
+                                                               : "Fresh · spoils in " + FormatTime(left));
+            SetStat(0, "PELT VALUE", Mathf.Clamp01(value / 120f), "~" + value + " coins");
+            SetStat(1, "FRESHNESS", g.Freshness01(now), g.FreshnessLabel(now));
+            SetStat(2, "MEAT", Mathf.Clamp01(g.meat / 8f), g.meat + " (tanner)  ·  " + Mathf.CeilToInt(g.meat * HuntGoods.RoughMeatShare) + " (by hand)");
+        }
+        else
+        {
+            extra = "<color=#F5C466>The Tanner pays " + value + " coins</color>";
+            SetStat(0, "PELT VALUE", Mathf.Clamp01(value / 120f), value + " coins");
+            SetStat(1, "CONDITION", 1f - (int)g.condition / 3.5f - (g.rough ? 0.15f : 0f), g.ConditionLabel);
+            SetStat(2, "QUALITY", Mathf.Clamp01(HuntGoods.TierMultiplier(g.tier, g.coat) / 6f), g.TierLabel);
+        }
+    }
+
     static Texture IconFor(ItemKind kind)
     {
         if (IsWeapon(kind))
@@ -605,10 +746,14 @@ public partial class Inventory
             case ItemKind.CookedMeat: return "COOKED MEAT";
             case ItemKind.SpoiledMeat: return "SPOILED MEAT";
             case ItemKind.Wood: return "FIREWOOD";
-            case ItemKind.Shotgun: return "DOUBLE BARREL";
-            case ItemKind.Rifle: return "HUNTING RIFLE";
+            case ItemKind.Shotgun: return "COMBAT SHOTGUN";
+            case ItemKind.Rifle: return "ASSAULT RIFLE";
             case ItemKind.Sniper: return "SNIPER RIFLE";
+            case ItemKind.Pistol: return "PISTOL";
+            case ItemKind.SMG: return "SMG";
             case ItemKind.Axe: return "HAND AXE";
+            case ItemKind.Carcass: return "CARCASS";
+            case ItemKind.Pelt: return "PELT";
             default: return "";
         }
     }
@@ -622,6 +767,8 @@ public partial class Inventory
             case ItemKind.SpoiledMeat: return "BAIT";
             case ItemKind.Wood: return "MATERIAL";
             case ItemKind.Axe: return "TOOL";
+            case ItemKind.Carcass: return "CARCASS";
+            case ItemKind.Pelt: return "PELT";
             default: return "WEAPON";
         }
     }
@@ -635,6 +782,8 @@ public partial class Inventory
             case ItemKind.SpoiledMeat: return new Color(0.66f, 0.76f, 0.36f);
             case ItemKind.Wood: return new Color(0.80f, 0.62f, 0.40f);
             case ItemKind.Axe: return new Color(0.80f, 0.82f, 0.86f);
+            case ItemKind.Carcass: return new Color(0.82f, 0.38f, 0.32f);
+            case ItemKind.Pelt: return new Color(0.92f, 0.74f, 0.46f);
             default: return new Color(0.58f, 0.74f, 0.95f);
         }
     }
@@ -654,9 +803,13 @@ public partial class Inventory
             case ItemKind.Axe:
                 return "A trusty hand axe. Click or press E to chop trees for firewood, and right-click to throw it at prey. Walk over it to pick it back up.";
             case ItemKind.Shotgun:
-                return "Two barrels of wide buckshot. Devastating up close and the best choice for birds and fast targets. Breaks open to reload.";
+                return "Six shells of wide buckshot. Devastating up close and the best choice for birds and fast targets, but it tears pelts.";
             case ItemKind.Rifle:
-                return "A bolt-action all-rounder. Accurate to medium range with five rounds before reloading. Good for deer in the open.";
+                return "A thirty-round assault rifle. Hold the trigger for full auto, tap it for accurate shots to medium range.";
+            case ItemKind.Pistol:
+                return "Your sidearm. Twelve rounds, light and quick. Fine for rabbits and close work; get closer than you think.";
+            case ItemKind.SMG:
+                return "A compact submachine gun. Thirty rounds of full auto for charging boar and wolves at close range.";
             case ItemKind.Sniper:
                 return "A scoped long-range rifle. Hold right mouse to scope in and Shift to steady your breath. Made for clean shots past 100 m.";
             default:
@@ -669,6 +822,8 @@ public partial class Inventory
         switch (weapon)
         {
             case HuntWeapon.Shotgun: return 0.25f;
+            case HuntWeapon.Pistol: return 0.45f;
+            case HuntWeapon.SMG: return 0.35f;
             case HuntWeapon.Rifle: return 0.7f;
             case HuntWeapon.Sniper: return 1f;
             default: return 0f;
@@ -680,6 +835,8 @@ public partial class Inventory
         switch (weapon)
         {
             case HuntWeapon.Shotgun: return "Wide spread";
+            case HuntWeapon.Pistol: return "Short range";
+            case HuntWeapon.SMG: return "Spray";
             case HuntWeapon.Rifle: return "Precise";
             case HuntWeapon.Sniper: return "Pinpoint";
             default: return "";
@@ -696,6 +853,9 @@ public partial class Inventory
 
     void BuildView()
     {
+        // After a script reload the old canvas survives without its widgets; replace it.
+        if (bagCanvas != null)
+            Destroy(bagCanvas.gameObject);
         viewBuilt = true;
         bagCanvas = UIKit.MakeCanvas("InventoryUI", 70, true);
         canvasRect = bagCanvas.GetComponent<RectTransform>();
@@ -757,6 +917,7 @@ public partial class Inventory
         BuildHeader(windowRect);
         BuildGrid(windowRect);
         BuildDetails(windowRect);
+        BuildEquipment(windowRect);
         BuildFooter(windowRect);
         BuildGhost(root);
     }
@@ -884,7 +1045,7 @@ public partial class Inventory
         float left = 36f + GridColumns * GridSlot + (GridColumns - 1) * GridGap + 34f;
         float width = WinW - left - 36f;
         const float top = -108f;
-        float height = WinH - 108f - 58f;
+        float height = WinH - 108f - 110f; // leaves room for the equipment row
 
         Image panel = UIKit.Img(win, "Details", UIKit.Round, new Color(1f, 1f, 1f, 0.035f), 12f);
         UIKit.Place(panel.rectTransform, new Vector2(0f, 1f), new Vector2(left, top), new Vector2(width, height));

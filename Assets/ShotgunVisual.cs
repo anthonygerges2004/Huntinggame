@@ -15,8 +15,10 @@ public static class ShotgunVisual
 
     public static GameObject Build(Transform parent)
     {
-        GameObject prefab = LoadPrefab();
-        GameObject root;
+        // The side-by-side model built in code; the imported low-poly asset is only a fallback.
+        GameObject root = GunForge.Shotgun();
+        root.name = RootName;
+        GameObject prefab = root == null ? LoadPrefab() : null;
         if (prefab != null)
         {
             root = Object.Instantiate(prefab);
@@ -24,7 +26,7 @@ public static class ShotgunVisual
             StripExtras(root);
             FixShading(root);
         }
-        else
+        else if (root == null)
         {
             root = FallbackBuild(null);
         }

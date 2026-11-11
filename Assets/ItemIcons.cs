@@ -40,6 +40,88 @@ public static class ItemIcons
         return tex;
     }
 
+    /// <summary>A pelt or carcass picture in the animal's own fur colour (tiger stripes for the legendary).</summary>
+    public static Texture2D Goods(HuntGoods goods, bool pelt)
+    {
+        if (goods == null)
+            return null;
+
+        Color32 c = goods.fur;
+        string key = (pelt ? "Pelt_" : "Carcass_") + c.r + "_" + c.g + "_" + c.b + (goods.stripes ? "_s" : "");
+        if (cache.TryGetValue(key, out Texture2D tex))
+            return tex;
+
+        Color fur = goods.fur;
+        bool stripes = goods.stripes;
+        tex = pelt ? Paint(PeltShader(fur, stripes)) : Paint(CarcassShader(fur, stripes));
+        tex.name = key;
+        cache[key] = tex;
+        return tex;
+    }
+
+    static Color Fur(Color fur, Vector2 p, float depth, bool stripes)
+    {
+        // Darker at the edges, lighter down the middle, with a little grain.
+        Color c = Color.Lerp(fur * 0.62f, Color.Lerp(fur, Color.white, 0.12f), Mathf.Clamp01(depth / 0.09f));
+        c *= 0.92f + 0.16f * Mathf.PerlinNoise(p.x * 30f, p.y * 30f);
+        if (stripes && Mathf.Sin(p.y * 38f + Mathf.PerlinNoise(p.x * 6f, p.y * 3f) * 5f) > 0.55f)
+            c = Color.Lerp(c, new Color(0.08f, 0.06f, 0.05f), 0.85f);
+        c.a = 1f;
+        return c;
+    }
+
+    // A stretched hide: body, four leg flaps, head and tail.
+    static Shader PeltShader(Color fur, bool stripes)
+    {
+        return (Vector2 p, out float sdf) =>
+        {
+            float body = Ellipse(p - new Vector2(0.5f, 0.48f), new Vector2(0.2f, 0.29f));
+            float legs = Mathf.Min(
+                Mathf.Min(Capsule(p, new Vector2(0.42f, 0.66f), new Vector2(0.2f, 0.82f), 0.05f),
+                          Capsule(p, new Vector2(0.58f, 0.66f), new Vector2(0.8f, 0.82f), 0.05f)),
+                Mathf.Min(Capsule(p, new Vector2(0.42f, 0.3f), new Vector2(0.18f, 0.14f), 0.055f),
+                          Capsule(p, new Vector2(0.58f, 0.3f), new Vector2(0.82f, 0.14f), 0.055f)));
+            float head = Ellipse(p - new Vector2(0.5f, 0.82f), new Vector2(0.08f, 0.07f));
+            float tail = Capsule(p, new Vector2(0.5f, 0.2f), new Vector2(0.5f, 0.06f), 0.025f);
+            float shape = SmoothMin(SmoothMin(body, legs, 0.05f), SmoothMin(head, tail, 0.03f), 0.04f);
+            sdf = shape;
+
+            Color c = Fur(fur, p, -shape, stripes);
+            // A pale skin-side rim where the hide was cut and stretched.
+            if (-shape < 0.012f)
+                c = Color.Lerp(new Color(0.93f, 0.86f, 0.74f), c, 0.35f);
+            c.a = 1f;
+            return c;
+        };
+    }
+
+    // A downed animal lying on its side.
+    static Shader CarcassShader(Color fur, bool stripes)
+    {
+        return (Vector2 p, out float sdf) =>
+        {
+            float body = Ellipse(p - new Vector2(0.48f, 0.46f), new Vector2(0.3f, 0.15f));
+            float neck = Capsule(p, new Vector2(0.7f, 0.5f), new Vector2(0.8f, 0.56f), 0.06f);
+            float head = Ellipse(Rotate(p - new Vector2(0.85f, 0.55f), 20f), new Vector2(0.08f, 0.05f));
+            float legs = Mathf.Min(
+                Mathf.Min(Capsule(p, new Vector2(0.3f, 0.36f), new Vector2(0.2f, 0.18f), 0.025f),
+                          Capsule(p, new Vector2(0.38f, 0.35f), new Vector2(0.34f, 0.16f), 0.025f)),
+                Mathf.Min(Capsule(p, new Vector2(0.6f, 0.36f), new Vector2(0.62f, 0.17f), 0.025f),
+                          Capsule(p, new Vector2(0.67f, 0.37f), new Vector2(0.78f, 0.2f), 0.025f)));
+            float tail = Capsule(p, new Vector2(0.19f, 0.5f), new Vector2(0.12f, 0.55f), 0.02f);
+            float shape = SmoothMin(SmoothMin(body, neck, 0.04f), Mathf.Min(head, Mathf.Min(legs, tail)), 0.02f);
+            sdf = shape;
+
+            Color c = Fur(fur, p, -shape, stripes);
+            // A dark wound and a little blood under the chest.
+            float wound = Circle(p - new Vector2(0.58f, 0.45f), 0.025f);
+            if (wound < 0f)
+                c = new Color(0.35f, 0.04f, 0.04f);
+            c.a = 1f;
+            return c;
+        };
+    }
+
     // ---------------------------------------------------------------- painter
 
     delegate Color Shader(Vector2 p, out float sdf);

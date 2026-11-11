@@ -19,7 +19,7 @@ public class OpenWorld : MonoBehaviour
     const int MaxDeer = 7;
     const int MaxBirds = 6;
     const int MaxLarge = 2;
-    const int MaxGame = 4;
+    const int MaxGame = 9; // pigs, boar, foxes, rabbits and wolves were too rare to ever run into
 
     static readonly FlyerKind[] WoodBirds =
     {

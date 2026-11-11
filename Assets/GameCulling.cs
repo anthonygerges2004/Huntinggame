@@ -12,7 +12,9 @@ public static class GameCulling
     public const float TerrainTreeBillboard = 550f;
     public const float TerrainDetailDistance = 110f;
     public const float TerrainDetailDensity = 0.8f;
-    public const float TerrainPixelError = 5f;
+    // Lower = the drawn ground follows the true height more closely at a distance, so animals on
+    // far hillsides no longer appear to float above a simplified slope.
+    public const float TerrainPixelError = 2f;
     public const float TerrainBasemapDistance = 1200f;
 
     public static void ApplyToCamera(Camera camera, bool minimap)

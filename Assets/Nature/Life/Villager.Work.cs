@@ -159,8 +159,21 @@ public partial class Villager
         if (armL != null) armL.localRotation = Quaternion.Euler(-45f, 0f, -8f);
     }
 
+    // Work tag over a nearby working villager, drawn by the HUD in the game's style.
+    void LateUpdate()
+    {
+        GameHUD hud = GameHUD.Instance;
+        if (hud == null || occupation < 0 || !visible || Inventory.IsOpen ||
+            (PlayerView.Position() - transform.position).sqrMagnitude > 64f) return;
+        string action = workStage == WorkStage.Working ? (occupation == 0 ? "Crafting a table" : "Tending plants") :
+            workStage == WorkStage.Selling ? "Selling " + Product + " (" + stock + ")" :
+            workStage == WorkStage.GoingToMarket ? "Delivering to market" : "Going to work";
+        hud.ShowWorldTag(transform.position + Vector3.up * 2.2f, Profession.ToUpperInvariant() + "  ·  " + earnings + " COINS", action);
+    }
+
     void OnGUI()
     {
+        if (GameHUD.Instance != null) return;
         if (occupation < 0 || !visible || Inventory.IsOpen || Camera.main == null ||
             (PlayerView.Position() - transform.position).sqrMagnitude > 64f) return;
         Vector3 p = Camera.main.WorldToScreenPoint(transform.position + Vector3.up * 2.2f);

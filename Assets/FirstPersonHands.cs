@@ -61,15 +61,15 @@ public static class FirstPersonHands
         Vector3 armBase = grip + new Vector3(0.20f, -0.32f, -0.38f);
         Vector3 wrist = grip + new Vector3(0.040f, -0.065f, -0.09f);
 
-        // Forearm sleeve
-        MakeCylinder(armRoot, "ForearmSleeve", armBase, wrist, 0.086f, sleeveMat);
+        // Forearm sleeve, tapering toward the wrist
+        MakeSleeve(armRoot, "ForearmSleeve", armBase, wrist, 0.094f, 0.078f, sleeveMat);
 
-        // Leather wrist cuff
-        Vector3 cuffPos = Vector3.Lerp(armBase, wrist, 0.94f);
-        MakeCylinder(armRoot, "WristCuff", cuffPos - (wrist - armBase).normalized * 0.015f, wrist, 0.092f, cuffMat);
+        // Leather gauntlet cuff of the glove
+        Vector3 cuffPos = Vector3.Lerp(armBase, wrist, 0.86f);
+        MakeSleeve(armRoot, "WristCuff", cuffPos, wrist, 0.088f, 0.074f, cuffMat);
 
         // Wrist joint
-        MakeSphere(armRoot, "WristJoint", wrist, 0.070f, skinMat);
+        MakeSphere(armRoot, "WristJoint", wrist, 0.066f, skinMat);
 
         // Palm holding the right side of the pistol grip
         Vector3 palmPos = grip + new Vector3(0.024f, -0.035f, -0.035f);
@@ -108,15 +108,15 @@ public static class FirstPersonHands
         Vector3 armBase = guard + new Vector3(-0.28f, -0.38f, -0.44f);
         Vector3 wrist = guard + new Vector3(-0.052f, -0.075f, -0.09f);
 
-        // Forearm sleeve
-        MakeCylinder(armRoot, "ForearmSleeve", armBase, wrist, 0.086f, sleeveMat);
+        // Forearm sleeve, tapering toward the wrist
+        MakeSleeve(armRoot, "ForearmSleeve", armBase, wrist, 0.094f, 0.078f, sleeveMat);
 
-        // Leather wrist cuff
-        Vector3 cuffPos = Vector3.Lerp(armBase, wrist, 0.94f);
-        MakeCylinder(armRoot, "WristCuff", cuffPos - (wrist - armBase).normalized * 0.015f, wrist, 0.092f, cuffMat);
+        // Leather gauntlet cuff of the glove
+        Vector3 cuffPos = Vector3.Lerp(armBase, wrist, 0.86f);
+        MakeSleeve(armRoot, "WristCuff", cuffPos, wrist, 0.088f, 0.074f, cuffMat);
 
         // Wrist joint
-        MakeSphere(armRoot, "WristJoint", wrist, 0.070f, skinMat);
+        MakeSphere(armRoot, "WristJoint", wrist, 0.066f, skinMat);
 
         // Palm cradling the bottom of the wooden barrel guard
         Vector3 palmPos = guard + new Vector3(-0.018f, -0.040f, 0.015f);
@@ -145,22 +145,38 @@ public static class FirstPersonHands
         MakeCylinder(armRoot, "PinkyFinger", fPinkyRoot, fPinkyTip, 0.016f, skinMat);
     }
 
+    /// <summary>A finger: a rounded capsule from start to end (thickness is the diameter).</summary>
     static GameObject MakeCylinder(Transform parent, string name, Vector3 start, Vector3 end, float thickness, Material mat)
+    {
+        return MakeSleeve(parent, name, start, end, thickness, thickness * 0.9f, mat);
+    }
+
+    /// <summary>A tapered tube with rounded ends, for sleeves, cuffs and fingers.</summary>
+    static GameObject MakeSleeve(Transform parent, string name, Vector3 start, Vector3 end, float startDiameter, float endDiameter, Material mat)
     {
         Vector3 dir = end - start;
         float length = dir.magnitude;
         if (length < 0.001f)
             return null;
 
-        GameObject obj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        obj.name = name;
-        Object.Destroy(obj.GetComponent<Collider>());
-        obj.transform.SetParent(parent, false);
-        obj.transform.localPosition = (start + end) * 0.5f;
-        obj.transform.localRotation = Quaternion.FromToRotation(Vector3.up, dir.normalized);
-        obj.transform.localScale = new Vector3(thickness, length * 0.5f, thickness);
-        if (mat != null)
-            obj.GetComponent<Renderer>().sharedMaterial = mat;
+        float r0 = startDiameter * 0.5f, r1 = endDiameter * 0.5f;
+        float cap0 = Mathf.Min(r0 * 0.8f, length * 0.3f), cap1 = Mathf.Min(r1 * 0.8f, length * 0.3f);
+        var profile = new System.Collections.Generic.List<Vector2>();
+        for (int i = 0; i <= 4; i++)
+        {
+            float a = i / 4f * Mathf.PI * 0.5f;
+            profile.Add(new Vector2(Mathf.Sin(a) * r0, cap0 - Mathf.Cos(a) * cap0));
+        }
+        for (int i = 4; i >= 0; i--)
+        {
+            float a = i / 4f * Mathf.PI * 0.5f;
+            profile.Add(new Vector2(Mathf.Sin(a) * r1, length - cap1 + Mathf.Cos(a) * cap1));
+        }
+        profile[0] = new Vector2(0.0001f, profile[0].y);
+        profile[profile.Count - 1] = new Vector2(0.0001f, profile[profile.Count - 1].y);
+
+        GameObject obj = MeshForge.Part(parent, name, MeshForge.Lathe(profile.ToArray(), 16, false, false), mat,
+                                        start, Quaternion.LookRotation(dir / length));
         return obj;
     }
 
@@ -177,18 +193,12 @@ public static class FirstPersonHands
         return obj;
     }
 
+    /// <summary>A palm: a block with well-rounded edges instead of a hard cube.</summary>
     static GameObject MakeBox(Transform parent, string name, Vector3 pos, Quaternion rot, Vector3 scale, Material mat)
     {
-        GameObject obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        obj.name = name;
-        Object.Destroy(obj.GetComponent<Collider>());
-        obj.transform.SetParent(parent, false);
-        obj.transform.localPosition = pos;
-        obj.transform.localRotation = rot;
-        obj.transform.localScale = scale;
-        if (mat != null)
-            obj.GetComponent<Renderer>().sharedMaterial = mat;
-        return obj;
+        float radius = Mathf.Min(scale.y, scale.z) * 0.35f;
+        Vector2[] outline = MeshForge.RoundedRect(new Vector2(-scale.z * 0.5f, -scale.y * 0.5f), new Vector2(scale.z * 0.5f, scale.y * 0.5f), radius);
+        return MeshForge.Part(parent, name, MeshForge.Extrude(outline, scale.x * 0.5f, Mathf.Min(scale.x * 0.3f, radius)), mat, pos, rot);
     }
 
     static void EnsureMaterials()
@@ -197,9 +207,10 @@ public static class FirstPersonHands
             return;
 
         Shader shader = FindSafeShader();
-        sleeveMat = CreateMaterial(shader, new Color(0.23f, 0.34f, 0.18f, 1f), 0.14f); // Hunter green jacket
-        cuffMat = CreateMaterial(shader, new Color(0.18f, 0.11f, 0.07f, 1f), 0.18f);   // Leather cuff
-        skinMat = CreateMaterial(shader, new Color(0.78f, 0.60f, 0.48f, 1f), 0.22f);   // Hunter skin tone
+        // Same waxed-canvas jacket and leather gloves as the third-person hunter.
+        sleeveMat = HunterOutfit.JacketMaterial();
+        cuffMat = MeshForge.Lit("FPCuff", new Color(0.26f, 0.17f, 0.10f), 0.4f);
+        skinMat = MeshForge.Lit("HunterGloves", new Color(0.46f, 0.32f, 0.19f), 0.42f);
     }
 
     static Shader FindSafeShader()

@@ -54,6 +54,7 @@ public class PlayerShotgun : MonoBehaviour
     int shells = 2;
     Transform viewGun;
     Transform handGun;
+    public Transform HandGun => equipped ? handGun : null;
     Transform leftGrip;
     Transform cam;
     Rig active;
@@ -79,6 +80,8 @@ public class PlayerShotgun : MonoBehaviour
         public bool scope;
         public string label;
         public int reserve;
+        public bool auto;
+        public float cycle;
     }
 
     Vector3 rightGripLocal = new Vector3(0f, 0.01f, -0.02f);
@@ -102,9 +105,11 @@ public class PlayerShotgun : MonoBehaviour
     Light flashLight;
     float flashLeft;
 
-    static readonly Vector3 ViewReadyPos = new Vector3(0.38f, -0.36f, 0.92f);
+    // Held close and large, like a real first-person view down the gun.
+    static readonly Vector3 ViewReadyPos = new Vector3(0.27f, -0.27f, 0.66f);
     static readonly Quaternion ViewReadyRot = Quaternion.Euler(8f, 3f, 0f);
-    static readonly Vector3 ViewAimPos = new Vector3(0.04f, -0.15f, 0.78f);
+    static readonly Vector3 ViewAimPos = new Vector3(0.035f, -0.125f, 0.56f);
+    const float ViewGunScale = 1.7f;
     static readonly Quaternion ViewAimRot = Quaternion.Euler(0f, 0.2f, 0f);
 
     void Awake()
@@ -282,18 +287,27 @@ public class PlayerShotgun : MonoBehaviour
             return 0.56f;
         if (active.id == HuntWeapon.Sniper)
             return 0.36f;
+        if (active.auto)
+            return 0.16f;
         return 0.44f;
     }
 
     float RefireLock()
     {
-        if (active == null || active.id == HuntWeapon.Shotgun)
+        if (active == null)
             return 0.38f;
-        return 0.16f;
+        return active.cycle > 0f ? active.cycle : 0.16f;
     }
+
+    /// <summary>True while the equipped gun fires for as long as the trigger is held.</summary>
+    public bool IsAutomatic => equipped && active != null && active.auto;
 
     float WeaponKick()
     {
+        if (active != null && active.auto)
+            return aimHeld ? 0.22f : 0.34f;
+        if (active != null && active.id == HuntWeapon.Pistol)
+            return aimHeld ? 0.45f : 0.6f;
         if (active == null || active.id == HuntWeapon.Shotgun)
             return aimHeld ? 0.8f : 1.08f;
         if (active.id == HuntWeapon.Sniper)
@@ -387,9 +401,12 @@ public class PlayerShotgun : MonoBehaviour
 
     void SeedCartridges()
     {
-        SetReserve(HuntWeapon.Shotgun, 36);
-        SetReserve(HuntWeapon.Rifle, 30);
-        SetReserve(HuntWeapon.Sniper, 16);
+        // Only the starting pistol comes with spare magazines; bought guns come with a box each.
+        SetReserve(HuntWeapon.Pistol, 48);
+        SetReserve(HuntWeapon.Shotgun, 18);
+        SetReserve(HuntWeapon.SMG, 60);
+        SetReserve(HuntWeapon.Rifle, 60);
+        SetReserve(HuntWeapon.Sniper, 10);
     }
 
     void SetReserve(HuntWeapon weapon, int amount)
@@ -414,6 +431,9 @@ public class PlayerShotgun : MonoBehaviour
             return false;
 
         Rig rig = built[index];
+        // A gun you don't own can't be suggested or switched to.
+        if (Inventory.Instance != null && !Inventory.Instance.OwnsWeapon(weapon))
+            return false;
         mag = rig.magSize;
         gunRange = rig.gunRange;
         rounds = active == rig ? shells : rig.ammo;
@@ -483,7 +503,7 @@ public class PlayerShotgun : MonoBehaviour
         gunHolster = false;
         gunFrom = 0f;
         gunTo = 1f;
-        gunDur = weapon == HuntWeapon.Shotgun ? 0.66f : weapon == HuntWeapon.Sniper ? 0.82f : 0.48f;
+        gunDur = weapon == HuntWeapon.Shotgun ? 0.66f : weapon == HuntWeapon.Sniper ? 0.82f : weapon == HuntWeapon.Pistol ? 0.34f : 0.5f;
         gunClock = 0f;
         GunPresent = 0f;
     }
@@ -598,7 +618,7 @@ public class PlayerShotgun : MonoBehaviour
             return;
         }
 
-        Equip(equipped ? HuntWeapon.None : HuntWeapon.Shotgun);
+        Equip(equipped ? HuntWeapon.None : HuntWeapon.Pistol);
     }
 
     public bool TryMuzzle(out Vector3 world)
@@ -656,6 +676,7 @@ public class PlayerShotgun : MonoBehaviour
             HuntCampBoard.RegisterShotgunBlast();
         WildlifeAlarm.NotifyShot(PlayerView.Position());
         Flash();
+        GameAudio.Gunshot(active != null ? active.id : HuntWeapon.Shotgun);
         FirePellets();
         // The HUD weapon panel shows the rounds left, so only the empty gun needs a word.
         if (Inventory.Instance != null && shells <= 0)
@@ -669,6 +690,8 @@ public class PlayerShotgun : MonoBehaviour
 
     void StartReload()
     {
+        if (!reloading)
+            GameAudio.Reload(active != null ? active.id : HuntWeapon.Shotgun);
         reloading = true;
         if (fireTime < 0f)
             fireTime = 0f;
@@ -731,7 +754,7 @@ public class PlayerShotgun : MonoBehaviour
         rot = Quaternion.Euler(-8f * plant, 0f, 4f * plant) * rot;
         viewGun.localPosition = pos;
         viewGun.localRotation = rot;
-        WeaponHold.SetWorldScale(viewGun, (active != null ? active.scale : 1f) * 0.9f);
+        WeaponHold.SetWorldScale(viewGun, (active != null ? active.scale : 1f) * ViewGunScale);
 
         if (cam != null)
         {
@@ -790,6 +813,9 @@ public class PlayerShotgun : MonoBehaviour
         Vector3 butt = Vector3.Lerp(lowButt, aimButt, mount);
         butt = Vector3.Lerp(pocket - up * 0.42f + right * 0.12f, butt, place);
         butt += up * (0.06f * kick) - barrel * (0.1f * kick + 0.05f * follow);
+        // A pistol is held out at arm's length, not shouldered like a long gun.
+        if (active != null && (active.id == HuntWeapon.Pistol))
+            butt += barrel * Mathf.Lerp(0.22f, 0.42f, mount) - up * 0.06f;
 
         handGun.SetPositionAndRotation(butt - rot * (active != null ? active.stock : Vector3.zero), rot);
         WeaponHold.SetWorldScale(handGun, active != null ? active.scale : 1f);
@@ -806,18 +832,22 @@ public class PlayerShotgun : MonoBehaviour
         if (built != null)
             return;
 
-        built = new Rig[4];
-        MakeRig(HuntWeapon.Shotgun, 2, 24, 10f, 120f, 0.75f, false, "Double barrel");
-        MakeRig(HuntWeapon.Rifle, 5, 1, 0.45f, 240f, 0.42f, false, "Hunting rifle");
-        MakeRig(HuntWeapon.Sniper, 4, 1, 0.04f, 500f, 0.15f, true, "Sniper");
+        built = new Rig[WeaponVisual.Count];
+        MakeRig(HuntWeapon.Pistol, 12, 1, 1.3f, 70f, 0.62f, false, WeaponVisual.DisplayName(HuntWeapon.Pistol), false, 0.2f);
+        MakeRig(HuntWeapon.Shotgun, 6, 18, 9f, 110f, 0.75f, false, WeaponVisual.DisplayName(HuntWeapon.Shotgun), false, 0.62f);
+        MakeRig(HuntWeapon.SMG, 30, 1, 2.1f, 110f, 0.6f, false, WeaponVisual.DisplayName(HuntWeapon.SMG), true, 0.075f);
+        MakeRig(HuntWeapon.Rifle, 30, 1, 0.75f, 260f, 0.42f, false, WeaponVisual.DisplayName(HuntWeapon.Rifle), true, 0.115f);
+        MakeRig(HuntWeapon.Sniper, 5, 1, 0.04f, 550f, 0.15f, true, WeaponVisual.DisplayName(HuntWeapon.Sniper), false, 0.95f);
         SetAllHidden();
     }
 
-    void MakeRig(HuntWeapon id, int mag, int pelletCount, float spread, float gunRange, float zoom, bool scope, string label)
+    void MakeRig(HuntWeapon id, int mag, int pelletCount, float spread, float gunRange, float zoom, bool scope, string label, bool auto, float cycle)
     {
         Rig rig = new Rig
         {
             id = id,
+            auto = auto,
+            cycle = cycle,
             magSize = mag,
             ammo = mag,
             pelletCount = pelletCount,
@@ -842,7 +872,7 @@ public class PlayerShotgun : MonoBehaviour
         {
             WeaponModel view = WeaponVisual.Build(id, cam);
             rig.view = view.root.transform;
-            FirstPersonHands.AttachTo(rig.view);
+            // No first-person arms: just the gun.
             rig.stock = view.stock;
             rig.muzzle = view.muzzle;
             rig.rightGrip = view.rightGrip;
@@ -884,9 +914,7 @@ public class PlayerShotgun : MonoBehaviour
         string name = active != null ? active.label : "Shot";
         if (shells > 0)
             return name + ". " + shells + " left.";
-        if (active != null && active.id == HuntWeapon.Shotgun)
-            return name + ". It breaks open to reload.";
-        return name + ". Working the bolt.";
+        return name + ". Reloading.";
     }
 
     void OnGUI()
@@ -908,21 +936,59 @@ public class PlayerShotgun : MonoBehaviour
         GUI.DrawTexture(new Rect(x + side, y, Screen.width - (x + side), side), Texture2D.whiteTexture);
         GUI.DrawTexture(new Rect(x, y, side, side), scopeMask);
 
+        DrawReticle(alpha, side * 0.46f);
+        GUI.color = prev;
+    }
+
+    /// <summary>
+    /// A hunting scope reticle: thin crosshairs through the centre, heavy outer posts, mil-dots for
+    /// judging range, holdover marks for long shots, and an illuminated centre dot.
+    /// </summary>
+    static void DrawReticle(float alpha, float radius)
+    {
         float cx = Screen.width * 0.5f;
         float cy = Screen.height * 0.5f;
-        GUI.color = new Color(0.05f, 0.05f, 0.05f, alpha);
-        GUI.DrawTexture(new Rect(cx - 140f, cy - 1f, 110f, 2f), Texture2D.whiteTexture);
-        GUI.DrawTexture(new Rect(cx + 30f, cy - 1f, 110f, 2f), Texture2D.whiteTexture);
-        GUI.DrawTexture(new Rect(cx - 1f, cy - 140f, 2f, 110f), Texture2D.whiteTexture);
-        GUI.DrawTexture(new Rect(cx - 1f, cy + 30f, 2f, 110f), Texture2D.whiteTexture);
+        float u = Mathf.Max(1f, Screen.height / 900f); // line weight scales with resolution
+        Texture2D w = Texture2D.whiteTexture;
+        float post = radius * 0.42f;   // where the heavy posts stop, toward the centre
+
+        // Thin crosshairs, full width.
+        GUI.color = new Color(0.03f, 0.03f, 0.03f, alpha);
+        GUI.DrawTexture(new Rect(cx - radius, cy - 0.5f * u, radius * 2f, u), w);
+        GUI.DrawTexture(new Rect(cx - 0.5f * u, cy - radius, u, radius * 2f), w);
+
+        // Heavy posts from the edge inward (left, right, bottom; the top stays thin).
+        float t = 5f * u;
+        GUI.DrawTexture(new Rect(cx - radius, cy - t * 0.5f, radius - post, t), w);
+        GUI.DrawTexture(new Rect(cx + post, cy - t * 0.5f, radius - post, t), w);
+        GUI.DrawTexture(new Rect(cx - t * 0.5f, cy + post, t, radius - post), w);
+
+        // Mil-dots along both axes inside the posts.
+        float step = post / 5f;
+        float dot = 3.5f * u;
         for (int i = 1; i <= 4; i++)
         {
-            float mark = 28f * i;
-            GUI.DrawTexture(new Rect(cx + mark - 1f, cy - 6f, 2f, 12f), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(cx - mark - 1f, cy - 6f, 2f, 12f), Texture2D.whiteTexture);
+            float d = step * i;
+            GUI.DrawTexture(new Rect(cx + d - dot * 0.5f, cy - dot * 0.5f, dot, dot), w);
+            GUI.DrawTexture(new Rect(cx - d - dot * 0.5f, cy - dot * 0.5f, dot, dot), w);
+            GUI.DrawTexture(new Rect(cx - dot * 0.5f, cy - d - dot * 0.5f, dot, dot), w);
         }
 
-        GUI.color = prev;
+        // Holdover marks below the centre for 200, 300 and 400 m shots.
+        for (int i = 1; i <= 3; i++)
+        {
+            float y = cy + step * i;
+            float half = step * (0.55f - i * 0.1f);
+            GUI.DrawTexture(new Rect(cx - half, y - 0.5f * u, half * 2f, u * 1.5f), w);
+        }
+
+        // Illuminated centre dot with a soft glow.
+        GUI.color = new Color(1f, 0.22f, 0.12f, 0.35f * alpha);
+        float glow = 9f * u;
+        GUI.DrawTexture(new Rect(cx - glow * 0.5f, cy - glow * 0.5f, glow, glow), w);
+        GUI.color = new Color(1f, 0.3f, 0.18f, alpha);
+        float core = 4f * u;
+        GUI.DrawTexture(new Rect(cx - core * 0.5f, cy - core * 0.5f, core, core), w);
     }
 
     void EnsureScopeMask()

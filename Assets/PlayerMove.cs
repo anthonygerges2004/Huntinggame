@@ -154,7 +154,8 @@ public class PlayerMove : MonoBehaviour
         }
 
         IsCrouching = Keyboard.current.leftCtrlKey.isPressed;
-        bool running = !IsCrouching && !PlayerShotgun.IsAiming && Keyboard.current.leftShiftKey.isPressed;
+        // A heavy carcass load rules out sprinting.
+        bool running = !IsCrouching && !PlayerShotgun.IsAiming && !Inventory.TooHeavyToSprint && Keyboard.current.leftShiftKey.isPressed;
 
         Vector2 moveInput = Vector2.zero;
         if (Keyboard.current.aKey.isPressed) moveInput.x -= 1f;
@@ -194,6 +195,7 @@ public class PlayerMove : MonoBehaviour
             currentSpeed *= 0.55f;
         if (HuntingGame.Survival.SurvivalStats.Current != null)
             currentSpeed *= HuntingGame.Survival.SurvivalStats.Current.MoveSpeedMultiplier;
+        currentSpeed *= Inventory.CarrySpeedMultiplier;
         Vector3 motion = move * currentSpeed;
         motion.y = verticalSpeed;
         bool wasGrounded = controller.isGrounded;

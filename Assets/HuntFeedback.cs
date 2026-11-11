@@ -66,6 +66,7 @@ public static class HuntFeedback
     /// <summary>A wound that did not kill. Place is "Head", "Chest", "Body" or "Legs".</summary>
     public static void Hit(string place)
     {
+        GameAudio.Hit();
         CountLanded();
         LastHitTime = Time.unscaledTime;
         LastHitKilled = false;
@@ -74,6 +75,7 @@ public static class HuntFeedback
 
     public static void Kill(Animal animal, string place, float distance, int meat)
     {
+        GameAudio.Hit();
         CountLanded();
         LastHitTime = Time.unscaledTime;
         LastHitKilled = true;
@@ -98,7 +100,14 @@ public static class HuntFeedback
             detail += (detail.Length > 0 ? "   ·   " : "") + Mathf.RoundToInt(trophy.weightKg) + " KG";
         if (distance > 0.5f)
             detail += (detail.Length > 0 ? "   ·   " : "") + Mathf.RoundToInt(distance) + " m";
-        if (meat > 0)
+        if (kind != AnimalKind.Bird && animal != null)
+        {
+            // Hides are the money now: show what this one should fetch at the tanner.
+            HuntWeapon weapon = PlayerShotgun.Instance != null ? PlayerShotgun.Instance.Equipped : HuntWeapon.None;
+            int pelt = HuntGoods.FromAnimal(animal, place, weapon, distance, 1).PeltValue(Time.time);
+            detail += (detail.Length > 0 ? "   ·   " : "") + "PELT ~" + pelt + " COINS";
+        }
+        else if (meat > 0)
             detail += (detail.Length > 0 ? "   ·   " : "") + "+" + meat + " MEAT";
         if (record)
             detail += "   ·   LONGEST SHOT";

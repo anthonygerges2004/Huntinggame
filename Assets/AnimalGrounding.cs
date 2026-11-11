@@ -13,7 +13,7 @@ public class AnimalGrounding : MonoBehaviour
     const float MaxShift = 2.5f;
     const float SoleLift = 0.03f;
     const float FollowRate = 6f;
-    const float ActiveRange = 260f;
+    const float ActiveRange = 800f; // far deer on hillsides were left hovering beyond the old 260 m
 
     static readonly string[] FootNames =
     {
@@ -29,8 +29,13 @@ public class AnimalGrounding : MonoBehaviour
     Transform model;
     Transform[] feet = System.Array.Empty<Transform>();
     Vector3 baseLocal;
+    Quaternion baseLocalRot = Quaternion.identity;
+    Vector3 smoothRoot;
+    Quaternion smoothRot = Quaternion.identity;
+    bool smoothed;
     float shift;
     bool measured;
+    Renderer[] bodies;
 
     public static void Ensure(Animal animal)
     {
@@ -53,13 +58,12 @@ public class AnimalGrounding : MonoBehaviour
         feet = FindFeet(model, FootNames);
         if (feet.Length == 0)
             feet = FindFeet(model, FallbackFootNames);
+        // No named foot bones: fall back to the bottom of the drawn body.
         if (feet.Length == 0)
-        {
-            enabled = false;
-            return;
-        }
+            bodies = model.GetComponentsInChildren<Renderer>(true);
 
         baseLocal = model.localPosition;
+        baseLocalRot = model.localRotation;
     }
 
     Transform FindModel()
@@ -101,14 +105,35 @@ public class AnimalGrounding : MonoBehaviour
         if (model == null)
             return;
 
+        // Animals 45-120 m away are simulated only a few times a second, so the body jumped a
+        // couple of metres per tick and looked like it teleported. The model glides after the
+        // simulated body instead; up close it follows tightly, and a real jump (respawn) snaps.
+        Vector3 root = transform.position;
+        Quaternion rootRot = transform.rotation;
+        float playerDist = (PlayerView.Position() - root).magnitude;
+        bool dead = animal != null && animal.Dead;
+        if (!smoothed || dead || (root - smoothRoot).sqrMagnitude > 15f * 15f || model.parent != transform)
+        {
+            smoothRoot = root;
+            smoothRot = rootRot;
+            smoothed = true;
+        }
+        else
+        {
+            float rate = Mathf.Lerp(28f, 9f, Mathf.InverseLerp(30f, 50f, playerDist));
+            float a = 1f - Mathf.Exp(-rate * Time.deltaTime);
+            smoothRoot = Vector3.Lerp(smoothRoot, root, a);
+            smoothRot = Quaternion.Slerp(smoothRot, rootRot, a);
+        }
+
         // Put the model where it was left, in case the animator wrote its root this frame.
-        model.position = transform.TransformPoint(baseLocal) + Vector3.up * shift;
+        PlaceModel();
 
         // A dead or dropping animal keeps its last correction; its feet no longer point down.
-        if (animal != null && animal.Dead)
+        if (dead)
             return;
 
-        if ((PlayerView.Position() - transform.position).sqrMagnitude > ActiveRange * ActiveRange)
+        if (playerDist > ActiveRange)
             return;
 
         float lowestGap = float.PositiveInfinity;
@@ -127,6 +152,22 @@ public class AnimalGrounding : MonoBehaviour
                 lowestGap = gap;
         }
 
+        if (bodies != null)
+        {
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                Renderer r = bodies[i];
+                if (r == null || !r.enabled)
+                    continue;
+                Vector3 c = r.bounds.center;
+                if (!WorldGround.TryGetGround(c, out Vector3 ground, out _))
+                    continue;
+                float gap = r.bounds.min.y - ground.y;
+                if (gap < lowestGap)
+                    lowestGap = gap;
+            }
+        }
+
         if (float.IsPositiveInfinity(lowestGap))
             return;
 
@@ -143,6 +184,18 @@ public class AnimalGrounding : MonoBehaviour
             shift = Mathf.Lerp(shift, target, 1f - Mathf.Exp(-FollowRate * Time.deltaTime));
         }
 
-        model.position = transform.TransformPoint(baseLocal) + Vector3.up * shift;
+        PlaceModel();
+    }
+
+    void PlaceModel()
+    {
+        if (model.parent == transform)
+        {
+            model.SetPositionAndRotation(
+                smoothRoot + smoothRot * Vector3.Scale(transform.lossyScale, baseLocal) + Vector3.up * shift,
+                smoothRot * baseLocalRot);
+        }
+        else
+            model.position = transform.TransformPoint(baseLocal) + Vector3.up * shift;
     }
 }

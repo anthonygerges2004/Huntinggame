@@ -14,13 +14,23 @@ public class PlayerHunterLook : MonoBehaviour
     void Awake()
     {
         HideJoints();
-        RecolorSkin();
     }
 
     void Start()
     {
-        DressClothes();
-        AddHat();
+        // The real outfit: clothing regions on the skinned body plus fitted hat, beard, pack and belt.
+        // The old box clothes remain only as a fallback if the body mesh cannot be read.
+        // The Survivalist character pack model; the procedural outfit is only a fallback.
+        if (SurvivalistBody.Apply(transform))
+        {
+        }
+        else if (!HunterOutfit.Apply(transform))
+        {
+            RecolorSkin();
+            DressClothes();
+            AddHat();
+        }
+
         CameraViewSwitcher cam = GetComponent<CameraViewSwitcher>();
         if (cam != null)
             cam.RefreshBodyRenderers();

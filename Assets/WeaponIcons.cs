@@ -11,7 +11,7 @@ public static class WeaponIcons
     const int Size = 256;
     const int IconLayer = 30;
     static readonly Color ClearColor = new Color(0.12f, 0.12f, 0.12f, 0f);
-    static readonly HuntWeapon[] All = { HuntWeapon.Shotgun, HuntWeapon.Rifle, HuntWeapon.Sniper };
+    static readonly HuntWeapon[] All = { HuntWeapon.Pistol, HuntWeapon.Shotgun, HuntWeapon.SMG, HuntWeapon.Rifle, HuntWeapon.Sniper };
     static readonly Dictionary<HuntWeapon, Texture2D> cache = new Dictionary<HuntWeapon, Texture2D>();
     static bool gaveUp;
     static int attempts;

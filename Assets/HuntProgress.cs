@@ -28,6 +28,8 @@ public static class HuntProgress
     };
 
     public static int Xp { get; private set; }
+    public static int CoinsEarned;
+    public static int PeltsSold;
     public static int RankIndex { get; private set; }
     public static Rank Current => Ranks[RankIndex];
     public static bool IsMaxRank => RankIndex >= Ranks.Length - 1;
@@ -110,6 +112,8 @@ public static class HuntProgress
     {
         Xp = 0;
         RankIndex = 0;
+        CoinsEarned = 0;
+        PeltsSold = 0;
         records.Clear();
         Contracts.Clear();
         contractDay = -1;

@@ -25,7 +25,7 @@ public partial class GameHUD
 
     CanvasGroup weaponGroup;
     RawImage weaponIcon;
-    TMP_Text weaponName, weaponAmmo, weaponState, weaponTip;
+    TMP_Text weaponName, weaponAmmo, weaponReserve, weaponState, weaponTip;
     readonly List<Image> ammoPips = new List<Image>();
     GameObject reloadTrack;
     RectTransform reloadFill;
@@ -130,6 +130,12 @@ public partial class GameHUD
 
         weaponAmmo = Text(panel, "", 28f, TextMain, TextAlignmentOptions.TopRight, true);
         Place(weaponAmmo.rectTransform, new Vector2(1f, 1f), new Vector2(-14f, -8f), new Vector2(110f, 32f), new Vector2(1f, 1f));
+
+        // Spare cartridges carried for this gun (bought at the castle gun shop).
+        weaponReserve = Text(panel, "", 11f, TextDim, TextAlignmentOptions.TopRight, true);
+        weaponReserve.characterSpacing = 3f;
+        weaponReserve.richText = true;
+        Place(weaponReserve.rectTransform, new Vector2(1f, 1f), new Vector2(-14f, -42f), new Vector2(150f, 14f), new Vector2(1f, 1f));
 
         for (int i = 0; i < MaxPips; i++)
         {
@@ -386,6 +392,12 @@ public partial class GameHUD
             weaponAmmo.text = ammo;
         weaponAmmo.color = rounds == 0 ? WarnColor : TextMain;
 
+        int spare = gun.CartridgeCount(weapon);
+        string reserve = spare > 0 ? spare + " SPARE" : "<color=#FF6A5C>NO SPARES</color>";
+        if (weaponReserve.text != reserve)
+            weaponReserve.text = reserve;
+        weaponReserve.color = spare > 0 && spare <= 4 ? Gold : TextDim;
+
         for (int i = 0; i < ammoPips.Count; i++)
         {
             bool used = i < mag;
@@ -407,12 +419,17 @@ public partial class GameHUD
             stateColor = TextMain;
             reloadFill.anchorMax = new Vector2(PlayerShotgun.Reload01, 1f);
         }
+        else if (rounds == 0 && spare == 0)
+        {
+            state = "OUT · BUY AT GUN SHOP";
+            stateColor = WarnColor;
+        }
         else if (rounds == 0)
         {
             state = "EMPTY · PRESS R";
             stateColor = WarnColor;
         }
-        else if (rounds < mag)
+        else if (rounds < mag && spare > 0)
             state = "R  RELOAD";
         else
             state = PlayerShotgun.ScopeIsUp ? "SHIFT  HOLD BREATH" : "RMB  AIM";
