@@ -26,6 +26,8 @@ namespace HuntingGame.Wounds
         float size = 0.55f;
         float heavySize = 0.9f;
         bool ready;
+        Material material;
+        Mesh splashMesh;
 
         void Awake()
         {
@@ -44,11 +46,10 @@ namespace HuntingGame.Wounds
             size = settings.size < 0.15f ? 0.15f : settings.size;
             heavySize = settings.heavySize < size ? size : settings.heavySize;
 
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
-                shader = Shader.Find("Unlit/Color");
+                shader = Shader.Find("Standard");
 
-            Material material = null;
             if (shader != null)
             {
                 material = new Material(shader);
@@ -58,11 +59,12 @@ namespace HuntingGame.Wounds
                     material.SetColor("_BaseColor", blood);
             }
 
+            splashMesh = ShotBlood.MakeSplashMesh();
             slots = new Slot[count];
             for (int i = 0; i < count; i++)
             {
-                GameObject mark = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                mark.name = "Wound";
+                GameObject mark = new GameObject("Wound", typeof(MeshFilter), typeof(MeshRenderer));
+                mark.GetComponent<MeshFilter>().sharedMesh = splashMesh;
                 mark.transform.SetParent(transform, false);
                 Collider solid = mark.GetComponent<Collider>();
                 if (solid != null)
@@ -88,6 +90,20 @@ namespace HuntingGame.Wounds
         {
             if (Current == this)
                 Current = null;
+            if (material != null)
+            {
+                if (Application.isPlaying)
+                    Destroy(material);
+                else
+                    DestroyImmediate(material);
+            }
+            if (splashMesh != null)
+            {
+                if (Application.isPlaying)
+                    Destroy(splashMesh);
+                else
+                    DestroyImmediate(splashMesh);
+            }
         }
 
         public void Mark(Vector3 point, bool heavy)

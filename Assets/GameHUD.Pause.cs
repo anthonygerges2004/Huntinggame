@@ -118,6 +118,7 @@ public partial class GameHUD
             ("   Deer", () => HuntFeedback.KillsOf(AnimalKind.Deer).ToString()),
             ("   Birds", () => HuntFeedback.KillsOf(AnimalKind.Bird).ToString()),
             ("   Wild horses", () => HuntFeedback.KillsOf(AnimalKind.Large).ToString()),
+            ("   Pigs and game", () => HuntFeedback.KillsOf(AnimalKind.Game).ToString()),
             ("   Legendary", () => HuntFeedback.KillsOf(AnimalKind.Legendary).ToString()),
             ("Longest kill", () => HuntFeedback.LongestKill > 0.5f ? Mathf.RoundToInt(HuntFeedback.LongestKill) + " m" : "—"),
             ("Accuracy", () => HuntFeedback.ShotsFired > 0

@@ -46,6 +46,19 @@ namespace HuntingGame.Survival
         public float Warmth01 => warmth;
         public float Wet01 => wet;
 
+        public bool HasHuntingCoat { get; private set; }
+        public bool HasOilskin { get; private set; }
+
+        public void GiveHuntingCoat()
+        {
+            HasHuntingCoat = true;
+        }
+
+        public void GiveOilskin()
+        {
+            HasOilskin = true;
+        }
+
         public bool Starving => food <= 0f;
         public bool Hungry => food < 0.25f;
         public bool Dehydrated => water <= 0f;
@@ -58,31 +71,20 @@ namespace HuntingGame.Survival
         public bool ByFire => byFire;
         public bool NearDrinkableWater => nearWater;
 
-        // Used by PlayerMove: a weak, cold or sick body runs slower and recovers its breath slower.
-        public float MoveSpeedMultiplier
-        {
-            get
-            {
-                float m = 1f;
-                if (Starving || Dehydrated) m = Mathf.Min(m, 0.85f);
-                if (Freezing) m = Mathf.Min(m, 0.85f);
-                if (Poisoned) m = Mathf.Min(m, 0.9f);
-                return m;
-            }
-        }
+        // Shared continuous state drives gameplay and the visible body pose.
+        public float Fatigue01 { get; private set; }
+        public float Shiver01 { get; private set; }
+        public float MoveSpeedMultiplier => 1f - 0.32f * Fatigue01;
+        public float StaminaRecoveryMultiplier => 1f - 0.8f * Fatigue01;
 
-        public float StaminaRecoveryMultiplier
+        void UpdateFatigue(float dt)
         {
-            get
-            {
-                float m = 1f;
-                if (food < 0.2f || water < 0.2f) m = Mathf.Min(m, 0.5f);
-                if (Cold) m = Mathf.Min(m, 0.75f);
-                if (Poisoned) m = Mathf.Min(m, 0.6f);
-                return m;
-            }
+            SurvivalFatigueFuzzy.Result target = SurvivalFatigueFuzzy.Evaluate(food, water, warmth, wet);
+            float fatigue = Poisoned ? Mathf.Max(0.5f, target.fatigue) : target.fatigue;
+            float response = fatigue > Fatigue01 ? settings.fatigueBuildSeconds : settings.fatigueRecoverySeconds;
+            Fatigue01 = SurvivalFatigueFuzzy.Approach(Fatigue01, fatigue, dt, response);
+            Shiver01 = SurvivalFatigueFuzzy.Approach(Shiver01, target.shiver, dt, response);
         }
-
         void Awake()
         {
             if (Current != null && Current != this)
@@ -144,6 +146,8 @@ namespace HuntingGame.Survival
             if (body != null && body.isDead)
                 return;
 
+            if (GamePause.Active || Time.deltaTime <= 0f) return;
+            UpdateFatigue(Time.deltaTime);
             UpdateDrinking();
 
             timer -= Time.deltaTime;
@@ -175,7 +179,7 @@ namespace HuntingGame.Survival
             else if (wading)
                 wet = Mathf.Max(wet, 0.6f);
             else if (raining && !byFire)
-                wet = Mathf.Min(1f, wet + dt / 90f);
+                wet = Mathf.Min(1f, wet + dt / (HasOilskin ? 220f : 90f));
             else
                 wet = Mathf.Max(0f, wet - dt / Mathf.Max(1f, settings.dryingSeconds) * (byFire ? settings.fireDryingMultiplier : 1f));
 
@@ -196,6 +200,8 @@ namespace HuntingGame.Survival
                               : settings.overcastComfort;
                 if (Wet)
                     comfort -= 0.2f * wet;
+                if (HasHuntingCoat)
+                    comfort = Mathf.Min(1f, comfort + 0.2f);
 
                 if (warmth > comfort)
                 {
@@ -371,5 +377,51 @@ namespace HuntingGame.Survival
 
             ScreenText.Centered("Hold Z to drink", Screen.height * 0.5f + 100f * ScreenText.Scale, 20);
         }
+    }
+}
+
+namespace HuntingGame.Survival
+{
+    /// <summary>
+    /// Zero-order Sugeno inference: two complementary memberships for each input,
+    /// sixteen product-AND rules, weighted-average defuzzification. Food/water/warmth
+    /// are reserves (1 is healthy); wetness is exposure (1 is soaked).
+    /// </summary>
+    public static class SurvivalFatigueFuzzy
+    {
+        public struct Result { public float fatigue; public float shiver; }
+
+        public static Result Evaluate(float food, float water, float warmth, float wetness)
+        {
+            float hungry = 1f - Ramp(food, 0f, 0.65f);
+            float thirsty = 1f - Ramp(water, 0f, 0.7f);
+            float cold = 1f - Ramp(warmth, 0.05f, 0.6f);
+            float wet = Ramp(wetness, 0.2f, 1f);
+            float sum = 0f, weights = 0f;
+            for (int rule = 0; rule < 16; rule++)
+            {
+                int h = rule & 1, t = (rule >> 1) & 1, c = (rule >> 2) & 1, w = (rule >> 3) & 1;
+                float weight = (h == 1 ? hungry : 1f - hungry) * (t == 1 ? thirsty : 1f - thirsty)
+                    * (c == 1 ? cold : 1f - cold) * (w == 1 ? wet : 1f - wet);
+                // Strong hunger AND thirst compounds fatigue; soaked AND cold is worse
+                // than wet clothes alone. Every consequent is monotone in each stressor.
+                float severity = Clamp(0.22f * h + 0.34f * t + 0.28f * c + 0.06f * w
+                    + 0.16f * h * t + 0.18f * c * w);
+                sum += weight * severity;
+                weights += weight;
+            }
+            return new Result { fatigue = weights > 0f ? Clamp(sum / weights) : 0f,
+                shiver = cold * (0.65f + 0.35f * wet) };
+        }
+
+        public static float Approach(float current, float target, float dt, float seconds)
+        {
+            if (dt <= 0f) return current;
+            float blend = 1f - (float)System.Math.Exp(-dt / System.Math.Max(0.05f, seconds));
+            return Clamp(current + (target - current) * blend);
+        }
+
+        static float Ramp(float x, float low, float high) => Clamp((x - low) / (high - low));
+        static float Clamp(float x) => System.Math.Max(0f, System.Math.Min(1f, x));
     }
 }

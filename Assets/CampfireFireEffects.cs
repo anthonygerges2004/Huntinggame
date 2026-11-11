@@ -60,6 +60,9 @@ public class CampfireFireEffects : MonoBehaviour
 
     void BuildLogRing()
     {
+        if (transform.Find("LaidLogs") != null)
+            return;
+
         Material logMat = Resources.Load<Material>("Building/LogMat");
         if (logMat == null)
             return;

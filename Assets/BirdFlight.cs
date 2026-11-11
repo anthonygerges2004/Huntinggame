@@ -20,6 +20,10 @@ public class BirdFlight : MonoBehaviour
     float cruiseSpeed;
     float fleeSpeed;
     float wander;
+    FlyerProfile profile;
+    bool footing;
+
+    public bool Landed => perched || footing;
 
     void Start()
     {
@@ -29,14 +33,20 @@ public class BirdFlight : MonoBehaviour
 
         home = WorldGround.Snap(transform.position);
         float startY = home.y + Random.Range(cruiseMin, cruiseMax);
-        if (animal != null && animal.flyer == FlyerKind.Duck &&
+        if (profile.water &&
             WaterBodies.SurfaceAt(home, 12f, out float surface, out _))
             startY = surface + Random.Range(cruiseMin, cruiseMax);
         if (transform.position.y < startY - 1f)
             transform.position = new Vector3(transform.position.x, startY, transform.position.z);
 
         nextDecision = Time.time + Random.Range(2f, 6f);
-        if (animal != null && animal.flyer != FlyerKind.Duck && Random.value < 0.55f && TryPerch(true))
+        if (profile.shape == BirdShape.LongTail && Random.value < 0.8f)
+        {
+            footing = true;
+            transform.position = new Vector3(transform.position.x, home.y + 0.02f, transform.position.z);
+            PickGroundTarget();
+        }
+        else if (!profile.water && Random.value < 0.55f && TryPerch(true))
             SnapToPerch();
         else
             PickTarget();
@@ -63,43 +73,17 @@ public class BirdFlight : MonoBehaviour
 
     void ApplyStats()
     {
-        FlyerKind kind = animal != null ? animal.flyer : FlyerKind.Sparrow;
-        switch (kind)
-        {
-            case FlyerKind.Crow:
-                cruiseMin = 8f;
-                cruiseMax = 16f;
-                cruiseSpeed = 7.5f;
-                fleeSpeed = 14f;
-                wander = 48f;
-                break;
-            case FlyerKind.Duck:
-                cruiseMin = 2.2f;
-                cruiseMax = 6.2f;
-                cruiseSpeed = 6f;
-                fleeSpeed = 12f;
-                wander = 26f;
-                break;
-            case FlyerKind.Hawk:
-                cruiseMin = 16f;
-                cruiseMax = 28f;
-                cruiseSpeed = 9f;
-                fleeSpeed = 16f;
-                wander = 78f;
-                break;
-            default:
-                cruiseMin = 5f;
-                cruiseMax = 11f;
-                cruiseSpeed = 6.5f;
-                fleeSpeed = 13f;
-                wander = 34f;
-                break;
-        }
+        profile = FlyerProfile.Of(animal != null ? animal.flyer : FlyerKind.Sparrow);
+        cruiseMin = profile.cruiseMin;
+        cruiseMax = profile.cruiseMax;
+        cruiseSpeed = profile.cruiseSpeed;
+        fleeSpeed = profile.fleeSpeed;
+        wander = profile.wander;
     }
 
     void Update()
     {
-        if (animal == null || animal.Dead)
+        if (animal == null || animal.Dead || !animal.IsPresent())
             return;
 
         age += Time.deltaTime;
@@ -109,6 +93,7 @@ public class BirdFlight : MonoBehaviour
         {
             perched = false;
             landing = false;
+            footing = false;
             Vector3 away = FleeDestination();
             FlyToward(away, fleeSpeed, 2.4f);
             Flap(28f, 55f);
@@ -120,6 +105,7 @@ public class BirdFlight : MonoBehaviour
         {
             perched = false;
             landing = false;
+            footing = false;
             Vector3 hover = baitPoint;
             hover.y = WorldGround.Snap(baitPoint).y + Mathf.Clamp(cruiseMin * 0.35f, 2f, 4.5f);
             FlyToward(hover, cruiseSpeed, 0.45f);
@@ -127,8 +113,20 @@ public class BirdFlight : MonoBehaviour
             return;
         }
 
-        if (night && !perched && !landing)
+        if (night && footing)
+        {
+            footing = false;
             TryPerch(true);
+        }
+
+        if (night && !perched && !landing && !footing)
+            TryPerch(true);
+
+        if (footing)
+        {
+            WalkGround();
+            return;
+        }
 
         if (perched)
         {
@@ -152,7 +150,7 @@ public class BirdFlight : MonoBehaviour
         }
 
         FlyToward(target, cruiseSpeed, 1.1f);
-        Flap(animal.flyer == FlyerKind.Hawk ? 10f : 22f, animal.flyer == FlyerKind.Hawk ? 28f : 50f);
+        Flap(profile.flapRate, profile.flapAmount);
 
         if (Vector3.Distance(transform.position, target) < 1.4f || Time.time >= nextDecision)
         {
@@ -166,17 +164,7 @@ public class BirdFlight : MonoBehaviour
 
     float PerchChance()
     {
-        switch (animal.flyer)
-        {
-            case FlyerKind.Hawk:
-                return 0.22f;
-            case FlyerKind.Duck:
-                return 0.12f;
-            case FlyerKind.Crow:
-                return 0.62f;
-            default:
-                return 0.7f;
-        }
+        return profile.perchChance;
     }
 
     void FlyToward(Vector3 dest, float speed, float bob)
@@ -192,14 +180,16 @@ public class BirdFlight : MonoBehaviour
             pos.z += step.z;
 
             Quaternion look = Quaternion.LookRotation(flatTo.normalized, Vector3.up);
-            transform.rotation = Quaternion.Slerp(transform.rotation, look, 4.5f * Time.deltaTime);
+            float yaw = Mathf.DeltaAngle(transform.eulerAngles.y, look.eulerAngles.y);
+            Quaternion bank = look * Quaternion.Euler(0f, 0f, Mathf.Clamp(-yaw * 0.45f, -32f, 32f));
+            transform.rotation = Quaternion.Slerp(transform.rotation, bank, 4.5f * Time.deltaTime);
         }
 
         float wantY = dest.y + Mathf.Sin(age * 2.4f) * bob * 0.12f;
         pos.y = Mathf.MoveTowards(pos.y, wantY, speed * 0.55f * Time.deltaTime);
 
         float floor = WorldGround.Snap(pos).y + 1.2f;
-        if (animal != null && animal.flyer == FlyerKind.Duck &&
+        if (profile.water &&
             WaterBodies.SurfaceAt(pos, 8f, out float surface, out _))
             floor = surface + 1.4f;
         if (pos.y < floor)
@@ -245,9 +235,16 @@ public class BirdFlight : MonoBehaviour
 
     void PickTarget()
     {
-        if (animal.flyer == FlyerKind.Duck && TryWaterTarget(out Vector3 water))
+        if (profile.water && TryWaterTarget(out Vector3 water))
         {
             target = water;
+            return;
+        }
+
+        if (profile.shape == BirdShape.LongTail && Random.value < 0.65f)
+        {
+            footing = true;
+            PickGroundTarget();
             return;
         }
 
@@ -291,7 +288,7 @@ public class BirdFlight : MonoBehaviour
 
     bool TryPerch(bool force)
     {
-        if (animal != null && animal.flyer == FlyerKind.Duck)
+        if (profile.water)
             return TryWaterPerch();
 
         float range = force ? 90f : 42f;
@@ -415,7 +412,7 @@ public class BirdFlight : MonoBehaviour
         if (!WaterBodies.SurfaceAt(transform.position, 6f, out float surface, out _))
             return false;
         Vector3 sit = transform.position;
-        sit.y = surface + 0.35f;
+        sit.y = surface + 0.08f;
         target = sit;
         landing = true;
         perched = Vector3.Distance(transform.position, sit) < 1.2f;
@@ -426,6 +423,72 @@ public class BirdFlight : MonoBehaviour
             transform.position = sit;
         }
         return true;
+    }
+
+    void WalkGround()
+    {
+        Vector3 pos = transform.position;
+        Vector3 ground = WorldGround.Snap(pos);
+        float stand = ground.y + 0.02f;
+        if (pos.y > stand + 0.3f)
+        {
+            pos.y = Mathf.MoveTowards(pos.y, stand, 3.2f * Time.deltaTime);
+            transform.position = pos;
+            FoldWings();
+            return;
+        }
+
+        Vector3 flat = target - pos;
+        flat.y = 0f;
+        if (flat.magnitude < 0.45f || Time.time >= nextDecision)
+        {
+            nextDecision = Time.time + Random.Range(2.5f, 6.5f);
+            if (Random.value < 0.2f)
+            {
+                footing = false;
+                Vector3 away = home + RandomHorizontalDir() * Random.Range(wander * 0.4f, wander);
+                away = WorldGround.Snap(away);
+                away.y = home.y + Random.Range(cruiseMin, cruiseMax);
+                target = away;
+                return;
+            }
+
+            PickGroundTarget();
+            return;
+        }
+
+        pos += flat.normalized * (1.35f * Time.deltaTime);
+        ground = WorldGround.Snap(pos);
+        if (WorldGround.InsideWater(ground))
+        {
+            PickGroundTarget();
+            return;
+        }
+
+        pos.y = ground.y + 0.02f;
+        transform.position = pos;
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            Quaternion.LookRotation(flat.normalized, Vector3.up),
+            6f * Time.deltaTime);
+        FoldWings();
+    }
+
+    void PickGroundTarget()
+    {
+        Vector3 pos = WorldGround.Snap(home + RandomHorizontalDir() * Random.Range(3f, 12f));
+        if (WorldGround.InsideWater(pos))
+            pos = home;
+        pos.y += 0.02f;
+        target = pos;
+    }
+
+    void FoldWings()
+    {
+        if (wingLeft != null)
+            wingLeft.localRotation = Quaternion.Euler(0f, 0f, -52f);
+        if (wingRight != null)
+            wingRight.localRotation = Quaternion.Euler(0f, 0f, 52f);
     }
 
     void Flap(float rate, float amount)

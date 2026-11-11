@@ -30,7 +30,7 @@ public partial class Inventory : MonoBehaviour
 
     public static Inventory Instance;
     // True while the bag or the pause menu is open; gameplay input everywhere checks this.
-    public static bool IsOpen => Instance != null && (Instance.inventoryOpen || GamePause.Active);
+    public static bool IsOpen => GamePause.Active || (Instance != null && Instance.inventoryOpen);
 
     /// <summary>The hand axe is out only while its hotbar slot is selected.</summary>
     public static bool AxeInHand
@@ -49,6 +49,15 @@ public partial class Inventory : MonoBehaviour
     public int spoiledMeat;
     public int wood;
     public bool hasPickaxe = true;
+    public bool ownsLighter;
+    public bool rentedLighter;
+    public float lighterSeconds;
+    bool toldLighterExpired;
+
+    public bool LighterWorks => ownsLighter || (rentedLighter && lighterSeconds > 0f);
+    public bool LighterDueBack => rentedLighter && !ownsLighter;
+
+    public const float LighterRentSeconds = 180f;
     [Tooltip("Real minutes raw meat stays fresh. Cooked meat keeps.")]
     public float rawMeatFreshMinutes = 6f;
     public float meatSpoilSeconds => Mathf.Max(0.1f, rawMeatFreshMinutes) * 60f;
@@ -97,6 +106,8 @@ public partial class Inventory : MonoBehaviour
             gameObject.AddComponent<DeerChallenge>();
         if (GetComponent<AmbientFlyers>() == null)
             gameObject.AddComponent<AmbientFlyers>();
+        if (GetComponent<AmbientGame>() == null)
+            gameObject.AddComponent<AmbientGame>();
         if (GetComponent<FoliageDistanceCull>() == null)
             gameObject.AddComponent<FoliageDistanceCull>();
         if (GetComponent<OpenWorld>() == null)
@@ -147,6 +158,8 @@ public partial class Inventory : MonoBehaviour
         // Gun pictures are photographed once from the real models. Rendering has to happen here, not in OnGUI.
         WeaponIcons.Warm();
         UpdateView();
+        if (!GamePause.Active)
+            TickLighter();
 
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
         {
@@ -200,6 +213,18 @@ public partial class Inventory : MonoBehaviour
         int added = AddItem(ItemKind.RawMeat, amount);
         if (added > 0)
             spoilTimer = meatSpoilSeconds;
+    }
+
+    // Return the accepted count so world pickups keep anything that does not fit.
+    public int CollectItem(string itemId, int amount)
+    {
+        if (amount <= 0 || !System.Enum.TryParse(itemId, out ItemKind kind) ||
+            !System.Enum.IsDefined(typeof(ItemKind), kind) || kind == ItemKind.None)
+            return 0;
+        int added = AddItem(kind, amount);
+        if (kind == ItemKind.RawMeat && added > 0)
+            spoilTimer = meatSpoilSeconds;
+        return added;
     }
 
     public void AddWood(int amount)
@@ -307,6 +332,21 @@ public partial class Inventory : MonoBehaviour
             return true;
 
         return RemoveItem(ItemKind.RawMeat, 1) == 1;
+    }
+
+    public bool TrySellMeatForWood(int price)
+    {
+        if (price <= 0)
+            return false;
+        Slot[] before = (Slot[])slots.Clone();
+        bool removed = RemoveOneSellableMeat();
+        if (!removed && spoiledMeat >= 2)
+            removed = RemoveSpoiledMeat(2);
+        if (removed && AddItem(ItemKind.Wood, price) == price)
+            return true;
+        slots = before;
+        RecalculatePublicCounts();
+        return false;
     }
 
     int AddItem(ItemKind kind, int amount)
@@ -619,7 +659,7 @@ public partial class Inventory : MonoBehaviour
 
     void TryHotbarKeys()
     {
-        if (Keyboard.current == null || dragging || BirdChallenge.Active || WoodBuilder.IsBuilding || NearTrader())
+        if (Keyboard.current == null || dragging || BirdChallenge.Active || WoodBuilder.IsBuilding || NearTrader() || CastleShop.BlockingHotbar())
             return;
 
         // With the bag open, 1-5 over a slot puts that item on the key instead of selecting it.
@@ -656,6 +696,142 @@ public partial class Inventory : MonoBehaviour
             SelectHotbar(3, true);
         else if (Keyboard.current.digit5Key.wasPressedThisFrame)
             SelectHotbar(4, true);
+    }
+
+    public bool BuyLighter()
+    {
+        if (ownsLighter)
+            return false;
+
+        ownsLighter = true;
+        rentedLighter = false;
+        lighterSeconds = 0f;
+        toldLighterExpired = false;
+        return true;
+    }
+
+    public bool BeginLighterRental()
+    {
+        if (ownsLighter || rentedLighter)
+            return false;
+
+        rentedLighter = true;
+        lighterSeconds = LighterRentSeconds;
+        toldLighterExpired = false;
+        return true;
+    }
+
+    public bool ReturnLighter()
+    {
+        if (!rentedLighter || ownsLighter)
+            return false;
+
+        rentedLighter = false;
+        lighterSeconds = 0f;
+        toldLighterExpired = false;
+        return true;
+    }
+
+    void TickLighter()
+    {
+        if (ownsLighter || !rentedLighter || lighterSeconds <= 0f)
+            return;
+
+        lighterSeconds -= Time.deltaTime;
+        if (lighterSeconds > 0f)
+            return;
+
+        lighterSeconds = 0f;
+        if (toldLighterExpired)
+            return;
+
+        toldLighterExpired = true;
+        ShowNotice("Lighter overdue! The gun shop owner will attack if you approach. Press 6 at his shop to return it.");
+    }
+
+    public bool OwnsWeapon(HuntWeapon weapon)
+    {
+        if (weapon == HuntWeapon.None)
+            return false;
+
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (slots[i].count > 0 && ToWeapon(slots[i].kind) == weapon)
+                return true;
+        }
+
+        return false;
+    }
+
+    public bool TryAddWeapon(HuntWeapon weapon)
+    {
+        if (weapon == HuntWeapon.None || OwnsWeapon(weapon))
+            return false;
+
+        ItemKind kind = ItemKind.None;
+        if (weapon == HuntWeapon.Shotgun)
+            kind = ItemKind.Shotgun;
+        else if (weapon == HuntWeapon.Rifle)
+            kind = ItemKind.Rifle;
+        else if (weapon == HuntWeapon.Sniper)
+            kind = ItemKind.Sniper;
+        if (kind == ItemKind.None)
+            return false;
+
+        return AddItem(kind, 1) == 1;
+    }
+
+    public int GiveWood(int amount)
+    {
+        return AddItem(ItemKind.Wood, amount);
+    }
+
+    public int GiveRawMeat(int amount)
+    {
+        int added = AddItem(ItemKind.RawMeat, amount);
+        if (added > 0)
+            spoilTimer = meatSpoilSeconds;
+        return added;
+    }
+
+    public int GiveCooked(int amount)
+    {
+        return AddItem(ItemKind.CookedMeat, amount);
+    }
+
+    public int GiveBait(int amount)
+    {
+        return AddItem(ItemKind.SpoiledMeat, amount);
+    }
+
+    public bool SpendRaw(int amount)
+    {
+        return amount > 0 && RemoveItem(ItemKind.RawMeat, amount) == amount;
+    }
+
+    public bool SpendCooked(int amount)
+    {
+        return amount > 0 && RemoveItem(ItemKind.CookedMeat, amount) == amount;
+    }
+
+    public int SpaceForWood()
+    {
+        return GetSpaceFor(ItemKind.Wood);
+    }
+
+    public int SpaceForRaw()
+    {
+        return GetSpaceFor(ItemKind.RawMeat);
+    }
+
+    public int SpaceForCooked()
+    {
+        return GetSpaceFor(ItemKind.CookedMeat);
+    }
+
+    public int SpaceForBait()
+    {
+        return GetSpaceFor(ItemKind.SpoiledMeat);
     }
 
     static bool NearTrader()

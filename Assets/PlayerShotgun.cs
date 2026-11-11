@@ -11,6 +11,10 @@ public class PlayerShotgun : MonoBehaviour
     public static float Mount => Instance != null ? Instance.mount : 0f;
     public static float RecoilKick => Instance != null ? Instance.recoil : 0f;
     public static float PumpPull => Instance != null ? Instance.breakOpen : 0f;
+    public static float ViewKick { get; private set; }
+    public static float ViewRoll { get; private set; }
+    public static float GunPresent { get; private set; } = 1f;
+    public static float AxePresent { get; private set; }
 
     public static float AimFovScale => Instance != null && Instance.active != null && Instance.equipped
         ? Instance.active.zoom
@@ -36,7 +40,7 @@ public class PlayerShotgun : MonoBehaviour
 
     float ReloadSeconds()
     {
-        return active == null || active.id == HuntWeapon.Shotgun ? 1.38f : 0.7f;
+        return active == null || active.id == HuntWeapon.Shotgun ? 2.15f : 0.7f;
     }
 
     public int pellets = 24;
@@ -74,6 +78,7 @@ public class PlayerShotgun : MonoBehaviour
         public float zoom;
         public bool scope;
         public string label;
+        public int reserve;
     }
 
     Vector3 rightGripLocal = new Vector3(0f, 0.01f, -0.02f);
@@ -81,6 +86,21 @@ public class PlayerShotgun : MonoBehaviour
     float mount;
     float recoil;
     float breakOpen;
+    float follow;
+    float kickScale = 1f;
+    float rollSign = 1f;
+    float gunClock = -1f;
+    float gunFrom = 1f;
+    float gunTo = 1f;
+    float gunDur = 0.45f;
+    bool gunHolster;
+    bool axeWanted;
+    float axeClock = -1f;
+    float axeFrom;
+    float axeTo;
+    float axeDur = 0.4f;
+    Light flashLight;
+    float flashLeft;
 
     static readonly Vector3 ViewReadyPos = new Vector3(0.38f, -0.36f, 0.92f);
     static readonly Quaternion ViewReadyRot = Quaternion.Euler(8f, 3f, 0f);
@@ -106,6 +126,7 @@ public class PlayerShotgun : MonoBehaviour
 
         ClearLeftoverGuns();
         BuildGuns();
+        SeedCartridges();
         if (Inventory.Instance != null)
             Inventory.Instance.ApplySelectedWeapon(false);
         else
@@ -123,6 +144,7 @@ public class PlayerShotgun : MonoBehaviour
     void Update()
     {
         bool canAim = equipped
+            && !CampfireBuild.Busy
             && !Inventory.IsOpen
             && !BirdChallenge.Active
             && !WoodBuilder.IsBuilding
@@ -130,17 +152,26 @@ public class PlayerShotgun : MonoBehaviour
         aimHeld = canAim && Mouse.current != null && Mouse.current.rightButton.isPressed;
 
         // R tops the gun up early instead of waiting for it to run dry.
-        if (canAim && !reloading && active != null && shells < active.magSize
+        if (canAim && !reloading && GunPresent > 0.9f && active != null && shells < active.magSize
             && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame
             && (fireTime < 0f || fireTime > 0.18f))
-            StartReload();
+        {
+            if (active.reserve <= 0)
+            {
+                if (Inventory.Instance != null)
+                    Inventory.Instance.ShowNotice("Out of cartridges. The gun shop in the castle sells them.");
+            }
+            else
+                StartReload();
+        }
 
         TickAction(Time.deltaTime);
+        TickHands(Time.deltaTime);
     }
 
     void LateUpdate()
     {
-        if (!equipped)
+        if (!equipped || CampfireBuild.Busy)
         {
             SetVisible(false);
             return;
@@ -155,32 +186,74 @@ public class PlayerShotgun : MonoBehaviour
             PoseFirstPerson();
         else
             PoseInHand();
+
+        DriveBreak(viewGun);
+        DriveBreak(handGun);
+    }
+
+    void DriveBreak(Transform gun)
+    {
+        if (gun == null)
+            return;
+
+        ShotgunBreak action = gun.GetComponent<ShotgunBreak>();
+        if (action == null)
+            return;
+
+        bool shotgun = active != null && active.id == HuntWeapon.Shotgun;
+        float load = 0f;
+        if (shotgun && reloading)
+        {
+            float done = ReloadSeconds();
+            load = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(done * 0.42f, done * 0.68f, fireTime));
+        }
+
+        action.SetOpen(shotgun ? breakOpen : 0f, load);
     }
 
     void TickAction(float dt)
     {
+        TickFlash(dt);
         if (fireTime < 0f)
         {
             mount = Mathf.MoveTowards(mount, aimHeld ? 1f : 0f, dt * (aimHeld ? 5f : 3.5f));
-            recoil = Mathf.MoveTowards(recoil, 0f, dt * 5f);
+            recoil = Mathf.MoveTowards(recoil, 0f, dt * 6f);
             breakOpen = Mathf.MoveTowards(breakOpen, 0f, dt * 5f);
+            follow = Mathf.MoveTowards(follow, 0f, dt * 6f);
+            ApplyViewKick();
             return;
         }
 
         fireTime += dt;
-        recoil = fireTime < 0.08f ? 1f : Mathf.Exp(-(fireTime - 0.08f) * 6.5f);
+        float window = KickWindow();
+        float rise = 0.032f;
+        if (fireTime < rise)
+            recoil = Mathf.SmoothStep(0f, 1f, fireTime / rise);
+        else
+        {
+            float u = Mathf.Clamp01((fireTime - rise) / Mathf.Max(0.05f, window - rise));
+            float recover = Mathf.Exp(-u * 3.4f);
+            float settle = Mathf.Sin(u * Mathf.PI) * 0.14f * (1f - u);
+            recoil = Mathf.Clamp01(recover + settle);
+        }
+
+        ApplyViewKick();
 
         if (reloading)
         {
+            follow = Mathf.MoveTowards(follow, 0f, dt * 8f);
             float done = ReloadSeconds();
-            if (fireTime < 0.20f)
+            float openStart = active != null && active.id == HuntWeapon.Shotgun ? 0.18f : 0.2f;
+            float openEnd = active != null && active.id == HuntWeapon.Shotgun ? done * 0.3f : done * 0.45f;
+            float shutStart = active != null && active.id == HuntWeapon.Shotgun ? done * 0.78f : done * 0.7f;
+            if (fireTime < openStart)
                 breakOpen = 0f;
-            else if (fireTime < done * 0.45f)
-                breakOpen = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.20f, done * 0.45f, fireTime));
-            else if (fireTime < done * 0.7f)
+            else if (fireTime < openEnd)
+                breakOpen = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(openStart, openEnd, fireTime));
+            else if (fireTime < shutStart)
                 breakOpen = 1f;
             else
-                breakOpen = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(done * 0.7f, done, fireTime));
+                breakOpen = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(shutStart, done, fireTime));
 
             mount = fireTime < done ? 1f : 0f;
             if (fireTime >= done)
@@ -188,20 +261,142 @@ public class PlayerShotgun : MonoBehaviour
             return;
         }
 
-        if (fireTime > 0.28f)
+        float followStart = 0.05f;
+        float followEnd = window * 0.9f;
+        if (fireTime > followStart && fireTime < followEnd)
+        {
+            float along = Mathf.InverseLerp(followStart, followEnd, fireTime);
+            float amount = active != null && active.id == HuntWeapon.Shotgun ? 1f : 0.42f;
+            follow = Mathf.Sin(along * Mathf.PI) * amount;
+        }
+        else
+            follow = 0f;
+
+        if (fireTime > window)
             fireTime = -1f;
+    }
+
+    float KickWindow()
+    {
+        if (active == null || active.id == HuntWeapon.Shotgun)
+            return 0.56f;
+        if (active.id == HuntWeapon.Sniper)
+            return 0.36f;
+        return 0.44f;
+    }
+
+    float RefireLock()
+    {
+        if (active == null || active.id == HuntWeapon.Shotgun)
+            return 0.38f;
+        return 0.16f;
+    }
+
+    float WeaponKick()
+    {
+        if (active == null || active.id == HuntWeapon.Shotgun)
+            return aimHeld ? 0.8f : 1.08f;
+        if (active.id == HuntWeapon.Sniper)
+            return aimHeld ? 0.36f : 0.6f;
+        return aimHeld ? 0.55f : 0.82f;
+    }
+
+    void ApplyViewKick()
+    {
+        float degrees = 2f;
+        if (active == null || active.id == HuntWeapon.Shotgun)
+            degrees = 3.5f;
+        else if (active.id == HuntWeapon.Sniper)
+            degrees = aimHeld ? 0.7f : 1.45f;
+        ViewKick = recoil * degrees * kickScale;
+        ViewRoll = recoil * rollSign * 1.2f * kickScale;
+    }
+
+    void TickFlash(float dt)
+    {
+        if (flashLight == null)
+            return;
+
+        flashLeft -= dt;
+        if (flashLeft <= 0f)
+        {
+            Destroy(flashLight.gameObject);
+            flashLight = null;
+            return;
+        }
+
+        float life = Mathf.Clamp01(flashLeft / 0.045f);
+        flashLight.intensity = 32f * life;
+        flashLight.range = 4f + 10f * life;
     }
 
     void FinishReload()
     {
         fireTime = -1f;
         reloading = false;
-        shells = active != null ? active.magSize : 2;
-        if (active != null)
-            active.ammo = shells;
         mount = 0f;
         recoil = 0f;
         breakOpen = 0f;
+        if (active == null)
+            return;
+
+        int room = active.magSize - shells;
+        int take = Mathf.Min(room, active.reserve);
+        if (take <= 0)
+        {
+            if (Inventory.Instance != null)
+                Inventory.Instance.ShowNotice("Out of cartridges. The gun shop in the castle sells them.");
+            return;
+        }
+
+        active.reserve -= take;
+        shells += take;
+        active.ammo = shells;
+        if (active.reserve <= 4 && Inventory.Instance != null)
+            Inventory.Instance.ShowNotice(active.reserve == 0
+                ? "That was the last of your cartridges."
+                : active.reserve + " cartridges left.");
+    }
+
+    public int CartridgeCount(HuntWeapon weapon)
+    {
+        Rig rig = RigFor(weapon);
+        return rig != null ? rig.reserve : 0;
+    }
+
+    public void AddCartridges(HuntWeapon weapon, int amount)
+    {
+        Rig rig = RigFor(weapon);
+        if (rig == null || amount == 0)
+            return;
+
+        rig.reserve = Mathf.Clamp(rig.reserve + amount, 0, 240);
+    }
+
+    Rig RigFor(HuntWeapon weapon)
+    {
+        if (built == null || weapon == HuntWeapon.None)
+            return null;
+
+        int index = (int)weapon;
+        if (index < 0 || index >= built.Length)
+            return null;
+
+        return built[index];
+    }
+
+    void SeedCartridges()
+    {
+        SetReserve(HuntWeapon.Shotgun, 36);
+        SetReserve(HuntWeapon.Rifle, 30);
+        SetReserve(HuntWeapon.Sniper, 16);
+    }
+
+    void SetReserve(HuntWeapon weapon, int amount)
+    {
+        Rig rig = RigFor(weapon);
+        if (rig != null)
+            rig.reserve = amount;
     }
 
     public HuntWeapon Equipped => equipped && active != null ? active.id : HuntWeapon.None;
@@ -235,21 +430,28 @@ public class PlayerShotgun : MonoBehaviour
         if (active != null)
             active.ammo = shells;
 
+        bool axe = weapon == HuntWeapon.None && Inventory.AxeInHand;
+        bool sameGun = weapon != HuntWeapon.None && active != null && active.id == weapon && equipped && !gunHolster;
+        if (sameGun)
+        {
+            SetAxe(false);
+            return;
+        }
+
         aimHeld = false;
         fireTime = -1f;
         reloading = false;
         mount = 0f;
         recoil = 0f;
         breakOpen = 0f;
+        SetAxe(axe);
 
-        if (weapon == HuntWeapon.None || built == null)
+        if (weapon == HuntWeapon.None)
         {
-            active = null;
-            equipped = false;
-            viewGun = null;
-            handGun = null;
-            leftGrip = null;
-            SetAllHidden();
+            if (active != null)
+                BeginGunHolster();
+            else
+                GunPresent = 0f;
             return;
         }
 
@@ -271,8 +473,121 @@ public class PlayerShotgun : MonoBehaviour
         range = active.gunRange;
         SetAllHidden();
         SetVisible(true);
+        BeginGunDraw(weapon);
         if (CameraViewSwitcher.Instance != null)
             CameraViewSwitcher.Instance.RefreshBodyRenderers();
+    }
+
+    void BeginGunDraw(HuntWeapon weapon)
+    {
+        gunHolster = false;
+        gunFrom = 0f;
+        gunTo = 1f;
+        gunDur = weapon == HuntWeapon.Shotgun ? 0.66f : weapon == HuntWeapon.Sniper ? 0.82f : 0.48f;
+        gunClock = 0f;
+        GunPresent = 0f;
+    }
+
+    void BeginGunHolster()
+    {
+        if (gunHolster)
+            return;
+
+        gunHolster = true;
+        gunFrom = GunPresent;
+        gunTo = 0f;
+        gunDur = 0.3f;
+        gunClock = 0f;
+    }
+
+    void FinishHolster()
+    {
+        gunHolster = false;
+        active = null;
+        equipped = false;
+        viewGun = null;
+        handGun = null;
+        leftGrip = null;
+        GunPresent = 0f;
+        SetAllHidden();
+    }
+
+    void SetAxe(bool want)
+    {
+        if (axeWanted == want)
+            return;
+
+        axeWanted = want;
+        axeFrom = AxePresent;
+        axeTo = want ? 1f : 0f;
+        axeDur = want ? 0.42f : 0.24f;
+        axeClock = 0f;
+    }
+
+    void TickHands(float dt)
+    {
+        if (gunClock >= 0f)
+        {
+            gunClock += dt;
+            float along = Mathf.Clamp01(gunClock / Mathf.Max(0.05f, gunDur));
+            float eased = 1f - Mathf.Pow(1f - along, 3f);
+            GunPresent = Mathf.Lerp(gunFrom, gunTo, eased);
+            if (along >= 1f)
+            {
+                gunClock = -1f;
+                GunPresent = gunTo;
+                if (gunHolster)
+                    FinishHolster();
+            }
+        }
+
+        if (axeClock >= 0f)
+        {
+            axeClock += dt;
+            float along = Mathf.Clamp01(axeClock / Mathf.Max(0.05f, axeDur));
+            float eased = 1f - Mathf.Pow(1f - along, 3f);
+            AxePresent = Mathf.Lerp(axeFrom, axeTo, eased);
+            if (along >= 1f)
+            {
+                axeClock = -1f;
+                AxePresent = axeTo;
+            }
+        }
+    }
+
+    void DrawBlends(out float place, out float level)
+    {
+        float present = Mathf.Clamp01(GunPresent);
+        float rise = 1f - Mathf.Pow(1f - present, 3f);
+        if (active != null && active.id == HuntWeapon.Sniper)
+        {
+            place = 1f - Mathf.Pow(1f - Mathf.Clamp01(present / 0.48f), 2f);
+            level = rise;
+            return;
+        }
+
+        place = rise;
+        level = rise;
+    }
+
+    void DrawHip(out Vector3 pos, out Quaternion rot)
+    {
+        if (active != null && active.id == HuntWeapon.Shotgun)
+        {
+            pos = new Vector3(0.28f, -0.62f, -0.06f);
+            rot = Quaternion.Euler(72f, 46f, 26f);
+            return;
+        }
+
+        if (active != null && active.id == HuntWeapon.Sniper)
+        {
+            pos = new Vector3(0.05f, -0.22f, -0.2f);
+            rot = Quaternion.Euler(62f, 8f, -6f);
+            return;
+        }
+
+        pos = new Vector3(0.12f, -0.52f, 0.02f);
+        rot = Quaternion.Euler(76f, 14f, 8f);
     }
 
     public void Toggle()
@@ -305,22 +620,33 @@ public class PlayerShotgun : MonoBehaviour
     {
         if (!DeerChallenge.AllowFire())
             return;
+        if (GunPresent < 0.84f)
+            return;
         if (!equipped || reloading)
             return;
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
-        if (fireTime >= 0f && fireTime < 0.18f)
+        if (fireTime >= 0f && fireTime < RefireLock())
             return;
 
         if (shells <= 0)
         {
+            if (active == null || active.reserve <= 0)
+            {
+                if (Inventory.Instance != null)
+                    Inventory.Instance.ShowNotice("Out of cartridges. The gun shop in the castle sells them.");
+                return;
+            }
+
             StartReload();
             return;
         }
 
         fireTime = 0f;
         mount = 1f;
-        recoil = 1f;
+        recoil = 0f;
+        kickScale = WeaponKick();
+        rollSign = Random.value < 0.5f ? -1f : 1f;
         DeerChallenge.CountShot();
         HuntFeedback.ShotFired();
         shells--;
@@ -335,14 +661,17 @@ public class PlayerShotgun : MonoBehaviour
         if (Inventory.Instance != null && shells <= 0)
             Inventory.Instance.ShowNotice(ShotLine());
 
-        if (shells <= 0)
+        if (shells <= 0 && active != null && active.reserve > 0)
             StartReload();
+        else if (shells <= 0 && Inventory.Instance != null)
+            Inventory.Instance.ShowNotice("Out of cartridges. The gun shop in the castle sells them.");
     }
 
     void StartReload()
     {
         reloading = true;
-        fireTime = 0f;
+        if (fireTime < 0f)
+            fireTime = 0f;
         mount = 1f;
     }
 
@@ -384,9 +713,22 @@ public class PlayerShotgun : MonoBehaviour
 
         Vector3 pos = Vector3.Lerp(ViewReadyPos, ViewAimPos, mount);
         Quaternion rot = Quaternion.Slerp(ViewReadyRot, ViewAimRot, mount);
-        pos += new Vector3(0.02f, 0.05f, -0.08f) * recoil;
-        pos += new Vector3(0f, -0.05f, 0.04f) * breakOpen;
-        rot = Quaternion.Euler(-16f * recoil + 34f * breakOpen, 2f * recoil, -2f * recoil) * rot;
+        float kick = recoil * kickScale;
+        bool shotgun = active != null && active.id == HuntWeapon.Shotgun;
+        float open = shotgun ? breakOpen : 0f;
+        float bolt = shotgun ? 0f : breakOpen;
+        pos += new Vector3(0.045f * rollSign, 0.07f, -0.18f) * kick;
+        pos += new Vector3(0f, -0.02f, -0.09f) * follow;
+        pos += new Vector3(-0.07f, 0.045f, 0.04f) * open;
+        pos += new Vector3(0f, -0.05f, 0.04f) * bolt;
+        rot = Quaternion.Euler(-26f * kick - 14f * open + 34f * bolt, 5f * rollSign * kick + 38f * open, -7f * rollSign * kick) * rot;
+        DrawBlends(out float place, out float level);
+        DrawHip(out Vector3 hipPos, out Quaternion hipRot);
+        float plant = Mathf.Sin(Mathf.Clamp01((GunPresent - 0.75f) / 0.25f) * Mathf.PI);
+        pos = Vector3.Lerp(pos + hipPos, pos, place);
+        pos.y += plant * 0.025f;
+        rot = Quaternion.Slerp(hipRot * rot, rot, level);
+        rot = Quaternion.Euler(-8f * plant, 0f, 4f * plant) * rot;
         viewGun.localPosition = pos;
         viewGun.localRotation = rot;
         WeaponHold.SetWorldScale(viewGun, (active != null ? active.scale : 1f) * 0.9f);
@@ -420,7 +762,20 @@ public class PlayerShotgun : MonoBehaviour
 
         Vector3 lowBarrel = (fwd * 0.78f - up * 0.42f + right * 0.05f).normalized;
         Vector3 barrel = Vector3.Slerp(lowBarrel, aim, mount).normalized;
-        barrel = Quaternion.AngleAxis(-8f * recoil + 22f * breakOpen, right) * barrel;
+        float kick = recoil * kickScale;
+        bool shotgun = active != null && active.id == HuntWeapon.Shotgun;
+        float open = shotgun ? breakOpen : 0f;
+        float bolt = shotgun ? 0f : breakOpen;
+        barrel = Quaternion.AngleAxis(-16f * kick + 22f * bolt - 18f * open, right) * barrel;
+        if (open > 0.001f)
+            barrel = Quaternion.AngleAxis(16f * open, up) * barrel;
+        DrawBlends(out float place, out float level);
+        Vector3 hip = shotgun
+            ? (right * 0.62f - up * 0.7f + fwd * 0.12f).normalized
+            : (active != null && active.id == HuntWeapon.Sniper
+                ? (fwd * 0.25f - up * 0.72f + right * 0.18f).normalized
+                : (fwd * 0.16f - up * 0.92f + right * 0.22f).normalized);
+        barrel = Vector3.Slerp(hip, barrel, level).normalized;
         Vector3 side = Vector3.Cross(up, barrel);
         if (side.sqrMagnitude < 0.0001f)
             side = right;
@@ -433,7 +788,8 @@ public class PlayerShotgun : MonoBehaviour
         Vector3 lowButt = pocket + fwd * 0.08f - up * 0.05f + right * 0.02f;
         Vector3 aimButt = pocket + aim * 0.02f + up * 0.015f;
         Vector3 butt = Vector3.Lerp(lowButt, aimButt, mount);
-        butt += up * 0.02f * recoil - barrel * 0.03f * recoil;
+        butt = Vector3.Lerp(pocket - up * 0.42f + right * 0.12f, butt, place);
+        butt += up * (0.06f * kick) - barrel * (0.1f * kick + 0.05f * follow);
 
         handGun.SetPositionAndRotation(butt - rot * (active != null ? active.stock : Vector3.zero), rot);
         WeaponHold.SetWorldScale(handGun, active != null ? active.scale : 1f);
@@ -491,6 +847,19 @@ public class PlayerShotgun : MonoBehaviour
             rig.muzzle = view.muzzle;
             rig.rightGrip = view.rightGrip;
             rig.scale = view.scale;
+        }
+
+        if (id == HuntWeapon.Shotgun)
+        {
+            ShotgunBreak handBreak = rig.hand.GetComponent<ShotgunBreak>();
+            if (handBreak != null)
+                handBreak.GrabForeend(rig.leftGrip);
+            if (rig.view != null)
+            {
+                ShotgunBreak viewBreak = rig.view.GetComponent<ShotgunBreak>();
+                if (viewBreak != null)
+                    viewBreak.GrabForeend(null);
+            }
         }
 
         built[(int)id] = rig;
@@ -612,15 +981,18 @@ public class PlayerShotgun : MonoBehaviour
         if (gun == null)
             return;
 
+        if (flashLight != null)
+            Destroy(flashLight.gameObject);
+
         GameObject flash = new GameObject("ShotgunFlash");
         flash.transform.SetParent(gun, false);
         flash.transform.localPosition = active != null ? active.muzzle : ShotgunVisual.MuzzleLocal;
-        Light light = flash.AddComponent<Light>();
-        light.type = LightType.Point;
-        light.color = new Color(1f, 0.72f, 0.28f);
-        light.range = 8f;
-        light.intensity = 14f;
-        Destroy(flash, 0.16f);
+        flashLight = flash.AddComponent<Light>();
+        flashLight.type = LightType.Point;
+        flashLight.color = new Color(1f, 0.78f, 0.42f);
+        flashLight.range = 14f;
+        flashLight.intensity = 32f;
+        flashLeft = 0.07f;
     }
 
     void SetVisible(bool on)

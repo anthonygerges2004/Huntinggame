@@ -135,8 +135,14 @@ public class MeatPickup : MonoBehaviour
         if (Inventory.Instance == null)
             return;
 
-        Inventory.Instance.AddMeat(amount);
-        Inventory.Instance.ShowNotice("+" + amount + " meat");
-        Destroy(gameObject);
+        if (Inventory.IsOpen)
+            return;
+        int collected = Inventory.Instance.CollectItem("RawMeat", amount);
+        if (collected <= 0)
+            return;
+        amount -= collected;
+        Inventory.Instance.ShowNotice("+" + collected + " meat");
+        if (amount <= 0)
+            Destroy(gameObject);
     }
 }

@@ -43,6 +43,7 @@ namespace DeerHunt
         float stateTimer;
         float calmTimer;
         bool collapsing;
+        float reactionStopUntil;
         Transform player;
         Vector3 home;
 
@@ -174,12 +175,15 @@ namespace DeerHunt
             }
 
             float side = HitSide(point);
+            limpSpeed = Mathf.Min(limpSpeed, zone.Kind == HitZone.Zone.Legs ? 0.3f : 0.8f);
+            if (collapsing)
+                return;
             if (zone.Kind == HitZone.Zone.Chest)
                 BeginCollapse(side);
             else if (zone.Kind == HitZone.Zone.Legs)
                 StartReaction(StumbleThenLimp(side));
             else
-                StartReaction(BoltThenLimp(side));
+                StartReaction(StumbleThenLimp(side));
         }
 
         Coroutine reaction;
@@ -274,6 +278,11 @@ namespace DeerHunt
 
         void TickWounded()
         {
+            if (Time.time < reactionStopUntil)
+            {
+                Halt();
+                return;
+            }
             if (!OnMesh())
                 return;
 
@@ -360,10 +369,11 @@ namespace DeerHunt
 
         IEnumerator CollapseRoutine(float side)
         {
-            // A chest hit runs off, then the stride breaks, then the deer goes down.
-            ShowWound(side, 0.34f, false, true);
-            EnterFlee();
-            yield return new WaitForSeconds(1.1f);
+            ShowWound(side, 0.8f, true, true);
+            EnterWounded();
+            reactionStopUntil = Time.time + 0.65f;
+            Halt();
+            yield return new WaitForSeconds(0.65f);
             if (health.Dead)
                 yield break;
 
@@ -381,6 +391,8 @@ namespace DeerHunt
 
         IEnumerator StumbleThenLimp(float side)
         {
+            EnterWounded();
+            reactionStopUntil = Time.time + 0.45f;
             ShowWound(side, 0.75f, true, false);
             if (OnMesh())
             {
@@ -392,18 +404,6 @@ namespace DeerHunt
             if (!health.Dead)
             {
                 ShowWound(side, 0.9f, true, true);
-                EnterWounded();
-            }
-        }
-
-        IEnumerator BoltThenLimp(float side)
-        {
-            ShowWound(side, 0.3f, false, true);
-            EnterFlee();
-            yield return new WaitForSeconds(1.15f);
-            if (!health.Dead)
-            {
-                ShowWound(side, 0.8f, true, true);
                 EnterWounded();
             }
         }

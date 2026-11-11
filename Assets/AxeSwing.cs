@@ -60,7 +60,7 @@ public class AxeSwing : MonoBehaviour
 
     void Update()
     {
-        if (Inventory.IsOpen)
+        if (Inventory.IsOpen || !Inventory.AxeInHand || CampfireBuild.Busy || (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead))
         {
             if (swinging)
             {
@@ -108,26 +108,39 @@ public class AxeSwing : MonoBehaviour
     {
         swinging = true;
         PlayerBodyAnimation.PlayChop();
-        BuildPiece piece = WoodBuilder.LookedAtPiece(4f);
-        HarvestableTree tree = piece == null ? HarvestableTree.AimedTree() : null;
-
-        yield return Blend(0f, Vector3.zero, windUpAngle, windUpOffset, PlayerBodyAnimation.ChopWindup);
-        yield return Blend(windUpAngle, windUpOffset, strikeAngle, strikeOffset, PlayerBodyAnimation.ChopStrike);
-
-        if (piece != null)
-            piece.Hit();
-        else if (tree != null && tree.InChopRange())
-            tree.Chop();
-        else
-            StrikeWhatYouLookAt();
-
-        yield return Blend(strikeAngle, strikeOffset, 0f, Vector3.zero, recoverTime);
+        // A diagonal shoulder swing, then contact, extraction and a relaxed return.
+        Vector3 raised = new Vector3(0.16f, 0.20f, -0.12f);
+        Vector3 contact = new Vector3(-0.20f, -0.08f, 0.25f);
+        Vector3 pulled = new Vector3(-0.10f, 0.02f, 0.08f);
+        Vector3 cock = new Vector3(-65f, -20f, -30f);
+        Vector3 bite = new Vector3(48f, 16f, 22f);
+        yield return ChopBlend(Vector3.zero, Vector3.zero, cock, raised, PlayerBodyAnimation.ChopWindup, false);
+        yield return ChopBlend(cock, raised, bite, contact, PlayerBodyAnimation.ChopStrike, true);
+        StrikeWhatYouLookAt();
+        yield return new WaitForSeconds(PlayerBodyAnimation.ChopContact);
+        yield return ChopBlend(bite, contact, new Vector3(25f, 10f, 12f), pulled, PlayerBodyAnimation.ChopPull, false);
+        yield return ChopBlend(new Vector3(25f, 10f, 12f), pulled, Vector3.zero, Vector3.zero, PlayerBodyAnimation.ChopRecover, false);
         swinging = false;
     }
 
+    IEnumerator ChopBlend(Vector3 fromAngle, Vector3 fromOffset, Vector3 toAngle, Vector3 toOffset, float duration, bool accelerate)
+    {
+        Quaternion from = restRot * Quaternion.Euler(fromAngle);
+        Quaternion to = restRot * Quaternion.Euler(toAngle);
+        for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
+        {
+            float t = Mathf.Clamp01(elapsed / duration);
+            float k = accelerate ? t * t : Mathf.SmoothStep(0f, 1f, t);
+            transform.localRotation = Quaternion.Slerp(from, to, k);
+            transform.localPosition = restPos + Vector3.Lerp(fromOffset, toOffset, k);
+            yield return null;
+        }
+        transform.localRotation = to;
+        transform.localPosition = restPos + toOffset;
+    }
     static void StrikeWhatYouLookAt()
     {
-        BuildPiece piece = WoodBuilder.LookedAtPiece(4f);
+        BuildPiece piece = WoodBuilder.LookedAtPiece(2.2f);
         if (piece != null)
         {
             piece.Hit();
@@ -135,7 +148,7 @@ public class AxeSwing : MonoBehaviour
         }
 
         Ray ray = PlayerView.AimRay();
-        if (Physics.Raycast(ray, out RaycastHit hit, 3.5f, ~0, QueryTriggerInteraction.Ignore))
+        if (Physics.Raycast(ray, out RaycastHit hit, 2.2f, ~0, QueryTriggerInteraction.Ignore))
         {
             Animal animal = hit.collider.GetComponentInParent<Animal>();
             if (animal != null)
@@ -265,7 +278,8 @@ public class AxeSwing : MonoBehaviour
     {
         for (float t = 0f; t < 1f; t += Time.deltaTime / time)
         {
-            float s = Mathf.SmoothStep(0f, 1f, t);
+            bool striking = a0 == windUpAngle && a1 == strikeAngle;
+            float s = striking ? t * t : Mathf.SmoothStep(0f, 1f, t);
             transform.localRotation = restRot * Quaternion.Euler(Mathf.Lerp(a0, a1, s), 0f, 0f);
             transform.localPosition = restPos + Vector3.Lerp(o0, o1, s);
             yield return null;

@@ -7,13 +7,19 @@ public enum AnimalKind
     Bird,
     Deer,
     Large,
-    Legendary
+    Legendary,
+    Game
 }
 
 public class Animal : MonoBehaviour
 {
     public AnimalKind kind = AnimalKind.Deer;
     public FlyerKind flyer = FlyerKind.Sparrow;
+    public QuarryKind quarry = QuarryKind.None;
+
+    public bool HeavyShot =>
+        kind == AnimalKind.Large || kind == AnimalKind.Legendary ||
+        (kind == AnimalKind.Game && (quarry == QuarryKind.Boar || quarry == QuarryKind.Pig));
     public int meatAmount = 2;
     public float moveSpeed = 2f;
     public float fleeSpeed = 8f;
@@ -24,6 +30,7 @@ public class Animal : MonoBehaviour
     Vector3 homePos;
     Vector3 wanderTarget;
     Vector3 previousPosition;
+    Vector3 lastStep;
     Animator animalAnimator;
     bool fleeing;
     bool returningHome;
@@ -48,9 +55,25 @@ public class Animal : MonoBehaviour
     string lastHitPlace = "";
     float dropTime;
     Quaternion standRotation;
-    Quaternion laidRotation;
     Vector3 fallFrom;
-    Vector3 fallTo;
+    Vector3 fallPush;
+    float fallPitch;
+    float fallRoll;
+    float fallSeconds = 0.9f;
+    float fallLay = 0.24f;
+    ShotPlace deathPlace;
+    bool fallBled;
+    Transform deathHead;
+    Vector3 deathHeadHome;
+    LimbFold[] deathLimbs;
+    int deathLimbCount;
+
+    struct LimbFold
+    {
+        public Transform bone;
+        public Quaternion rest;
+        public Vector3 degrees;
+    }
 
     public float fleeDuration = 8f;
     public bool nocturnal;
@@ -68,7 +91,7 @@ public class Animal : MonoBehaviour
 
     /// <summary>
     /// Speed scale for a wounded deer. A leg or head hit nearly stops them, then they limp.
-    /// A body or chest hit keeps a short bolt before the stride falls apart.
+    /// Every wound prevents sprinting; leg damage is the most restrictive.
     /// </summary>
     public float WoundMoveScale
     {
@@ -77,16 +100,14 @@ public class Animal : MonoBehaviour
             if (!wounded)
                 return 1f;
             if (stumbleLeft > 0f)
-                return 0.06f;
-            if (boltLeft > 0f)
-                return woundPlace == ShotPlace.Chest ? 1f : 0.86f;
+                return 0f;
 
             switch (woundPlace)
             {
-                case ShotPlace.Legs: return 0.34f;
-                case ShotPlace.Head: return 0.38f;
-                case ShotPlace.Chest: return 0.46f;
-                default: return 0.55f;
+                case ShotPlace.Legs: return Mathf.Min(0.04f, 0.3f / Mathf.Max(1f, fleeSpeed));
+                case ShotPlace.Head: return Mathf.Min(0.06f, 0.45f / Mathf.Max(1f, fleeSpeed));
+                case ShotPlace.Chest: return Mathf.Min(0.08f, 0.6f / Mathf.Max(1f, fleeSpeed));
+                default: return Mathf.Min(0.1f, 0.8f / Mathf.Max(1f, fleeSpeed));
             }
         }
     }
@@ -246,7 +267,7 @@ public class Animal : MonoBehaviour
     void ApplyKindFromName()
     {
         string objectName = gameObject.name;
-        if (objectName.IndexOf("Legendary", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        if (NameHas(objectName, "Legendary"))
         {
             kind = AnimalKind.Legendary;
             nocturnal = true;
@@ -255,34 +276,10 @@ public class Animal : MonoBehaviour
             return;
         }
 
-        if (objectName.IndexOf("Bird", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-            objectName.IndexOf("Sparrow", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-            objectName.IndexOf("Crow", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-            objectName.IndexOf("Duck", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-            objectName.IndexOf("Hawk", System.StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            kind = AnimalKind.Bird;
-            if (objectName.IndexOf("Crow", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                flyer = FlyerKind.Crow;
-            else if (objectName.IndexOf("Duck", System.StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                flyer = FlyerKind.Duck;
-                if (meatAmount < 2)
-                    meatAmount = 2;
-            }
-            else if (objectName.IndexOf("Hawk", System.StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                flyer = FlyerKind.Hawk;
-                if (meatAmount < 3)
-                    meatAmount = 3;
-            }
-            else
-                flyer = FlyerKind.Sparrow;
+        if (TryBirdFromName(objectName) || TryGameFromName(objectName))
             return;
-        }
 
-        if (objectName.IndexOf("Big", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-            objectName.IndexOf("Large", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        if (NameHas(objectName, "Big") || NameHas(objectName, "Large"))
         {
             kind = AnimalKind.Large;
             nocturnal = true;
@@ -292,6 +289,94 @@ public class Animal : MonoBehaviour
                 nightDamage = 14f;
             return;
         }
+
+        if (kind == AnimalKind.Game)
+            ApplyQuarryStats();
+        else if (kind == AnimalKind.Bird)
+            ApplyBirdStats();
+    }
+
+    bool TryBirdFromName(string objectName)
+    {
+        FlyerKind found;
+        if (NameHas(objectName, "Woodpecker"))
+            found = FlyerKind.Woodpecker;
+        else if (NameHas(objectName, "Pheasant"))
+            found = FlyerKind.Pheasant;
+        else if (NameHas(objectName, "Sparrow"))
+            found = FlyerKind.Sparrow;
+        else if (NameHas(objectName, "Thrush"))
+            found = FlyerKind.Thrush;
+        else if (NameHas(objectName, "Pigeon"))
+            found = FlyerKind.Pigeon;
+        else if (NameHas(objectName, "Robin"))
+            found = FlyerKind.Robin;
+        else if (NameHas(objectName, "Goose"))
+            found = FlyerKind.Goose;
+        else if (NameHas(objectName, "Crow"))
+            found = FlyerKind.Crow;
+        else if (NameHas(objectName, "Duck"))
+            found = FlyerKind.Duck;
+        else if (NameHas(objectName, "Hawk"))
+            found = FlyerKind.Hawk;
+        else if (NameHas(objectName, "Owl"))
+            found = FlyerKind.Owl;
+        else if (NameHas(objectName, "Jay"))
+            found = FlyerKind.Jay;
+        else if (NameHas(objectName, "Bird"))
+            found = FlyerKind.Sparrow;
+        else
+            return false;
+
+        kind = AnimalKind.Bird;
+        flyer = found;
+        ApplyBirdStats();
+        return true;
+    }
+
+    void ApplyBirdStats()
+    {
+        FlyerProfile profile = FlyerProfile.Of(flyer);
+        meatAmount = profile.meat;
+        nocturnal = profile.nocturnal;
+        moveSpeed = profile.cruiseSpeed;
+        fleeSpeed = profile.fleeSpeed;
+    }
+
+    bool TryGameFromName(string objectName)
+    {
+        if (NameHas(objectName, "Boar"))
+            quarry = QuarryKind.Boar;
+        else if (NameHas(objectName, "Rabbit"))
+            quarry = QuarryKind.Rabbit;
+        else if (NameHas(objectName, "Wolf"))
+            quarry = QuarryKind.Wolf;
+        else if (NameHas(objectName, "Fox"))
+            quarry = QuarryKind.Fox;
+        else if (NameHas(objectName, "Pig"))
+            quarry = QuarryKind.Pig;
+        else
+            return false;
+
+        ApplyQuarryStats();
+        return true;
+    }
+
+    void ApplyQuarryStats()
+    {
+        if (quarry == QuarryKind.None)
+            quarry = QuarryKind.Pig;
+        QuarryProfile profile = QuarryProfile.Of(quarry);
+        kind = AnimalKind.Game;
+        meatAmount = profile.meat;
+        nightDamage = profile.nightDamage;
+        nightAttackRange = profile.attackRange;
+        nocturnal = profile.nocturnal;
+    }
+
+    static bool NameHas(string objectName, string token)
+    {
+        return objectName.IndexOf(token, System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     public bool IsPresent()
@@ -312,6 +397,7 @@ public class Animal : MonoBehaviour
         {
             transform.position = WorldGround.Snap(homePos);
             previousPosition = transform.position;
+            lastStep = Vector3.zero;
         }
 
         Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
@@ -345,7 +431,7 @@ public class Animal : MonoBehaviour
         if (animalAnimator == null)
             return;
 
-        if (Limping)
+        if (wounded)
             running = false;
 
         animalAnimator.speed = Limping ? 0.68f : 1f;
@@ -364,7 +450,6 @@ public class Animal : MonoBehaviour
             0.12f,
             step);
 
-        previousPosition = transform.position;
     }
 
     void DisableImportedMovementControllers()
@@ -521,8 +606,8 @@ public class Animal : MonoBehaviour
 
     void TryNightAttack()
     {
-        // Only predators hunt people at night; birds and deer never attack.
-        if (kind == AnimalKind.Bird || kind == AnimalKind.Deer)
+        // Birds, deer, and small game never attack. Boar and wolves do, at night.
+        if (kind == AnimalKind.Bird || kind == AnimalKind.Deer || nightDamage <= 0f)
             return;
 
         if (DayNightCycle.Instance == null || !DayNightCycle.Instance.IsNight)
@@ -589,19 +674,19 @@ public class Animal : MonoBehaviour
             normal = Vector3.up;
         ShotBlood.Play(point, normal, transform);
 
+        ShotPlace place = PlaceOf(point);
+        lastHitPlace = place.ToString();
         if (killingBlow || kind != AnimalKind.Deer)
         {
-            FinishKill(shotDirection);
+            FinishKill(shotDirection, false, 0f, place);
             return;
         }
 
-        ShotPlace place = Classify(point);
-        lastHitPlace = place.ToString();
         float amount = DamageFor(place);
         hideLeft -= amount;
         BeginWound(place, point);
 
-        transform.Rotate(0f, Random.Range(-14f, 14f), 0f);
+        transform.Rotate(-9f, Random.Range(-18f, 18f), Random.Range(-6f, 6f), Space.Self);
         Vector3 shooter = point - shotDirection;
         FleeFrom(shooter);
 
@@ -609,13 +694,39 @@ public class Animal : MonoBehaviour
         {
             bool sniperVital = SniperEquipped() && (place == ShotPlace.Head || place == ShotPlace.Chest);
             float shotDistance = Vector3.Distance(PlayerView.Position(), point);
-            FinishKill(shotDirection, sniperVital, shotDistance);
+            FinishKill(shotDirection, sniperVital, shotDistance, place);
             return;
         }
 
         HuntFeedback.Hit(lastHitPlace);
         if (Inventory.Instance != null)
             Inventory.Instance.ShowNotice(WoundLine(place, amount));
+    }
+
+    ShotPlace PlaceOf(Vector3 point)
+    {
+        CacheBones();
+        if (skull != null)
+            return Classify(point);
+
+        Vector3 local = transform.InverseTransformPoint(point);
+        float reach = 0.28f;
+        if (kind == AnimalKind.Bird)
+            reach = 0.1f;
+        else if (kind == AnimalKind.Game && quarry == QuarryKind.Rabbit)
+            reach = 0.1f;
+        else if (kind == AnimalKind.Game && (quarry == QuarryKind.Wolf || quarry == QuarryKind.Boar))
+            reach = 0.42f;
+        else if (kind == AnimalKind.Large || kind == AnimalKind.Legendary)
+            reach = 0.7f;
+
+        if (local.z > reach * 0.55f && local.y > reach * 0.2f)
+            return ShotPlace.Head;
+        if (local.y < reach * 0.45f)
+            return ShotPlace.Legs;
+        if (local.z > 0f)
+            return ShotPlace.Chest;
+        return ShotPlace.Body;
     }
 
     ShotPlace Classify(Vector3 point)
@@ -688,13 +799,15 @@ public class Animal : MonoBehaviour
         if (place == ShotPlace.Head)
             return "Head shot. It staggers.";
         if (place == ShotPlace.Chest)
-            return "Chest shot. It bolts, then slows.";
-        return "Body shot. It runs, then limps.";
+            return "Chest shot. It staggers and struggles to move.";
+        return "Body shot. It staggers, then limps slowly.";
     }
 
     void BeginWound(ShotPlace place, Vector3 point)
     {
-        bool alreadyLimping = Limping;
+        // A later hit must not restore mobility lost to a more severe wound.
+        if (wounded && WoundSeverity(woundPlace) > WoundSeverity(place))
+            place = woundPlace;
         Vector3 local = transform.InverseTransformPoint(point);
         woundSide = Mathf.Abs(local.x) < 0.04f
             ? (Random.value < 0.5f ? -1f : 1f)
@@ -702,8 +815,7 @@ public class Animal : MonoBehaviour
         wounded = true;
         woundPlace = place;
 
-        // A broken leg or a head hit cannot carry a clean sprint. Gut and chest shots do,
-        // for a moment, the way a deer runs off before the wound shows in the stride.
+        // Stop at impact, then allow only an impaired walk.
         switch (place)
         {
             case ShotPlace.Legs:
@@ -715,16 +827,27 @@ public class Animal : MonoBehaviour
                 boltLeft = 0f;
                 break;
             case ShotPlace.Chest:
-                stumbleLeft = 0f;
-                boltLeft = alreadyLimping ? 0.55f : 1.7f;
+                stumbleLeft = 0.65f;
+                boltLeft = 0f;
                 break;
             default:
-                stumbleLeft = 0f;
-                boltLeft = alreadyLimping ? 0.4f : 1.15f;
+                stumbleLeft = 0.5f;
+                boltLeft = 0f;
                 break;
         }
 
         PoseWound();
+    }
+
+    static int WoundSeverity(ShotPlace place)
+    {
+        switch (place)
+        {
+            case ShotPlace.Legs: return 3;
+            case ShotPlace.Head: return 2;
+            case ShotPlace.Chest: return 1;
+            default: return 0;
+        }
     }
 
     void TickWound(float delta)
@@ -739,6 +862,12 @@ public class Animal : MonoBehaviour
 
     void LateUpdate()
     {
+        if (!dead)
+        {
+            lastStep = transform.position - previousPosition;
+            previousPosition = transform.position;
+        }
+
         if (!wounded || dead)
             return;
 
@@ -792,13 +921,29 @@ public class Animal : MonoBehaviour
         return PlayerShotgun.Instance != null && PlayerShotgun.Instance.Equipped == HuntWeapon.Sniper;
     }
 
-    void FinishKill(Vector3 shotDirection, bool sniperVital = false, float shotDistance = 0f)
+    bool TakesFieldDressing()
+    {
+        if (kind == AnimalKind.Deer || kind == AnimalKind.Large || kind == AnimalKind.Legendary)
+            return true;
+        return kind == AnimalKind.Game && QuarryProfile.Of(quarry).fieldDress;
+    }
+
+    string DownedLine()
+    {
+        if (kind == AnimalKind.Deer)
+            return "Deer down.";
+        if (kind == AnimalKind.Game)
+            return QuarryProfile.Of(quarry).downed;
+        return "It drops.";
+    }
+
+    void FinishKill(Vector3 shotDirection, bool sniperVital = false, float shotDistance = 0f, ShotPlace place = ShotPlace.Body)
     {
         if (dead)
             return;
 
         dead = true;
-        if (kind != AnimalKind.Bird)
+        if (TakesFieldDressing())
             meatAmount += HuntProgress.BonusMeat;
         LeaveBlood(transform.position);
         float killDistance = shotDistance > 0.1f
@@ -819,17 +964,17 @@ public class Animal : MonoBehaviour
             FallenBird drop = gameObject.GetComponent<FallenBird>();
             if (drop == null)
                 drop = gameObject.AddComponent<FallenBird>();
-            drop.Begin(meatAmount);
+            drop.Begin(meatAmount, shotDirection);
             return;
         }
 
         MeatPickup.Spawn(transform.position, meatAmount);
-        BeginDrop(shotDirection);
+        BeginDrop(shotDirection, place);
         if (Inventory.Instance != null)
-            Inventory.Instance.ShowNotice(kind == AnimalKind.Deer ? "Deer down." : "It drops.");
+            Inventory.Instance.ShowNotice(DownedLine());
     }
 
-    void BeginDrop(Vector3 shotDirection)
+    void BeginDrop(Vector3 shotDirection, ShotPlace place)
     {
         if (animalAnimator == null)
             animalAnimator = GetComponentInChildren<Animator>();
@@ -855,23 +1000,150 @@ public class Animal : MonoBehaviour
             flatShot = transform.forward;
         flatShot.Normalize();
 
-        // Always roll onto a side, never pitch over the nose or tail. Pitching around the
-        // feet pivot lifted the hindquarters a metre into the air on front and back shots.
+        Vector3 travel = lastStep;
+        travel.y = 0f;
+        float speed = 0f;
+        Vector3 heading = transform.forward;
+        heading.y = 0f;
+        if (travel.sqrMagnitude > 0.000004f && step > 0.0001f)
+        {
+            speed = Mathf.Clamp(travel.magnitude / step, 0f, 8f);
+            heading = travel.normalized;
+        }
+
+        if (heading.sqrMagnitude < 0.001f)
+            heading = Vector3.forward;
+        heading.Normalize();
+
         Vector3 along = transform.forward;
         along.y = 0f;
         if (along.sqrMagnitude < 0.001f)
             along = Vector3.forward;
         along.Normalize();
         Vector3 right = Vector3.Cross(Vector3.up, along);
-        // A positive roll about forward tips the back toward the left, so fall away from the shot.
-        float roll = Vector3.Dot(flatShot, right) >= 0f ? -84f : 84f;
+        float side = Vector3.Dot(flatShot, right) >= 0f ? -1f : 1f;
+
+        // The body stays a side fall. A nose-down pitch on the root lifts the hindquarters.
+        deathPlace = place;
+        fallLay = LayHeight();
+        switch (place)
+        {
+            case ShotPlace.Head:
+                fallSeconds = 0.62f;
+                fallPitch = 12f;
+                fallRoll = 46f * side;
+                fallPush = flatShot * 0.22f + heading * (speed * 0.04f);
+                break;
+            case ShotPlace.Legs:
+                fallSeconds = 0.84f;
+                fallPitch = 4f;
+                fallRoll = 86f * side;
+                fallPush = heading * (0.28f + speed * 0.08f) + flatShot * 0.18f;
+                break;
+            case ShotPlace.Chest:
+                fallSeconds = 1.05f;
+                fallPitch = 8f;
+                fallRoll = 78f * side;
+                fallPush = heading * (0.45f + speed * 0.16f) + flatShot * 0.4f;
+                break;
+            default:
+                fallSeconds = 0.95f;
+                fallPitch = 6f;
+                fallRoll = 82f * side;
+                fallPush = heading * (0.35f + speed * 0.12f) + flatShot * 0.28f;
+                break;
+        }
+
+        if (kind == AnimalKind.Large || kind == AnimalKind.Legendary)
+        {
+            fallSeconds += 0.28f;
+            fallPush *= 1.3f;
+        }
+        else if (kind == AnimalKind.Game && quarry == QuarryKind.Rabbit)
+        {
+            fallSeconds = 0.5f;
+            fallPush *= 0.4f;
+            fallPitch = Mathf.Min(fallPitch, 6f);
+        }
+
+        if (fallPush.magnitude > 1.8f)
+            fallPush = fallPush.normalized * 1.8f;
 
         standRotation = transform.rotation;
-        laidRotation = Quaternion.AngleAxis(roll, along) * standRotation;
         fallFrom = transform.position;
-        fallTo = WorldGround.Snap(transform.position) + Vector3.up * 0.28f;
         dropTime = 0f;
+        fallBled = false;
         dropping = true;
+        GatherDeathLimbs(place);
+    }
+
+    float LayHeight()
+    {
+        if (kind == AnimalKind.Large || kind == AnimalKind.Legendary)
+            return 0.4f;
+        if (kind != AnimalKind.Game)
+            return 0.26f;
+        if (quarry == QuarryKind.Rabbit)
+            return 0.07f;
+        if (quarry == QuarryKind.Fox)
+            return 0.16f;
+        if (quarry == QuarryKind.Wolf)
+            return 0.28f;
+        return 0.22f;
+    }
+
+    void GatherDeathLimbs(ShotPlace place)
+    {
+        if (deathLimbs == null)
+            deathLimbs = new LimbFold[24];
+        deathLimbCount = 0;
+
+        float knee = place == ShotPlace.Legs ? 72f : 50f;
+        float headDrop = place == ShotPlace.Head ? 58f : place == ShotPlace.Chest ? 24f : 14f;
+        RememberLimb(transform.Find("LegFL"), new Vector3(-knee, 0f, 16f));
+        RememberLimb(transform.Find("LegFR"), new Vector3(-knee, 0f, -16f));
+        RememberLimb(transform.Find("LegHL"), new Vector3(knee * 0.72f, 0f, -10f));
+        RememberLimb(transform.Find("LegHR"), new Vector3(knee * 0.72f, 0f, 10f));
+        RememberLimb(transform.Find("LegFL/Knee"), new Vector3(-42f, 0f, 0f));
+        RememberLimb(transform.Find("LegFR/Knee"), new Vector3(-42f, 0f, 0f));
+        RememberLimb(transform.Find("LegHL/Knee"), new Vector3(34f, 0f, 0f));
+        RememberLimb(transform.Find("LegHR/Knee"), new Vector3(34f, 0f, 0f));
+
+        deathHead = transform.Find("Head");
+        if (deathHead != null)
+        {
+            deathHeadHome = deathHead.localPosition;
+            RememberLimb(deathHead, new Vector3(headDrop, 0f, 0f));
+        }
+
+        Transform[] bones = GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < bones.Length; i++)
+        {
+            string boneName = bones[i].name;
+            Transform bone = bones[i];
+            float hinge = bone.localRotation.x >= 0f ? 1f : -1f;
+            if (boneName == "thigh.L" || boneName == "thigh.R")
+                RememberLimb(bone, new Vector3(50f * hinge, 0f, 0f));
+            else if (boneName == "shin.L" || boneName == "shin.R")
+                RememberLimb(bone, new Vector3(28f * hinge, 0f, 0f));
+            else if (boneName.StartsWith("front_thigh"))
+                RememberLimb(bone, new Vector3(36f * hinge, 0f, 0f));
+            else if (boneName.StartsWith("front_shin"))
+                RememberLimb(bone, new Vector3(18f * hinge, 0f, 0f));
+            else if (boneName == "scull")
+                RememberLimb(bone, new Vector3(headDrop * hinge, 0f, 0f));
+        }
+    }
+
+    void RememberLimb(Transform bone, Vector3 degrees)
+    {
+        if (bone == null || deathLimbs == null || deathLimbCount >= deathLimbs.Length)
+            return;
+
+        deathLimbs[deathLimbCount].bone = bone;
+        deathLimbs[deathLimbCount].rest = bone.localRotation;
+        deathLimbs[deathLimbCount].degrees = degrees;
+        deathLimbCount++;
     }
 
     void TickDrop(float delta)
@@ -880,11 +1152,57 @@ public class Animal : MonoBehaviour
             return;
 
         dropTime += delta;
-        float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(dropTime / 0.45f));
-        transform.rotation = Quaternion.Slerp(standRotation, laidRotation, t);
-        transform.position = Vector3.Lerp(fallFrom, fallTo, t);
+        float t = Mathf.Clamp01(dropTime / Mathf.Max(0.2f, fallSeconds));
+        float slide = 1f - Mathf.Exp(-t * 3.1f);
+        float settle = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.16f, 1f, t));
+        float flinch = Mathf.Sin(Mathf.Clamp01(t / 0.12f) * Mathf.PI);
+        float rollStart = deathPlace == ShotPlace.Head ? 0.04f : deathPlace == ShotPlace.Legs ? 0.08f : 0.2f;
+        float rollT = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(rollStart, 0.92f, t));
+
+        Vector3 pos = fallFrom + fallPush * slide;
+        Vector3 ground = WorldGround.Snap(pos);
+        float hop = Mathf.Sin(Mathf.Clamp01(t / 0.2f) * Mathf.PI) * (deathPlace == ShotPlace.Head ? 0.02f : 0.07f);
+        pos.y = Mathf.Lerp(fallFrom.y, ground.y + fallLay, settle) + hop * (1f - settle);
+
+        Vector3 along = standRotation * Vector3.forward;
+        along.y = 0f;
+        if (along.sqrMagnitude < 0.001f)
+            along = Vector3.forward;
+        along.Normalize();
+        Vector3 right = Vector3.Cross(Vector3.up, along);
+        float pitchNow = fallPitch * rollT + 10f * flinch;
+        Quaternion pitched = Quaternion.AngleAxis(pitchNow, right) * standRotation;
+        transform.SetPositionAndRotation(pos, Quaternion.AngleAxis(fallRoll * rollT, along) * pitched);
+
+        float bendStart = deathPlace == ShotPlace.Legs ? 0.02f : 0.12f;
+        float bend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(bendStart, 0.78f, t));
+        float twitch = Mathf.Sin(Mathf.Clamp01(t / 0.16f) * Mathf.PI * 2f) * (1f - t) * 0.45f;
+        bend = Mathf.Clamp01(bend + twitch);
+        for (int i = 0; i < deathLimbCount; i++)
+        {
+            LimbFold limb = deathLimbs[i];
+            if (limb.bone == null)
+                continue;
+            limb.bone.localRotation = limb.rest * Quaternion.Euler(limb.degrees * bend);
+        }
+
+        if (deathHead != null)
+        {
+            float tuck = bend * (deathPlace == ShotPlace.Head ? 1.15f : 0.45f);
+            deathHead.localPosition = deathHeadHome + new Vector3(0f, -0.05f, -0.04f) * tuck;
+        }
+
+        if (!fallBled && t > 0.4f)
+        {
+            fallBled = true;
+            LeaveBlood(pos);
+        }
+
         if (t >= 1f)
+        {
             dropping = false;
+            LeaveBlood(transform.position);
+        }
     }
 
     void LeaveBlood(Vector3 position)

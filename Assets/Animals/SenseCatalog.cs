@@ -9,6 +9,16 @@ namespace HuntingGame.Senses
         static AnimalSenseSettings large;
         static AnimalSenseSettings legendary;
 
+        static readonly System.Collections.Generic.Dictionary<QuarryKind, AnimalSenseSettings> game =
+            new System.Collections.Generic.Dictionary<QuarryKind, AnimalSenseSettings>();
+
+        public static AnimalSenseSettings For(Animal animal)
+        {
+            if (animal != null && animal.kind == AnimalKind.Game)
+                return ForGame(animal.quarry == QuarryKind.None ? QuarryKind.Pig : animal.quarry);
+            return For(animal != null ? animal.kind : AnimalKind.Deer);
+        }
+
         public static AnimalSenseSettings For(AnimalKind kind)
         {
             if (kind == AnimalKind.Bird)
@@ -18,6 +28,29 @@ namespace HuntingGame.Senses
             if (kind == AnimalKind.Legendary)
                 return legendary != null ? legendary : (legendary = Make(40f, 90f, 22f, 12f, 5f, 48f, 80f));
             return deer != null ? deer : (deer = Make(32f, 80f, 16f, 8f, 3.5f, 26f, 70f));
+        }
+
+        public static AnimalSenseSettings ForQuarry(QuarryKind quarry)
+        {
+            return ForGame(quarry);
+        }
+
+        static AnimalSenseSettings ForGame(QuarryKind quarry)
+        {
+            if (game.TryGetValue(quarry, out AnimalSenseSettings cached))
+                return cached;
+
+            QuarryProfile profile = QuarryProfile.Of(quarry);
+            AnimalSenseSettings data = Make(
+                profile.sight,
+                profile.sightDegrees,
+                profile.sprintHear,
+                profile.walkHear,
+                profile.crouchHear,
+                profile.smell,
+                profile.smellDegrees);
+            game[quarry] = data;
+            return data;
         }
 
         static AnimalSenseSettings Make(

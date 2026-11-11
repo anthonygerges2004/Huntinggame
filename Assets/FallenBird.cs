@@ -14,7 +14,7 @@ public class FallenBird : MonoBehaviour
     Vector3 restPos;
     Transform player;
 
-    public void Begin(int meatAmount)
+    public void Begin(int meatAmount, Vector3 shotDirection)
     {
         meat = Mathf.Max(1, meatAmount);
         if (Inventory.Instance != null)
@@ -28,25 +28,31 @@ public class FallenBird : MonoBehaviour
         if (hitBox != null)
             hitBox.isTrigger = false;
 
+        float weight = 0.35f;
+        if (hitBox != null)
+            weight = Mathf.Clamp(hitBox.bounds.size.magnitude * 0.45f, 0.22f, 1.5f);
+
+        Vector3 shot = shotDirection.sqrMagnitude > 0.01f ? shotDirection.normalized : transform.forward;
         body = GetComponent<Rigidbody>();
         if (body == null)
             body = gameObject.AddComponent<Rigidbody>();
-        body.mass = 0.35f;
+        body.mass = weight;
         body.useGravity = true;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        body.linearDamping = 0.55f;
-        body.angularDamping = 0.85f;
+        body.linearDamping = 0.2f;
+        body.angularDamping = 0.45f;
         body.isKinematic = false;
-        body.linearVelocity = transform.forward * 2.2f + Vector3.down * 2f + Random.insideUnitSphere * 0.6f;
-        body.angularVelocity = new Vector3(
-            Random.Range(-7f, 7f),
-            Random.Range(-2.5f, 2.5f),
-            Random.Range(-9f, 9f));
+        body.linearVelocity = shot * (2.6f / weight) + Vector3.down * (1.6f + weight) + transform.forward * 0.6f;
+
+        Vector3 spin = Vector3.Cross(Vector3.up, shot);
+        if (spin.sqrMagnitude < 0.01f)
+            spin = transform.right;
+        body.angularVelocity = spin.normalized * (5.5f / weight) + transform.up * Random.Range(-1.2f, 1.2f);
 
         IgnorePlayer(true);
         CacheWings();
-        FoldWings(1f);
+        FoldWings(0.2f);
     }
 
     void CacheWings()
@@ -83,7 +89,7 @@ public class FallenBird : MonoBehaviour
     void Update()
     {
         age += Time.deltaTime;
-        FoldWings(landed ? 1f : 0.55f + Mathf.Abs(Mathf.Sin(age * 14f)) * 0.45f);
+        FoldWings(landed ? 1f : Mathf.Clamp01(0.25f + age * 0.9f));
 
         if (!landed)
         {
@@ -142,12 +148,13 @@ public class FallenBird : MonoBehaviour
 
         landed = true;
         Vector3 ground = WorldGround.Snap(transform.position);
-        transform.position = ground + Vector3.up * 0.12f;
-        transform.rotation = Quaternion.LookRotation(
-            Vector3.ProjectOnPlane(transform.forward, Vector3.up).sqrMagnitude > 0.01f
-                ? Vector3.ProjectOnPlane(transform.forward, Vector3.up)
-                : Vector3.forward,
-            Vector3.up);
+        Vector3 flat = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+        if (flat.sqrMagnitude < 0.01f)
+            flat = Vector3.forward;
+        flat.Normalize();
+        float side = transform.right.y >= 0f ? 78f : -78f;
+        transform.rotation = Quaternion.LookRotation(flat, Vector3.up) * Quaternion.Euler(10f, 0f, side);
+        transform.position = ground + Vector3.up * 0.08f;
 
         if (body != null)
         {

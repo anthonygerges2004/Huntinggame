@@ -46,7 +46,7 @@ public class FishingSpot : MonoBehaviour
 
     void Update()
     {
-        if (player == null || cam == null || Keyboard.current == null || GamePause.Active)
+        if (player == null || cam == null || Keyboard.current == null || Inventory.IsOpen)
             return;
 
         if ((PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) || BirdChallenge.Active)
@@ -59,7 +59,7 @@ public class FishingSpot : MonoBehaviour
 
         if (!fishing)
         {
-            if (rPressed && CanCast(out Vector3 point))
+            if (rPressed && !PlayerShotgun.IsEquipped && CanCast(out Vector3 point))
                 StartFishing(point);
             return;
         }
@@ -83,9 +83,10 @@ public class FishingSpot : MonoBehaviour
             {
                 lake.Catch(fish);
                 fish = null;
-                if (Inventory.Instance != null)
-                    Inventory.Instance.AddMeat(1);
-                Notice("You caught a fish! +1 raw meat");
+                bool collected = Inventory.Instance != null && Inventory.Instance.CollectItem("RawMeat", 1) == 1;
+                if (!collected)
+                    MeatPickup.Spawn(castPoint, 1);
+                Notice(collected ? "You caught a fish! +1 raw meat" : "Backpack full. The catch is by the water.");
             }
             else
             {
@@ -161,14 +162,14 @@ public class FishingSpot : MonoBehaviour
 
     void OnGUI()
     {
-        if (player == null || cam == null || BirdChallenge.Active)
+        if (player == null || cam == null || BirdChallenge.Active || Inventory.IsOpen)
             return;
 
         float y = Screen.height * 0.5f + 60f * ScreenText.Scale;
         if (fishing)
             ScreenText.Centered(Biting ? "Fish on! Press R now!" : "Waiting for a bite...", y);
         else if (CanCast(out _))
-            ScreenText.Centered("Press R to fish", y);
+            ScreenText.Centered(PlayerShotgun.IsEquipped ? "Put away your gun to fish" : "Press R to fish", y);
         else if (WaterBodies.TryGetSwim(player.position, out _, out _))
             ScreenText.Centered("Swimming:  Space = up   Ctrl = dive", Screen.height - 70f * ScreenText.Scale, 18);
     }

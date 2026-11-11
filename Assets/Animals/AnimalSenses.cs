@@ -58,7 +58,7 @@ namespace HuntingGame.Senses
             sightHits = new RaycastHit[8];
 
             if (settings == null)
-                settings = SenseCatalog.For(animal != null ? animal.kind : AnimalKind.Deer);
+                settings = SenseCatalog.For(animal);
 
             CopyRanges();
         }

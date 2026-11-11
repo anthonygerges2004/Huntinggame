@@ -20,6 +20,7 @@ namespace HuntingGame.Animals
         float timer = 1f;
         float lastNotice = -1000f;
         float gradedFleeSeconds;
+        bool gradedFlight;
         float calmScale = 1f;
         bool hasThreat;
         bool homing;
@@ -44,7 +45,7 @@ namespace HuntingGame.Animals
             if (speciesOverride != null)
                 species = speciesOverride;
             else
-                species = SpeciesCatalog.For(animal.kind);
+                species = SpeciesCatalog.For(animal);
 
             if (species.grazeSpeed > 0f)
                 animal.moveSpeed = species.grazeSpeed;
@@ -78,6 +79,7 @@ namespace HuntingGame.Animals
 
             if (flee)
             {
+                gradedFlight = true;
                 float t = Mathf.InverseLerp(0.58f, 1f, Mathf.Clamp01(level));
                 // A mild flush is a short bound. A hard scare is a longer, faster run.
                 gradedFleeSeconds = Mathf.Lerp(3.2f, 7.5f, t);
@@ -253,9 +255,8 @@ namespace HuntingGame.Animals
             timer -= delta;
             float calm = (species.calmSeconds > 0.05f ? species.calmSeconds : 0.05f) * Mathf.Max(1f, calmScale);
             bool recent = Time.time - lastNotice < calm;
-            // Deer keep the longer of the fuzzy run and the calm tail, so a harder scare lasts longer.
-            // Other animals still stop on the calm tail alone.
-            if (animal.kind == AnimalKind.Deer)
+            // Only a graded scare imposes a minimum run. Ordinary notices end on the calm tail.
+            if (animal.kind == AnimalKind.Deer && gradedFlight)
             {
                 if (recent || timer > 0f)
                     return;
@@ -320,6 +321,8 @@ namespace HuntingGame.Animals
 
         void RestoreFleeSpeed()
         {
+            gradedFlight = false;
+            gradedFleeSeconds = 0f;
             if (animal != null && species != null && species.fleeSpeed > 0.1f)
                 animal.fleeSpeed = species.fleeSpeed;
         }

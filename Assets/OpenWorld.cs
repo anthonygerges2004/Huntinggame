@@ -17,8 +17,25 @@ public class OpenWorld : MonoBehaviour
     const float RespawnSeconds = 90f;
 
     const int MaxDeer = 7;
-    const int MaxBirds = 5;
+    const int MaxBirds = 6;
     const int MaxLarge = 2;
+    const int MaxGame = 4;
+
+    static readonly FlyerKind[] WoodBirds =
+    {
+        FlyerKind.Sparrow, FlyerKind.Thrush, FlyerKind.Thrush, FlyerKind.Robin,
+        FlyerKind.Crow, FlyerKind.Jay, FlyerKind.Woodpecker, FlyerKind.Pigeon,
+        FlyerKind.Pheasant, FlyerKind.Hawk, FlyerKind.Owl
+    };
+
+    static readonly QuarryKind[] GameRoll =
+    {
+        QuarryKind.Pig, QuarryKind.Pig, QuarryKind.Pig,
+        QuarryKind.Boar,
+        QuarryKind.Rabbit, QuarryKind.Rabbit,
+        QuarryKind.Fox,
+        QuarryKind.Wolf
+    };
 
     class Tile
     {
@@ -32,6 +49,7 @@ public class OpenWorld : MonoBehaviour
         public Vector3 home;
         public AnimalKind kind;
         public FlyerKind flyer;
+        public QuarryKind quarry;
         public Animal alive;
         public bool occupied;
         public bool releasing;
@@ -454,20 +472,20 @@ public class OpenWorld : MonoBehaviour
 
                 int hash = Mathf.Abs((ix * 73856093) ^ (iz * 19349663));
                 Den den = new Den();
-                if (hash % 11 == 0)
+                int roll = hash % 20;
+                if (roll == 0)
                 {
                     den.kind = AnimalKind.Large;
                 }
-                else if (hash % 4 == 0)
+                else if (roll <= 4)
+                {
+                    den.kind = AnimalKind.Game;
+                    den.quarry = GameRoll[hash % GameRoll.Length];
+                }
+                else if (roll <= 10)
                 {
                     den.kind = AnimalKind.Bird;
-                    int bird = hash % 5;
-                    if (bird == 0)
-                        den.flyer = FlyerKind.Crow;
-                    else if (bird == 1)
-                        den.flyer = FlyerKind.Hawk;
-                    else
-                        den.flyer = FlyerKind.Sparrow;
+                    den.flyer = PickFlyer(hash, home);
                 }
                 else
                 {
@@ -490,6 +508,7 @@ public class OpenWorld : MonoBehaviour
         int deer = 0;
         int birds = 0;
         int large = 0;
+        int game = 0;
         for (int i = 0; i < dens.Count; i++)
         {
             Den den = dens[i];
@@ -511,30 +530,30 @@ public class OpenWorld : MonoBehaviour
             if (anchor > limit)
                 Release(den);
             else
-                Count(den.kind, ref deer, ref birds, ref large);
+                Count(den.kind, ref deer, ref birds, ref large, ref game);
         }
 
         HoldDeadPoses();
 
-        for (int n = 0; n < MaxDeer + MaxBirds + MaxLarge; n++)
+        for (int n = 0; n < MaxDeer + MaxBirds + MaxLarge + MaxGame; n++)
         {
-            int best = PickDen(player.position, deer, birds, large);
+            int best = PickDen(player.position, deer, birds, large, game);
             if (best < 0)
                 break;
 
             Spawn(dens[best]);
-            Count(dens[best].kind, ref deer, ref birds, ref large);
+            Count(dens[best].kind, ref deer, ref birds, ref large, ref game);
         }
     }
 
-    int PickDen(Vector3 player, int deer, int birds, int large)
+    int PickDen(Vector3 player, int deer, int birds, int large, int game)
     {
         float total = 0f;
         int nearest = -1;
         float nearestDistance = ShowDistance;
         for (int i = 0; i < dens.Count; i++)
         {
-            if (!DenOpen(dens[i], deer, birds, large))
+            if (!DenOpen(dens[i], deer, birds, large, game))
                 continue;
 
             float distance = FlatDistance(dens[i].home, player);
@@ -556,7 +575,7 @@ public class OpenWorld : MonoBehaviour
         float roll = Random.Range(0f, total);
         for (int i = 0; i < dens.Count; i++)
         {
-            if (!DenOpen(dens[i], deer, birds, large))
+            if (!DenOpen(dens[i], deer, birds, large, game))
                 continue;
 
             float distance = FlatDistance(dens[i].home, player);
@@ -571,7 +590,7 @@ public class OpenWorld : MonoBehaviour
         return nearest;
     }
 
-    static bool DenOpen(Den den, int deer, int birds, int large)
+    static bool DenOpen(Den den, int deer, int birds, int large, int game)
     {
         if (den.occupied || den.alive != null || Time.time < den.respawnAt)
             return false;
@@ -582,6 +601,8 @@ public class OpenWorld : MonoBehaviour
         if (den.kind == AnimalKind.Bird && birds >= MaxBirds)
             return false;
         if (den.kind == AnimalKind.Large && large >= MaxLarge)
+            return false;
+        if (den.kind == AnimalKind.Game && game >= MaxGame)
             return false;
         return true;
     }
@@ -597,14 +618,23 @@ public class OpenWorld : MonoBehaviour
         return 0.2f + score * score * 4f;
     }
 
-    static void Count(AnimalKind kind, ref int deer, ref int birds, ref int large)
+    static void Count(AnimalKind kind, ref int deer, ref int birds, ref int large, ref int game)
     {
         if (kind == AnimalKind.Bird)
             birds++;
         else if (kind == AnimalKind.Large)
             large++;
+        else if (kind == AnimalKind.Game)
+            game++;
         else
             deer++;
+    }
+
+    static FlyerKind PickFlyer(int hash, Vector3 home)
+    {
+        if (WaterBodies.SurfaceAt(home, 22f, out _, out _) && hash % 3 != 2)
+            return (hash & 1) == 0 ? FlyerKind.Duck : FlyerKind.Goose;
+        return WoodBirds[hash % WoodBirds.Length];
     }
 
     void Spawn(Den den)
@@ -617,18 +647,15 @@ public class OpenWorld : MonoBehaviour
 
         Vector3 ground = WorldGround.Snap(den.home);
         bool bird = den.kind == AnimalKind.Bird;
-        float height = 0f;
-        if (bird)
-        {
-            if (den.flyer == FlyerKind.Hawk)
-                height = 20f;
-            else if (den.flyer == FlyerKind.Crow)
-                height = 12f;
-            else
-                height = 8f;
-        }
+        FlyerProfile flyerProfile = FlyerProfile.Of(den.flyer);
+        float height = bird ? flyerProfile.spawnHeight : 0f;
 
-        GameObject body = new GameObject(bird ? FlyerName(den.flyer) : den.kind == AnimalKind.Large ? "WildLarge" : "WildDeer");
+        string bodyName = bird
+            ? flyerProfile.objectName
+            : den.kind == AnimalKind.Game
+                ? QuarryProfile.Of(den.quarry).objectName
+                : den.kind == AnimalKind.Large ? "WildLarge" : "WildDeer";
+        GameObject body = new GameObject(bodyName);
         body.transform.SetParent(wildRoot, true);
         body.transform.position = ground + Vector3.up * height;
         body.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
@@ -636,7 +663,7 @@ public class OpenWorld : MonoBehaviour
         if (bird)
         {
             SphereCollider hit = body.AddComponent<SphereCollider>();
-            hit.radius = BirdVisual.ColliderRadius(den.flyer);
+            hit.radius = flyerProfile.collider;
             hit.center = new Vector3(0f, 0.12f, 0f);
         }
         else
@@ -647,6 +674,7 @@ public class OpenWorld : MonoBehaviour
         Animal animal = body.AddComponent<Animal>();
         animal.kind = den.kind;
         animal.flyer = den.flyer;
+        animal.quarry = den.quarry;
         animal.nocturnal = den.kind == AnimalKind.Large;
         if (den.kind == AnimalKind.Large)
         {
@@ -656,11 +684,12 @@ public class OpenWorld : MonoBehaviour
         }
         else if (den.kind == AnimalKind.Bird)
         {
-            animal.meatAmount = den.flyer == FlyerKind.Hawk ? 3 : 1;
-            animal.moveSpeed = 6f;
-            animal.fleeSpeed = 13f;
+            animal.meatAmount = flyerProfile.meat;
+            animal.moveSpeed = flyerProfile.cruiseSpeed;
+            animal.fleeSpeed = flyerProfile.fleeSpeed;
+            animal.nocturnal = flyerProfile.nocturnal;
         }
-        else
+        else if (den.kind != AnimalKind.Game)
         {
             animal.meatAmount = 2;
         }
@@ -668,17 +697,6 @@ public class OpenWorld : MonoBehaviour
         den.alive = animal;
         den.occupied = true;
         den.releasing = false;
-    }
-
-    static string FlyerName(FlyerKind flyer)
-    {
-        if (flyer == FlyerKind.Crow)
-            return "WildCrow";
-        if (flyer == FlyerKind.Hawk)
-            return "WildHawk";
-        if (flyer == FlyerKind.Duck)
-            return "WildDuck";
-        return "WildSparrow";
     }
 
     void Release(Den den)

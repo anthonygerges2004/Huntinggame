@@ -115,10 +115,14 @@ public class PlayerMove : MonoBehaviour
 
         bool firstPerson = views == null || views.IsFirstPerson;
         xRotation -= look.y;
-        xRotation = Mathf.Clamp(xRotation, firstPerson ? -85f : -80f, firstPerson ? 85f : 70f);
+        xRotation = Mathf.Clamp(xRotation, views != null ? views.MinLookPitch : -85f,
+            views != null ? views.MaxLookPitch : 85f);
         Vector2 sway = ScopeSteady.Tick(Time.deltaTime, firstPerson, Keyboard.current.leftShiftKey.isPressed);
         if (firstPerson && cam != null)
-            cam.localRotation = Quaternion.Euler(xRotation + sway.x, sway.y, 0f);
+            cam.localRotation = Quaternion.Euler(
+                xRotation + sway.x - PlayerShotgun.ViewKick,
+                sway.y,
+                PlayerShotgun.ViewRoll);
 
         if (Frozen)
         {

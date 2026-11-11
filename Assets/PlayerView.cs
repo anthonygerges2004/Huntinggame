@@ -50,6 +50,28 @@ public static class PlayerView
 
     public static Vector3 AimDirection()
     {
+        // Converge the body-origin shot on the camera crosshair in third person.
+        Camera view = GetCamera();
+        if (!IsFirstPerson() && view != null)
+        {
+            Ray sight = view.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            Vector3 target = sight.GetPoint(500f);
+            Transform owner = Body();
+            float nearest = 500f;
+            foreach (RaycastHit hit in Physics.RaycastAll(sight, 500f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            {
+                if (owner != null && (hit.transform == owner || hit.transform.IsChildOf(owner)))
+                    continue;
+                if (hit.distance >= nearest)
+                    continue;
+                nearest = hit.distance;
+                target = hit.point;
+            }
+            Vector3 direction = target - AimOrigin();
+            if (Vector3.Dot(direction, sight.direction) > 0.001f)
+                return direction.normalized;
+            return sight.direction;
+        }
         if (IsFirstPerson())
         {
             Camera cam = GetCamera();

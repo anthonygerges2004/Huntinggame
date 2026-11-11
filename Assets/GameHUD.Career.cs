@@ -35,8 +35,8 @@ public partial class GameHUD
     readonly List<(Image dot, TMP_Text text)> jPerks = new List<(Image, TMP_Text)>();
     readonly List<TMP_Text[]> jRecordRows = new List<TMP_Text[]>();
     readonly List<(Image dot, TMP_Text text, TMP_Text reward)> jContracts = new List<(Image, TMP_Text, TMP_Text)>();
-    static readonly AnimalKind[] JournalSpecies = { AnimalKind.Deer, AnimalKind.Bird, AnimalKind.Large, AnimalKind.Legendary };
-    static readonly string[] JournalSpeciesNames = { "Deer", "Birds", "Wild horse", "Legendary tiger" };
+    static readonly AnimalKind[] JournalSpecies = { AnimalKind.Deer, AnimalKind.Bird, AnimalKind.Large, AnimalKind.Game, AnimalKind.Legendary };
+    static readonly string[] JournalSpeciesNames = { "Deer", "Birds", "Wild horse", "Pigs and game", "Legendary tiger" };
 
     // ---------------------------------------------------------------- rank strip & instinct chip
 
@@ -219,10 +219,10 @@ public partial class GameHUD
         for (int i = 0; i < JournalSpecies.Length; i++)
             jRecordRows.Add(RecordRow(page, width, -256f - i * 22f, new[] { JournalSpeciesNames[i], "", "", "", "" }, cols, false));
 
-        SectionTitle(page, "TODAY'S CONTRACTS", -354f, width);
+        SectionTitle(page, "TODAY'S CONTRACTS", -376f, width);
         for (int i = 0; i < 3; i++)
         {
-            float y = -376f - i * 22f;
+            float y = -398f - i * 22f;
             Image dot = Img(page, "ContractDot", ringSprite, TextDim);
             Place(dot.rectTransform, new Vector2(0f, 1f), new Vector2(5f, y - 8f), new Vector2(10f, 10f), new Vector2(0.5f, 0.5f));
             TMP_Text text = Text(page, "", 13.5f, TextMain, TextAlignmentOptions.MidlineLeft, false);

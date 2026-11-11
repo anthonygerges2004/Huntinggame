@@ -12,6 +12,8 @@ public static class GamePause
     static void ResetForPlayMode()
     {
         Active = false;
+        Time.timeScale = 1f;
+        AudioListener.pause = false;
     }
 
     public static void Set(bool on)

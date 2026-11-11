@@ -152,13 +152,9 @@ public static class HuntFeedback
         switch (animal.kind)
         {
             case AnimalKind.Bird:
-                switch (animal.flyer)
-                {
-                    case FlyerKind.Crow: return "CROW";
-                    case FlyerKind.Hawk: return "HAWK";
-                    case FlyerKind.Duck: return "DUCK";
-                    default: return "BIRD";
-                }
+                return FlyerProfile.Of(animal.flyer).title;
+            case AnimalKind.Game:
+                return QuarryProfile.Of(animal.quarry).title;
             case AnimalKind.Large: return "WILD HORSE";
             case AnimalKind.Legendary: return "LEGENDARY TIGER";
             default: return "DEER";

@@ -26,7 +26,7 @@ public class Trader : MonoBehaviour
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
 
-        if (Keyboard.current == null || GamePause.Active)
+        if (Keyboard.current == null || Inventory.IsOpen || CastleShop.BlockingHotbar())
             return;
 
         if (Vector3.Distance(transform.position, PlayerView.Position()) > tradeRange)
@@ -47,17 +47,15 @@ public class Trader : MonoBehaviour
         if (Inventory.Instance == null)
             return;
 
-        if (Inventory.Instance.RemoveOneSellableMeat())
+        if (Inventory.Instance.TrySellMeatForWood(meatSellPriceWood))
         {
-            Inventory.Instance.AddWood(meatSellPriceWood);
             Notice("Sold meat for wood.");
             return;
         }
 
-        if (Inventory.Instance.spoiledMeat >= 2 && Inventory.Instance.RemoveSpoiledMeat(2))
+        if (Inventory.Instance.meat > 0 || Inventory.Instance.cookedMeat > 0 || Inventory.Instance.spoiledMeat >= 2)
         {
-            Inventory.Instance.AddWood(meatSellPriceWood);
-            Notice("Sold spoiled meat cheap. Two pieces for one wood.");
+            Notice("Make room for the wood before selling.");
             return;
         }
 

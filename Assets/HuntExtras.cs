@@ -152,7 +152,7 @@ public class HuntExtras : MonoBehaviour
         sensed.Clear();
         Vector3 me = PlayerView.Position();
         float range = HuntProgress.InstinctRange;
-        Animal[] animals = Object.FindObjectsByType<Animal>(FindObjectsSortMode.None);
+        Animal[] animals = Object.FindObjectsByType<Animal>();
         for (int i = 0; i < animals.Length; i++)
         {
             Animal a = animals[i];
@@ -191,7 +191,12 @@ public class HuntExtras : MonoBehaviour
                 if (a == null || a.Dead)
                     continue;
 
-                Vector3 head = a.transform.position + Vector3.up * (a.kind == AnimalKind.Bird ? 0.4f : 2.1f * a.transform.localScale.y);
+                float lift = a.kind == AnimalKind.Bird
+                    ? 0.4f
+                    : a.kind == AnimalKind.Game
+                        ? QuarryProfile.Of(a.quarry).markerHeight * a.transform.localScale.y
+                        : 2.1f * a.transform.localScale.y;
+                Vector3 head = a.transform.position + Vector3.up * lift;
                 Vector3 screen = cam.WorldToScreenPoint(head);
                 if (screen.z <= 0.5f)
                     continue;
@@ -395,7 +400,7 @@ public class HuntExtras : MonoBehaviour
         nextRareScan = Time.unscaledTime + 1.5f;
 
         Vector3 me = PlayerView.Position();
-        AnimalTrophy[] all = Object.FindObjectsByType<AnimalTrophy>(FindObjectsSortMode.None);
+        AnimalTrophy[] all = Object.FindObjectsByType<AnimalTrophy>();
         for (int i = 0; i < all.Length; i++)
         {
             AnimalTrophy t = all[i];
@@ -432,7 +437,7 @@ public class HuntExtras : MonoBehaviour
     {
         takingPhoto = true;
         List<Canvas> hidden = new List<Canvas>();
-        Canvas[] canvases = Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None);
+        Canvas[] canvases = Object.FindObjectsByType<Canvas>();
         for (int i = 0; i < canvases.Length; i++)
         {
             Canvas c = canvases[i];

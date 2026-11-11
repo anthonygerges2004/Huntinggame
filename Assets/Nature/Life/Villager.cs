@@ -7,9 +7,9 @@ using UnityEngine;
 /// watch; patrols pace between points; fishers sit at the end of a jetty; travellers walk
 /// the roads between settlements. Distant villagers stop updating and hide.
 /// </summary>
-public class Villager : MonoBehaviour
+public partial class Villager : MonoBehaviour
 {
-    public enum Role { Wanderer, Guard, Patrol, Fisher, Traveler }
+    public enum Role { Wanderer, Guard, Patrol, Fisher, Traveler, Shopkeeper }
 
     public Role role;
     public Settlement settlement;
@@ -46,6 +46,7 @@ public class Villager : MonoBehaviour
             bodyRest = body.localPosition;
         if (path != null && path.Length > 1)
             pathIndex = Random.Range(0, path.Length);
+        SetupOccupation();
     }
 
     void Update()
@@ -74,7 +75,7 @@ public class Villager : MonoBehaviour
         switch (role)
         {
             case Role.Wanderer:
-                walking = TickWanderer(dt);
+                walking = occupation >= 0 ? TickOccupation(dt) : TickWanderer(dt);
                 break;
             case Role.Patrol:
             case Role.Traveler:
@@ -83,6 +84,7 @@ public class Villager : MonoBehaviour
         }
 
         Animate(walking, dt);
+        AnimateOccupation(walking);
     }
 
     bool TickWanderer(float dt)
@@ -187,6 +189,11 @@ public class Villager : MonoBehaviour
                 // Spear arm held forward, the other at rest.
                 armR.localRotation = Quaternion.Euler(-35f, 0f, 0f);
                 armL.localRotation = Quaternion.Euler(0f, 0f, 6f + Mathf.Sin(Time.time * 1.3f) * 1.5f);
+                break;
+            case Role.Shopkeeper:
+                float greeting = Mathf.Clamp01(1f - Vector3.Distance(PlayerView.Position(), transform.position) / 5f);
+                armR.localRotation = Quaternion.Euler(-35f * greeting + Mathf.Sin(Time.time * 2f + phase) * 8f * greeting, 0f, 12f * greeting);
+                armL.localRotation = Quaternion.Euler(-15f * greeting, 0f, -5f);
                 break;
             case Role.Fisher:
                 armR.localRotation = Quaternion.Euler(-70f + Mathf.Sin(Time.time * 0.9f) * 4f, 0f, 0f);

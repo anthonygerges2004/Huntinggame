@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Every deer, wild horse and legendary animal rolls a quality when it spawns:
+/// Every deer, pig, boar, wolf, wild horse and legendary animal rolls a quality when it spawns:
 /// Common, Prime or Trophy, with its own size, weight and meat, and a small chance of a
 /// rare coat (albino or melanistic) that is worth the most of all.
 /// </summary>
@@ -63,6 +63,7 @@ public class AnimalTrophy : MonoBehaviour
         {
             case AnimalKind.Large: baseKg = 320f; break;
             case AnimalKind.Legendary: baseKg = 230f; break;
+            case AnimalKind.Game: baseKg = QuarryProfile.Of(animal.quarry).weightKg; break;
             default: baseKg = 72f; break;
         }
 
@@ -81,9 +82,18 @@ public class AnimalTrophy : MonoBehaviour
     {
         Color tint = coat == Coat.Albino ? new Color(0.96f, 0.94f, 0.90f) : new Color(0.10f, 0.09f, 0.085f);
         Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        bool skinned = false;
         for (int i = 0; i < renderers.Length; i++)
         {
-            if (!(renderers[i] is SkinnedMeshRenderer))
+            if (renderers[i] is SkinnedMeshRenderer)
+                skinned = true;
+        }
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (skinned && !(renderers[i] is SkinnedMeshRenderer))
+                continue;
+            if (!skinned && !(renderers[i] is MeshRenderer))
                 continue;
 
             // Drop the hide texture and paint a solid coat, so the colour reads at any distance.

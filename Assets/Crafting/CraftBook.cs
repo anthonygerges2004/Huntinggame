@@ -53,11 +53,14 @@ namespace HuntingGame.Crafting
 
         CraftResult Cook()
         {
-            if (Campfire.Instance == null || !Campfire.Instance.isLit)
-                return CraftResult.NeedFire;
+            if (!CastleShop.AtButchery())
+            {
+                if (Campfire.Instance == null || !Campfire.Instance.isLit)
+                    return CraftResult.NeedFire;
 
-            if (!Campfire.PlayerIsSafe())
-                return CraftResult.TooFar;
+                if (!Campfire.PlayerIsSafe())
+                    return CraftResult.TooFar;
+            }
 
             if (Inventory.Instance == null)
                 return CraftResult.Missing;

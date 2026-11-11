@@ -23,10 +23,12 @@ public class HandAxeGrip : MonoBehaviour
         if (transform.parent == null)
             return;
 
-        bool swinging = PlayerBodyAnimation.IsActing();
-        transform.localPosition = HoldPos + new Vector3(0f, -gripLocalY, 0f);
-        transform.localRotation = swinging ? Quaternion.Euler(46f, 8f, 0f) : HoldRot;
+        // Keep the handle anchored in the palm; the arm animation supplies the swing.
+        // Rotating the axe independently during every action made it slide out of the hand.
+        transform.localRotation = HoldRot;
         WeaponHold.SetWorldScale(transform, 1f);
+        Vector3 grip = Vector3.Scale(new Vector3(0f, gripLocalY, 0f), transform.localScale);
+        transform.localPosition = HoldPos - HoldRot * grip;
     }
 
     void StickToSlot()

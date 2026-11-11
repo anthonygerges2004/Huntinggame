@@ -241,6 +241,7 @@ public partial class GameHUD
     {
         AddPoi("CAMP", Gold, () => Campfire.Instance != null ? Campfire.Instance.FireWorldPosition() : (Vector3?)null);
         AddPoi("TRADER", new Color(0.55f, 0.85f, 0.55f), () => Trader.Instance != null ? Trader.Instance.transform.position : (Vector3?)null);
+        AddPoi("SHOPS", new Color(0.95f, 0.78f, 0.35f), () => CastleMarket.TryGetCenter(out Vector3 shops) ? shops : (Vector3?)null);
         AddPoi("HERMIT", new Color(0.80f, 0.70f, 1f), () => MountainHermit.Instance != null ? MountainHermit.Instance.transform.position : (Vector3?)null);
         AddPoi("SNIPER POST", new Color(1f, 0.55f, 0.45f), () => DeerChallenge.TryGetPost(out Vector3 p) ? p : (Vector3?)null);
         AddPoi("BIRD CAGE", new Color(0.55f, 0.80f, 1f), () => BirdChallenge.TryGetCage(out Vector3 p) ? p : (Vector3?)null);
@@ -630,7 +631,7 @@ public partial class GameHUD
     void RescanAnimals()
     {
         watched.Clear();
-        Animal[] animals = Object.FindObjectsByType<Animal>(FindObjectsSortMode.None);
+        Animal[] animals = Object.FindObjectsByType<Animal>();
         Vector3 me = PlayerView.Position();
         float scanSq = (DetectRange + 60f) * (DetectRange + 60f);
         for (int i = 0; i < animals.Length; i++)

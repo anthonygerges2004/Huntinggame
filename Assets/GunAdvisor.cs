@@ -124,7 +124,9 @@ public class GunAdvisor : MonoBehaviour
         switch (animal.kind)
         {
             case AnimalKind.Bird:
-                return 0f;
+                return FlyerProfile.Of(animal.flyer).gunSize;
+            case AnimalKind.Game:
+                return QuarryProfile.Of(animal.quarry).gunSize;
             case AnimalKind.Large:
             case AnimalKind.Legendary:
                 return 1f;

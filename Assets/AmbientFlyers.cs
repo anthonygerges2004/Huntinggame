@@ -8,6 +8,15 @@ public class AmbientFlyers : MonoBehaviour
     public int crowCount = 5;
     public int duckCount = 4;
     public int hawkCount = 2;
+    public int thrushFlocks = 2;
+    public int thrushesPerFlock = 3;
+    public int robinCount = 3;
+    public int jayCount = 2;
+    public int woodpeckerCount = 2;
+    public int pigeonCount = 4;
+    public int pheasantCount = 2;
+    public int gooseCount = 2;
+    public int owlCount = 1;
 
     bool spawned;
 
@@ -31,38 +40,68 @@ public class AmbientFlyers : MonoBehaviour
         {
             Vector3 center = Ring(camp, 22f + f * 14f, f * 1.7f);
             for (int i = 0; i < sparrowsPerFlock; i++)
-                Spawn("WildSparrow", FlyerKind.Sparrow, TreeOrAir(center + RandomOffset(3.5f), camp, 40f), 1);
+                Spawn(FlyerKind.Sparrow, TreeOrAir(center + RandomOffset(3.5f), camp, 40f));
         }
 
         for (int i = 0; i < crowCount; i++)
-            Spawn("WildCrow", FlyerKind.Crow, TreeOrAir(Ring(camp, 30f + i * 8f, i * 2.1f + 0.4f), camp, 55f), 1);
+            Spawn(FlyerKind.Crow, TreeOrAir(Ring(camp, 30f + i * 8f, i * 2.1f + 0.4f), camp, 55f));
 
         int ducks = WaterBodies.Lakes.Count > 0 || WaterBodies.Rivers.Count > 0 ? duckCount : 0;
         for (int i = 0; i < ducks; i++)
-            Spawn("WildDuck", FlyerKind.Duck, WaterPoint(camp, i), 2);
+            Spawn(FlyerKind.Duck, WaterPoint(camp, i));
 
         for (int i = 0; i < hawkCount; i++)
-            Spawn("WildHawk", FlyerKind.Hawk, Ring(camp, 48f + i * 18f, i * 2.6f + 1.1f), 3);
+            Spawn(FlyerKind.Hawk, Ring(camp, 48f + i * 18f, i * 2.6f + 1.1f));
+
+        for (int f = 0; f < thrushFlocks; f++)
+        {
+            Vector3 center = Ring(camp, 36f + f * 16f, f * 2.4f + 0.8f);
+            for (int i = 0; i < thrushesPerFlock; i++)
+                Spawn(FlyerKind.Thrush, TreeOrAir(center + RandomOffset(4f), camp, 48f));
+        }
+
+        for (int i = 0; i < robinCount; i++)
+            Spawn(FlyerKind.Robin, TreeOrAir(Ring(camp, 28f + i * 10f, i * 2.2f + 1.4f), camp, 40f));
+
+        for (int i = 0; i < jayCount; i++)
+            Spawn(FlyerKind.Jay, TreeOrAir(Ring(camp, 40f + i * 14f, i * 1.8f + 2.6f), camp, 55f));
+
+        for (int i = 0; i < woodpeckerCount; i++)
+            Spawn(FlyerKind.Woodpecker, TreeOrAir(Ring(camp, 34f + i * 12f, i * 2.8f + 0.2f), camp, 36f));
+
+        Vector3 pigeons = Ring(camp, 52f, 4.4f);
+        for (int i = 0; i < pigeonCount; i++)
+            Spawn(FlyerKind.Pigeon, pigeons + RandomOffset(6f));
+
+        for (int i = 0; i < pheasantCount; i++)
+            Spawn(FlyerKind.Pheasant, Ring(camp, 70f + i * 12f, i * 1.3f + 5.2f));
+
+        int geese = WaterBodies.Lakes.Count > 0 || WaterBodies.Rivers.Count > 0 ? gooseCount : 0;
+        for (int i = 0; i < geese; i++)
+            Spawn(FlyerKind.Goose, WaterPoint(camp, i + 3));
+
+        for (int i = 0; i < owlCount; i++)
+            Spawn(FlyerKind.Owl, TreeOrAir(Ring(camp, 64f, 1.9f), camp, 70f));
     }
 
-    static void Spawn(string name, FlyerKind kind, Vector3 position, int meat)
+    static void Spawn(FlyerKind kind, Vector3 position)
     {
+        FlyerProfile profile = FlyerProfile.Of(kind);
         Vector3 ground = WorldGround.Snap(position);
-        float height = kind == FlyerKind.Hawk ? 20f : kind == FlyerKind.Duck ? 4f : kind == FlyerKind.Crow ? 12f : 8f;
-        GameObject bird = new GameObject(name);
-        bird.transform.position = ground + Vector3.up * height;
+        GameObject bird = new GameObject(profile.objectName);
+        bird.transform.position = ground + Vector3.up * profile.spawnHeight;
 
         SphereCollider hitBox = bird.AddComponent<SphereCollider>();
-        hitBox.radius = BirdVisual.ColliderRadius(kind);
+        hitBox.radius = profile.collider;
         hitBox.center = new Vector3(0f, 0.12f, 0f);
 
         Animal animal = bird.AddComponent<Animal>();
         animal.kind = AnimalKind.Bird;
         animal.flyer = kind;
-        animal.meatAmount = meat;
-        animal.moveSpeed = 6f;
-        animal.fleeSpeed = 13f;
-        animal.nocturnal = false;
+        animal.meatAmount = profile.meat;
+        animal.moveSpeed = profile.cruiseSpeed;
+        animal.fleeSpeed = profile.fleeSpeed;
+        animal.nocturnal = profile.nocturnal;
     }
 
     static Vector3 Ring(Vector3 camp, float radius, float angle)

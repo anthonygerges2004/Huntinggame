@@ -135,8 +135,12 @@ namespace DeerHunt
             DeerController deer = hit.collider.GetComponentInParent<DeerController>();
             if (deer != null && zone != null)
             {
-                deer.TakeShot(zone, hit.point, transform.position, damage);
+                Health health = deer.GetComponent<Health>();
+                if (health == null || health.Dead)
+                    return;
+                // Attach the wound before TakeShot rotates the animal in reaction.
                 DeerHuntFx.Blood(hit.point, hit.normal, deer.transform);
+                deer.TakeShot(zone, hit.point, transform.position, damage);
                 DeerHuntFx.PlayHit(hit.point);
                 return;
             }

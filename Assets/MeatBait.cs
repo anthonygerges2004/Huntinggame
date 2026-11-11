@@ -41,7 +41,7 @@ public class MeatBait : MonoBehaviour
             if (DayNightCycle.Instance == null || !DayNightCycle.Instance.IsNight)
                 return false;
         }
-        else if (kind != AnimalKind.Bird && kind != AnimalKind.Deer)
+        else if (kind != AnimalKind.Bird && kind != AnimalKind.Deer && kind != AnimalKind.Game)
         {
             return false;
         }

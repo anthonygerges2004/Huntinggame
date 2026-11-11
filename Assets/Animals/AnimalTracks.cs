@@ -62,6 +62,8 @@ namespace HuntingGame.Tracking
             bloodSize = pool.BloodSize;
             branchLength = pool.BranchLength;
             pool.PrintFor(animal != null ? animal.kind : AnimalKind.Deer, out printSize, out printLife);
+            if (animal != null && animal.kind == AnimalKind.Game)
+                printSize *= QuarryProfile.Of(animal.quarry).trackScale;
         }
 
         public void Sample(Vector3 position, float yawDegrees)

@@ -7,8 +7,11 @@ public class PlayerBodyAnimation : MonoBehaviour
     public const float ThrowHold = 0.07f;
     public const float ThrowSnap = 0.16f;
     public const float ThrowRecover = 0.32f;
-    public const float ChopWindup = 0.32f;
-    public const float ChopStrike = 0.13f;
+    public const float ChopWindup = 0.42f;
+    public const float ChopStrike = 0.18f;
+    public const float ChopContact = 0.10f;
+    public const float ChopPull = 0.18f;
+    public const float ChopRecover = 0.34f;
 
     public static PlayerBodyAnimation Instance { get; private set; }
 
@@ -16,8 +19,10 @@ public class PlayerBodyAnimation : MonoBehaviour
     float cycle;
     float speedBlend;
     float airBlend;
+    float fatiguePoseWeight;
     float throwTime = -1f;
     float chopTime = -1f;
+    float lightTime = -1f;
 
     Transform hips;
     Transform spine;
@@ -99,9 +104,18 @@ public class PlayerBodyAnimation : MonoBehaviour
         Instance.throwTime = -1f;
     }
 
+    public static void PlayLightFire()
+    {
+        if (Instance == null)
+            return;
+        Instance.lightTime = 0f;
+        Instance.chopTime = -1f;
+        Instance.throwTime = -1f;
+    }
+
     public static bool IsActing()
     {
-        return Instance != null && (Instance.chopTime >= 0f || Instance.throwTime >= 0f);
+        return Instance != null && (Instance.chopTime >= 0f || Instance.throwTime >= 0f || Instance.lightTime >= 0f);
     }
 
     void LateUpdate()
@@ -161,7 +175,15 @@ public class PlayerBodyAnimation : MonoBehaviour
             runW = speedBlend - 1f;
         }
 
-        float stride = walkW * 8.4f + runW * 12.6f;
+        var survival = HuntingGame.Survival.SurvivalStats.Current;
+        float poseTarget = grounded && !riding && !IsActing() ? 1f : 0f;
+        fatiguePoseWeight = Mathf.MoveTowards(fatiguePoseWeight, poseTarget, Time.deltaTime * 6f);
+        float fatiguePose = survival != null ? survival.Fatigue01 * fatiguePoseWeight : 0f;
+        float shiverPose = survival != null ? survival.Shiver01 * fatiguePoseWeight : 0f;
+        // Velocity already controls cadence. Shorten the step and compensate its frequency
+        // together so fatigue does not simply slow the feet while the body slides forward.
+        float stepScale = Mathf.Lerp(1f, 0.86f, fatiguePose);
+        float stride = (walkW * 8.4f + runW * 12.6f) / stepScale;
         if (crouch)
             stride *= 0.78f;
         if (walkW + runW > 0.01f)
@@ -173,6 +195,7 @@ public class PlayerBodyAnimation : MonoBehaviour
         float passR = Mathf.Max(0f, r);
         float shift = Mathf.Sin(Time.time * 1.15f);
         float breathe = Mathf.Sin(Time.time * 1.7f);
+        float tiredBreath = Mathf.Sin(Time.time * 2.5f) * fatiguePose;
 
         float leftThigh = (10f + shift * 4f) * idleW + l * 30f * walkW + l * 48f * runW;
         float rightThigh = (8f - shift * 4f) * idleW + r * 30f * walkW + r * 48f * runW;
@@ -190,6 +213,17 @@ public class PlayerBodyAnimation : MonoBehaviour
         float spineTwist = -shift * 2f * idleW - l * 7f * walkW - l * 11f * runW;
         float spinePitch = breathe * 2.2f * idleW + 6f * walkW + 15f * runW;
         float hipBob = breathe * 0.012f * idleW + Mathf.Abs(l) * 0.035f * walkW + Mathf.Abs(l) * 0.07f * runW;
+
+        leftThigh *= stepScale;
+        rightThigh *= stepScale;
+        leftKnee *= stepScale;
+        rightKnee *= stepScale;
+        leftArmPitch *= Mathf.Lerp(1f, 0.8f, fatiguePose);
+        rightArmPitch *= Mathf.Lerp(1f, 0.8f, fatiguePose);
+        spinePitch += fatiguePose * (crouch ? 3f : 7f) + tiredBreath * 1.5f;
+        hipBob += tiredBreath * 0.005f * idleW;
+        // Small torso tremor, never camera shake. Weapon and action poses remain authoritative.
+        spineTwist += Mathf.Sin(Time.time * 24f) * shiverPose * (PlayerShotgun.IsAiming ? 0.08f : 0.45f);
 
         if (crouch)
         {
@@ -246,8 +280,17 @@ public class PlayerBodyAnimation : MonoBehaviour
         float shotgunPump = holdingShotgun ? PlayerShotgun.PumpPull : 0f;
         if (holdingShotgun)
         {
-            spinePitch += 8f * (1f - shotgunMount) - 12f * shotgunRecoil;
+            spinePitch += 10f * (1f - shotgunMount) - 22f * shotgunRecoil;
             spineTwist += 7f * (1f - shotgunMount);
+            hipRoll += shotgunRecoil * 5f;
+            rightArmPitch -= 18f * shotgunRecoil;
+            leftArmPitch -= 8f * shotgunRecoil;
+            float low = 1f - PlayerShotgun.GunPresent;
+            float caught = Mathf.SmoothStep(0.38f, 0.92f, PlayerShotgun.GunPresent);
+            rightArmPitch = Mathf.Lerp(rightArmPitch, 46f, low);
+            hangR = Mathf.Lerp(hangR, -4f, low);
+            leftArmPitch = Mathf.Lerp(34f, leftArmPitch, caught);
+            leftElbow = Mathf.Lerp(16f, leftElbow, caught);
         }
         if (holdingAxe)
         {
@@ -260,6 +303,11 @@ public class PlayerBodyAnimation : MonoBehaviour
                 rightArmPitch = -12f;
                 rightElbow = 70f;
             }
+
+            float drawn = PlayerShotgun.AxePresent;
+            hangR = Mathf.Lerp(6f, hangR, drawn);
+            rightArmPitch = Mathf.Lerp(32f, rightArmPitch, drawn);
+            rightElbow = Mathf.Lerp(14f, rightElbow, drawn);
         }
 
         float actionPitch = 0f;
@@ -280,7 +328,7 @@ public class PlayerBodyAnimation : MonoBehaviour
         {
             acting = true;
             chopTime += Time.deltaTime;
-            float recover = 0.24f;
+            float recover = ChopContact + ChopPull + ChopRecover;
             float strikeStart = ChopWindup;
             float recoverStart = ChopWindup + ChopStrike;
             float total = recoverStart + recover;
@@ -394,6 +442,61 @@ public class PlayerBodyAnimation : MonoBehaviour
                 acting = false;
             }
         }
+        else if (lightTime >= 0f)
+        {
+            acting = true;
+            lightTime += Time.deltaTime;
+            const float place = 2.08f;
+            const float flick = 0.75f;
+            const float recover = 0.4f;
+            float total = place + flick + recover;
+            float crouchIn = Mathf.Clamp01(lightTime / 0.28f);
+            float crouchOut = lightTime < place + flick ? 1f : 1f - Mathf.Clamp01((lightTime - place - flick) / recover);
+            float kneel = Mathf.Min(crouchIn, crouchOut);
+            actionLeftThigh = 36f * kneel;
+            actionRightThigh = 36f * kneel;
+            leftKnee = Mathf.Lerp(leftKnee, -72f, kneel);
+            rightKnee = Mathf.Lerp(rightKnee, -72f, kneel);
+            actionLean = 20f * kneel;
+
+            if (lightTime < place)
+            {
+                float bob = Mathf.Sin(lightTime / 0.45f * Mathf.PI);
+                actionHangL = Mathf.Lerp(hangL, 18f, kneel);
+                actionPitchL = Mathf.Lerp(leftArmPitch, 58f, kneel) + bob * 10f;
+                actionElbowL = Mathf.Lerp(leftElbow, 24f, kneel);
+                actionHang = Mathf.Lerp(hangR, -20f, kneel);
+                actionPitch = Mathf.Lerp(0f, 12f, kneel);
+                actionElbow = Mathf.Lerp(rightElbow, 40f, kneel);
+            }
+            else if (lightTime < place + flick)
+            {
+                float k = Mathf.Clamp01((lightTime - place) / flick);
+                float strike = k < 0.72f ? k / 0.72f : 1f - (k - 0.72f) / 0.28f;
+                actionHang = -16f;
+                actionPitch = Mathf.Lerp(18f, 64f, k);
+                actionElbow = Mathf.Lerp(48f, 18f, strike);
+                actionYaw = -8f * strike;
+                actionHangL = 24f;
+                actionPitchL = 40f;
+                actionElbowL = 30f;
+            }
+            else if (lightTime < total)
+            {
+                float k = (lightTime - place - flick) / recover;
+                actionHang = Mathf.Lerp(-16f, hangR, k);
+                actionPitch = Mathf.Lerp(64f, 0f, k);
+                actionElbow = Mathf.Lerp(18f, rightElbow, k);
+                actionHangL = Mathf.Lerp(24f, hangL, k);
+                actionPitchL = Mathf.Lerp(40f, leftArmPitch, k);
+                actionElbowL = Mathf.Lerp(30f, leftElbow, k);
+            }
+            else
+            {
+                lightTime = -1f;
+                acting = false;
+            }
+        }
 
         if (acting)
         {
@@ -495,6 +598,24 @@ public class PlayerBodyAnimation : MonoBehaviour
             rightForeDir = Quaternion.AngleAxis(-elbowR, right) * rightArmDir;
         }
 
+        if (chopTime >= 0f)
+        {
+            float lift, drive, release;
+            ChopWeights(out lift, out drive, out release);
+            Vector3 readyArm = (down * 0.62f + fwd * 0.52f + right * 0.22f).normalized;
+            Vector3 readyFore = (up * 0.58f + fwd * 0.68f + right * 0.1f).normalized;
+            Vector3 cockArm = (right * 0.55f + up * 0.65f - fwd * 0.25f).normalized;
+            Vector3 cockFore = (up * 0.85f - fwd * 0.35f - right * 0.12f).normalized;
+            Vector3 hitArm = (fwd * 0.90f + down * 0.28f + right * 0.12f).normalized;
+            Vector3 hitFore = (fwd * 0.92f - up * 0.30f - right * 0.16f).normalized;
+            rightArmDir = Vector3.Slerp(Vector3.Slerp(readyArm, cockArm, lift), hitArm, drive);
+            rightForeDir = Vector3.Slerp(Vector3.Slerp(readyFore, cockFore, lift), hitFore, drive);
+            rightArmDir = Vector3.Slerp(rightArmDir, readyArm, release);
+            rightForeDir = Vector3.Slerp(rightForeDir, readyFore, release);
+            // The free hand stays clear of the blade and balances the torso.
+            leftArmDir = Vector3.Slerp(leftArmDir, (down - right * 0.35f - fwd * 0.2f).normalized, lift * (1f - release));
+        }
+
         PointAlong(leftArm, leftArmRot, leftArmDir);
         PointAlong(rightArm, rightArmRot, rightArmDir);
         PointAlong(leftForeArm, leftForeArmRot, leftForeDir);
@@ -514,11 +635,29 @@ public class PlayerBodyAnimation : MonoBehaviour
             : holdShotgun
                 ? Vector3.Slerp((fwd * 0.90f - up * 0.16f).normalized, fwd, shotgunMount)
                 : (rightForeDir * 0.7f + down * 0.3f - fwd * 0.1f).normalized;
+        if (chopTime >= 0f)
+        {
+            float lift, drive, release;
+            ChopWeights(out lift, out drive, out release);
+            Vector3 readyGrip = (up * 0.5f + fwd * 0.72f).normalized;
+            rightFingerDir = Vector3.Slerp(Vector3.Slerp(readyGrip, (up - fwd * 0.4f).normalized, lift),
+                (fwd * 0.9f - up * 0.35f).normalized, drive);
+            rightFingerDir = Vector3.Slerp(rightFingerDir, readyGrip, release);
+            rightPalm = -right + up * 0.12f - fwd * 0.2f;
+        }
         AimBone(leftHand, leftHandRot, leftFingerDir, leftPalm);
         AimBone(rightHand, rightHandRot, rightFingerDir, rightPalm);
 
         CurlFingers(leftFingers, leftFingerBind, restFingerEuler);
         CurlFingers(rightFingers, rightFingerBind, gripRight ? gripFingerEuler : restFingerEuler);
+    }
+
+    void ChopWeights(out float lift, out float drive, out float release)
+    {
+        lift = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(chopTime / ChopWindup));
+        float strike = Mathf.Clamp01((chopTime - ChopWindup) / ChopStrike);
+        drive = strike * strike;
+        release = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((chopTime - ChopWindup - ChopStrike - ChopContact) / (ChopPull + ChopRecover)));
     }
 
     void PointAlong(Transform bone, Quaternion bind, Vector3 along)

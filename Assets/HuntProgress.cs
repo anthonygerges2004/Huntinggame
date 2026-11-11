@@ -22,7 +22,7 @@ public static class HuntProgress
         new Rank { title = "GREENHORN", xp = 0, perk = "", perkText = "Every hunter starts somewhere." },
         new Rank { title = "TRACKER", xp = 150, perk = "STEADY HANDS", perkText = "Hold your breath 40% longer on the scope." },
         new Rank { title = "STALKER", xp = 400, perk = "LIGHT STEP", perkText = "Your footsteps are 25% quieter to animals." },
-        new Rank { title = "BUTCHER", xp = 800, perk = "FIELD DRESSING", perkText = "Every deer or larger gives 1 extra meat." },
+        new Rank { title = "BUTCHER", xp = 800, perk = "FIELD DRESSING", perkText = "Deer, pigs, boar, wolves and larger animals give 1 extra meat." },
         new Rank { title = "MARKSMAN", xp = 1400, perk = "ICE VEINS", perkText = "No buck fever, and 25% less scope sway." },
         new Rank { title = "APEX HUNTER", xp = 2200, perk = "PREDATOR SENSE", perkText = "Hunter's Instinct reaches 60% farther and recharges faster." },
     };
@@ -155,6 +155,12 @@ public static class HuntProgress
                 counts = k => true },
             new Contract { text = "Bag a wild horse", need = 1, reward = 110,
                 counts = k => k.kind == AnimalKind.Large },
+            new Contract { text = "Bag a pig or a boar", need = 1, reward = 80,
+                counts = k => k.animal != null && (k.animal.quarry == QuarryKind.Pig || k.animal.quarry == QuarryKind.Boar) },
+            new Contract { text = "Take a rabbit or a fox", need = 1, reward = 45,
+                counts = k => k.animal != null && (k.animal.quarry == QuarryKind.Rabbit || k.animal.quarry == QuarryKind.Fox) },
+            new Contract { text = "Shoot a thrush", need = 1, reward = 40,
+                counts = k => k.animal != null && k.animal.kind == AnimalKind.Bird && k.animal.flyer == FlyerKind.Thrush },
         };
 
         for (int i = 0; i < 3 && pool.Count > 0; i++)
@@ -201,7 +207,12 @@ public static class HuntProgress
         float xp;
         switch (info.kind)
         {
-            case AnimalKind.Bird: xp = 10f; break;
+            case AnimalKind.Bird:
+                xp = animal != null ? FlyerProfile.Of(animal.flyer).xp : 10f;
+                break;
+            case AnimalKind.Game:
+                xp = animal != null ? QuarryProfile.Of(animal.quarry).xp : 30f;
+                break;
             case AnimalKind.Large: xp = 50f; break;
             case AnimalKind.Legendary: xp = 200f; break;
             default: xp = 25f; break;

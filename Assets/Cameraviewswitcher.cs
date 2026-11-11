@@ -32,6 +32,8 @@ public class CameraViewSwitcher : MonoBehaviour
     public bool IsFirstPerson => isFirstPerson;
     public Camera PlayerCamera => playerCamera;
     public Transform EyePoint => eyePoint;
+    public float MinLookPitch => isFirstPerson ? -85f : minPitch;
+    public float MaxLookPitch => isFirstPerson ? 85f : maxPitch;
 
     public void PreferThirdPerson()
     {
@@ -60,19 +62,19 @@ public class CameraViewSwitcher : MonoBehaviour
 
     private void Start()
     {
-        minPitch = -80f;
-        maxPitch = 70f;
         isFirstPerson = startInFirstPerson;
         playerMove = GetComponent<PlayerMove>();
+        if (playerCamera == null)
+            playerCamera = GetComponentInChildren<Camera>();
         if (playerCamera != null)
             cameraParent = playerCamera.transform.parent;
         orbitPitch = thirdPersonPitch;
-        currentDistance = followDistance;
+        currentDistance = Mathf.Clamp(followDistance, minDistance, maxDistance);
         if (thirdPersonPoint != null)
         {
             float z = Mathf.Abs(thirdPersonPoint.localPosition.z);
             if (z > 1.5f)
-                currentDistance = Mathf.Max(followDistance, z + 1.2f);
+                currentDistance = Mathf.Clamp(Mathf.Max(followDistance, z), minDistance, maxDistance);
         }
 
         CacheWeaponRenderers();
@@ -144,12 +146,11 @@ public class CameraViewSwitcher : MonoBehaviour
     private void UpdateFirstPerson()
     {
         Transform cam = playerCamera.transform;
-        if (eyePoint == null)
-            return;
+        playerCamera.nearClipPlane = 0.02f;
 
         Vector3 targetLocal = cam.parent != null
-            ? cam.parent.InverseTransformPoint(eyePoint.position)
-            : eyePoint.position;
+            ? cam.parent.InverseTransformPoint(eyePoint != null ? eyePoint.position : transform.position + Vector3.up * 1.6f)
+            : (eyePoint != null ? eyePoint.position : transform.position + Vector3.up * 1.6f);
         // A slow lerp chases the head bob and the view vibrates. Snap to the eye.
         cam.localPosition = targetLocal;
     }
@@ -163,15 +164,18 @@ public class CameraViewSwitcher : MonoBehaviour
         float height = Mathf.Lerp(lookHeight, lookHeight + 0.12f, aim);
         float distance = Mathf.Lerp(currentDistance, Mathf.Min(currentDistance, 2.35f), aim);
         Vector3 lookPoint = transform.position + Vector3.up * height;
-        Quaternion yawOnly = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
-        Vector3 desired = lookPoint + yawOnly * Vector3.back * distance + Vector3.up * 0.35f;
-        desired = ResolveCollision(lookPoint + Vector3.up * 0.2f, desired);
+        Quaternion orbit = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
+        Vector3 pivot = lookPoint + Vector3.up * 0.2f;
+        Vector3 desired = ResolveCollision(pivot, pivot + orbit * Vector3.back * distance);
 
-        cam.position = Vector3.SmoothDamp(cam.position, desired, ref followVelocity, followSmooth);
-        cam.rotation = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
+        Vector3 smoothed = Vector3.SmoothDamp(cam.position, desired, ref followVelocity, followSmooth);
+        // Recheck after smoothing: interpolation must not travel through an obstacle.
+        cam.position = ResolveCollision(pivot, smoothed);
+        if ((cam.position - smoothed).sqrMagnitude > 0.0001f)
+            followVelocity = Vector3.zero;
+        cam.rotation = Quaternion.Euler(-PlayerShotgun.ViewKick, 0f, PlayerShotgun.ViewRoll * 0.35f) * orbit;
 
-        if (playerCamera.nearClipPlane < 0.2f)
-            playerCamera.nearClipPlane = 0.2f;
+        playerCamera.nearClipPlane = 0.05f;
     }
 
     private void SnapCamera()
@@ -183,17 +187,17 @@ public class CameraViewSwitcher : MonoBehaviour
         Transform cam = playerCamera.transform;
         if (isFirstPerson)
         {
-            if (eyePoint != null && cam.parent != null)
-                cam.localPosition = cam.parent.InverseTransformPoint(eyePoint.position);
+            UpdateFirstPerson();
             cam.localRotation = Quaternion.Euler(ReadLookPitch(), 0f, 0f);
             return;
         }
 
         orbitPitch = Mathf.Clamp(ReadLookPitch(), minPitch, maxPitch);
         Vector3 lookPoint = transform.position + Vector3.up * lookHeight;
-        Quaternion yawOnly = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
-        Vector3 desired = lookPoint + yawOnly * Vector3.back * currentDistance + Vector3.up * 0.35f;
-        cam.position = ResolveCollision(lookPoint + Vector3.up * 0.2f, desired);
+        Quaternion orbit = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
+        Vector3 pivot = lookPoint + Vector3.up * 0.2f;
+        Vector3 desired = pivot + orbit * Vector3.back * currentDistance;
+        cam.position = ResolveCollision(pivot, desired);
         cam.rotation = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
     }
 
@@ -243,7 +247,7 @@ public class CameraViewSwitcher : MonoBehaviour
         if (closest >= distance)
             return desired;
 
-        float allowed = Mathf.Max(0.75f, closest - cameraPadding);
+        float allowed = Mathf.Max(0f, closest - cameraPadding);
         return from + direction * allowed;
     }
 
@@ -254,7 +258,7 @@ public class CameraViewSwitcher : MonoBehaviour
         {
             foreach (Transform child in playerCamera.transform)
             {
-                if (UnderName(child, "Shotgun"))
+                if (!UnderName(child, "Axe") && child.GetComponentInChildren<AxeSwing>(true) == null)
                     continue;
                 found.AddRange(child.GetComponentsInChildren<Renderer>(true));
             }
@@ -324,12 +328,6 @@ public class CameraViewSwitcher : MonoBehaviour
                 return child;
         }
 
-        foreach (Transform child in playerCamera.transform)
-        {
-            if (child.GetComponentInChildren<Renderer>(true) != null)
-                return child;
-        }
-
         return null;
     }
 
@@ -361,7 +359,7 @@ public class CameraViewSwitcher : MonoBehaviour
                 continue;
             if (playerCamera != null && r.transform.IsChildOf(playerCamera.transform))
                 continue;
-            if (UnderName(r.transform, "HandAxe") || UnderName(r.transform, "FallingAxe") || UnderName(r.transform, "Shotgun"))
+            if (UnderName(r.transform, "HandAxe") || UnderName(r.transform, "FallingAxe") || UnderName(r.transform, "Shotgun") || UnderName(r.transform, "Rifle") || UnderName(r.transform, "Sniper"))
                 continue;
             found.Add(r);
         }
@@ -417,6 +415,12 @@ public class CameraViewSwitcher : MonoBehaviour
             if (renderers[i] != null)
                 renderers[i].enabled = enabled;
         }
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
     }
 }
 

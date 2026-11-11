@@ -106,7 +106,7 @@ public class ThrownAxe : MonoBehaviour
         {
             if (WoundPool.Current != null)
             {
-                bool heavy = animal.kind == AnimalKind.Large || animal.kind == AnimalKind.Legendary;
+                bool heavy = animal.HeavyShot;
                 WoundPool.Current.Mark(transform.position, heavy);
             }
 

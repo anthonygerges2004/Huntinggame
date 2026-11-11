@@ -23,6 +23,16 @@ public static class AnimalVisuals
             return;
         }
 
+        if (animal.kind == AnimalKind.Game)
+        {
+            if (animal.quarry == QuarryKind.None)
+                animal.quarry = QuarryKind.Pig;
+            if (animal.transform.Find(GroundCritterVisual.BodyName) == null)
+                GroundCritterVisual.Build(animal.transform, animal.quarry);
+            FitCollider(animal);
+            return;
+        }
+
         if (HasSkinnedModel(animal))
         {
             StripImportedControllers(animal.gameObject);
@@ -152,7 +162,16 @@ public static class AnimalVisuals
     {
         CapsuleCollider capsule = animal.GetComponent<CapsuleCollider>();
         if (capsule == null)
+        {
+            SphereCollider sphere = animal.GetComponent<SphereCollider>();
+            if (sphere != null && animal.kind == AnimalKind.Bird)
+            {
+                float radius = BirdVisual.ColliderRadius(animal.flyer);
+                sphere.radius = radius;
+                sphere.center = new Vector3(0f, 0.12f, 0f);
+            }
             return;
+        }
 
         switch (animal.kind)
         {
@@ -161,6 +180,13 @@ public static class AnimalVisuals
                 capsule.radius = radius;
                 capsule.height = radius * 2.2f;
                 capsule.center = new Vector3(0f, 0.12f, 0f);
+                capsule.direction = 2;
+                break;
+            case AnimalKind.Game:
+                QuarryProfile game = QuarryProfile.Of(animal.quarry);
+                capsule.radius = game.capsuleRadius;
+                capsule.height = game.capsuleHeight;
+                capsule.center = game.capsuleCenter;
                 capsule.direction = 2;
                 break;
             case AnimalKind.Large:

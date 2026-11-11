@@ -243,6 +243,7 @@ public class HuntWorldDressing : MonoBehaviour
         if (!RpgppScenery.Present)
             ArrangeCamp();
         SnapCastlesToGround();
+        CastleMarket.Place();
         RemoveUnwantedRocks();
 
         // The RPG Poly Pack scenery replaces this foliage; don't regenerate it.

@@ -1,4 +1,5 @@
 using HuntingGame.Wounds;
+using System.Collections.Generic;
 using Unity.Profiling;
 using UnityEngine;
 
@@ -13,11 +14,6 @@ namespace HuntingGame.Ballistics
         [SerializeField] BallisticsSettings settings;
         [SerializeField] LayerMask blocks = ~0;
 
-        struct PelletHit
-        {
-            public Animal animal;
-        }
-
         class Pellet
         {
             public bool active;
@@ -27,11 +23,11 @@ namespace HuntingGame.Ballistics
             public float range;
             public Transform ignore;
             public Transform visual;
+            public HashSet<Animal> shotHits;
         }
 
-        PelletHit[] found;
+        int maxHits;
         Pellet[] pellets;
-        int foundCount;
         int activeCount;
         int poolCount;
         float muzzleSpeed = 360f;
@@ -53,7 +49,7 @@ namespace HuntingGame.Ballistics
                 settings = ScriptableObject.CreateInstance<BallisticsSettings>();
 
             int count = settings.maxHits < 8 ? 8 : settings.maxHits;
-            found = new PelletHit[count];
+            maxHits = count;
             muzzleSpeed = settings.muzzleSpeed < 40f ? 360f : settings.muzzleSpeed;
             gravity = settings.gravity < 0f ? 9.81f : settings.gravity;
             drag = settings.drag < 0f ? 0f : settings.drag;
@@ -108,7 +104,7 @@ namespace HuntingGame.Ballistics
             Transform ignore)
         {
             FireMarker.Begin();
-            foundCount = 0;
+            var shotHits = new HashSet<Animal>();
             int count = pelletsToFire < 1 ? 1 : pelletsToFire;
             if (count > poolCount)
                 count = poolCount;
@@ -126,7 +122,8 @@ namespace HuntingGame.Ballistics
                 direction.Normalize();
                 Pellet pellet = TakePellet();
                 pellet.active = true;
-                pellet.position = origin + direction * 0.55f;
+                pellet.position = origin;
+                pellet.shotHits = shotHits;
                 pellet.velocity = direction * muzzleSpeed;
                 pellet.traveled = 0f;
                 pellet.range = range;
@@ -143,8 +140,16 @@ namespace HuntingGame.Ballistics
         {
             if (dt < 0.0001f)
                 return;
-            if (dt > 0.05f)
-                dt = 0.05f;
+            while (dt > 0f)
+            {
+                float step = Mathf.Min(dt, 0.05f);
+                AdvancePellets(step);
+                dt -= step;
+            }
+        }
+
+        void AdvancePellets(float dt)
+        {
 
             float damp = drag * dt;
             if (damp > 0.5f)
@@ -175,7 +180,7 @@ namespace HuntingGame.Ballistics
                 if (Cast(pellet.position, direction, distance, pellet.ignore, out RaycastHit hit))
                 {
                     Debug.DrawLine(pellet.position, hit.point, Color.green, 0.35f);
-                    Resolve(hit, direction, pellet.velocity.magnitude);
+                    Resolve(hit, direction, pellet.velocity.magnitude, pellet.shotHits);
                     Stop(pellet);
                     continue;
                 }
@@ -190,28 +195,23 @@ namespace HuntingGame.Ballistics
             }
         }
 
-        void Resolve(RaycastHit hit, Vector3 direction, float speed)
+        void Resolve(RaycastHit hit, Vector3 direction, float speed, HashSet<Animal> shotHits)
         {
             bool heavy = false;
             bool bled = false;
             if (hit.collider.GetComponentInParent<HarvestableTree>() == null)
             {
                 Animal animal = hit.collider.GetComponentInParent<Animal>();
-                if (animal != null && !animal.Dead && !AlreadyHit(animal) && foundCount < found.Length)
+                if (animal != null && !animal.Dead && shotHits.Count < maxHits && shotHits.Add(animal))
                 {
-                    found[foundCount].animal = animal;
-                    foundCount++;
                     bled = true;
-                    heavy = animal.kind == AnimalKind.Large || animal.kind == AnimalKind.Legendary;
+                    heavy = animal.HeavyShot;
                     animal.Hit(direction, hit.point, hit.normal);
                     PushBody(animal, direction, speed);
-                    if (animal.kind == AnimalKind.Deer)
-                    {
-                        Vector3 barrel = hit.point - direction;
-                        if (PlayerShotgun.Instance != null && PlayerShotgun.Instance.TryMuzzle(out Vector3 muzzle))
-                            barrel = muzzle;
-                        ShotTracer.Play(barrel, hit.point);
-                    }
+                    Vector3 barrel = hit.point - direction;
+                    if (PlayerShotgun.Instance != null && PlayerShotgun.Instance.TryMuzzle(out Vector3 muzzle))
+                        barrel = muzzle;
+                    ShotTracer.Play(barrel, hit.point);
                 }
             }
 
@@ -240,36 +240,31 @@ namespace HuntingGame.Ballistics
 
         bool Cast(Vector3 start, Vector3 direction, float distance, Transform ignore, out RaycastHit hit)
         {
-            if (!Physics.SphereCast(start, pelletRadius, direction, out hit, distance, blocks, QueryTriggerInteraction.Ignore))
-                return false;
-
-            if (ignore == null || hit.transform == null)
-                return true;
-
-            if (hit.transform != ignore && !hit.transform.IsChildOf(ignore))
-                return true;
-
-            Vector3 next = hit.point + direction * 0.35f;
-            float left = distance - hit.distance - 0.35f;
-            if (left < 0.2f)
-                return false;
-
-            if (!Physics.SphereCast(next, pelletRadius, direction, out hit, left, blocks, QueryTriggerInteraction.Ignore))
-                return false;
-
-            return hit.transform != ignore && !hit.transform.IsChildOf(ignore);
-        }
-
-        bool AlreadyHit(Animal animal)
-        {
-            for (int i = 0; i < foundCount; i++)
+            hit = default;
+            float nearest = float.PositiveInfinity;
+            int count = Physics.SphereCastNonAlloc(start, pelletRadius, direction, collisionHits,
+                distance, blocks, QueryTriggerInteraction.Ignore);
+            RaycastHit[] results = collisionHits;
+            // A saturated buffer is unordered; use the full result to avoid missing the nearest wall.
+            if (count == collisionHits.Length)
             {
-                if (found[i].animal == animal)
-                    return true;
+                results = Physics.SphereCastAll(start, pelletRadius, direction, distance, blocks, QueryTriggerInteraction.Ignore);
+                count = results.Length;
             }
-
-            return false;
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit candidate = results[i];
+                if (ignore != null && (candidate.transform == ignore || candidate.transform.IsChildOf(ignore)))
+                    continue;
+                if (candidate.distance >= nearest)
+                    continue;
+                nearest = candidate.distance;
+                hit = candidate;
+            }
+            return nearest < float.PositiveInfinity;
         }
+
+        readonly RaycastHit[] collisionHits = new RaycastHit[64];
 
         Pellet TakePellet()
         {
@@ -289,6 +284,7 @@ namespace HuntingGame.Ballistics
                 return;
 
             pellet.active = false;
+            pellet.shotHits = null;
             pellet.visual.gameObject.SetActive(false);
             activeCount--;
             if (activeCount < 0)
@@ -303,7 +299,10 @@ namespace HuntingGame.Ballistics
             mark.transform.localScale = Vector3.one * 0.045f;
             Collider solid = mark.GetComponent<Collider>();
             if (solid != null)
+            {
+                solid.enabled = false;
                 Destroy(solid);
+            }
 
             Renderer renderer = mark.GetComponent<Renderer>();
             if (renderer != null && leadMaterial != null)

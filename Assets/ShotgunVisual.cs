@@ -41,6 +41,7 @@ public static class ShotgunVisual
         root.transform.localPosition = Vector3.zero;
         root.transform.localRotation = Quaternion.identity;
         SetWorldScale(root.transform, FittedScale);
+        ShotgunBreak.Rig(root.transform);
         return root;
     }
 

@@ -8,6 +8,10 @@ namespace HuntingGame.Survival
     {
         public float tickInterval = 0.25f;
 
+        [Header("Fatigue response")]
+        [Min(0.05f)] public float fatigueBuildSeconds = 2f;
+        [Min(0.05f)] public float fatigueRecoverySeconds = 6f;
+
         [Header("Food")]
         [Tooltip("Minutes for a full stomach to empty while walking around.")]
         public float foodLastsMinutes = 16f;

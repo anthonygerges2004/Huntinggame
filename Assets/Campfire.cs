@@ -25,6 +25,7 @@ public class Campfire : MonoBehaviour
     private Light fireLight;
     private GameObject fireInstance;
     private float fuelSeconds;
+    bool addingWood;
 
     void Awake()
     {
@@ -72,41 +73,135 @@ public class Campfire : MonoBehaviour
 
     void ToggleFire()
     {
+        if (Inventory.IsOpen || CampfireBuild.Busy || addingWood) return;
         if (isLit)
         {
-            if (TryFeedFire())
-                return;
-
-            SetLit(false);
+            TryFeedFire();
             return;
         }
 
-        if (Inventory.Instance == null || Inventory.Instance.wood < woodCost)
+        if (Inventory.Instance == null)
+            return;
+
+        if (!Inventory.Instance.LighterWorks)
         {
-            Debug.Log("Need wood to make a fire.");
+            if (Inventory.Instance.LighterDueBack)
+                Notice("The rented lighter's time is up. Return it to the gun shop.");
+            else
+                Notice("You need a lighter. Buy or rent one at the castle gun shop.");
             return;
         }
 
-        if (SetLit(true))
+        if (Inventory.Instance.wood < woodCost)
         {
-            Inventory.Instance.UseWood(woodCost);
-            AddFuelFromWood(woodCost);
+            Notice("Need wood to lay a fire.");
+            return;
         }
+
+        if (CampfireBuild.Busy)
+            return;
+
+        if (!Inventory.Instance.UseWood(woodCost))
+            return;
+
+        if (!CampfireBuild.Begin(this, woodCost))
+            Inventory.Instance.GiveWood(woodCost);
+    }
+
+    public void AdoptPile(GameObject pile)
+    {
+        if (pile == null)
+            return;
+
+        if (fireInstance != null && fireInstance != pile)
+            Destroy(fireInstance);
+
+        fireInstance = pile;
+        fireInstance.name = "CampfireInstance";
+        isLit = true;
+
+        GameObject lightObj = new GameObject("CampfireLight");
+        lightObj.transform.SetParent(fireInstance.transform, false);
+        lightObj.transform.localPosition = Vector3.up * 0.45f;
+        fireLight = lightObj.AddComponent<Light>();
+        fireLight.type = LightType.Point;
+        fireLight.color = new Color(1f, 0.55f, 0.15f);
+        fireLight.range = safeRadius;
+        fireLight.intensity = 2.6f;
+        CampfireFireEffects.Setup(fireInstance, fireLight, safeRadius);
+        AddFuelFromWood(woodCost);
+        Notice("Campfire lit.");
     }
 
     bool TryFeedFire()
     {
+        if (addingWood || fireInstance == null || PlayerHealth.Instance == null) return false;
+        if (Vector3.Distance(PlayerHealth.Instance.transform.position, fireInstance.transform.position) > 2.7f)
+        {
+            Notice("Move closer to the campfire to add wood.");
+            return false;
+        }
         if (Inventory.Instance == null || Inventory.Instance.wood < woodCost)
+        {
+            Notice("You need wood to feed the fire.");
             return false;
-
-        if (!Inventory.Instance.UseWood(woodCost))
-            return false;
-
-        AddFuelFromWood(woodCost);
-        Inventory.Instance.ShowNotice("Added wood to the fire.");
+        }
+        StartCoroutine(PlaceFuelLog());
         return true;
     }
 
+    System.Collections.IEnumerator PlaceFuelLog()
+    {
+        addingWood = true;
+        GameObject log = null;
+        Material bark = null;
+        try
+        {
+            Transform player = PlayerHealth.Instance.transform;
+            GameObject pile = fireInstance;
+            log = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            log.name = "Added firewood";
+            Destroy(log.GetComponent<Collider>());
+            log.transform.localScale = new Vector3(0.12f, 0.28f, 0.10f);
+            bark = new Material(Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard"));
+            bark.color = new Color(0.24f, 0.12f, 0.055f);
+            log.GetComponent<Renderer>().sharedMaterial = bark;
+            Vector3 start = player.position + player.forward * 0.45f + player.right * 0.25f + Vector3.up * 0.9f;
+            Vector3 end = pile.transform.TransformPoint(new Vector3(Random.Range(-0.12f, 0.12f), 0.26f, 0f));
+            Quaternion rest = pile.transform.rotation * Quaternion.Euler(90f, Random.Range(-25f, 25f), 0f);
+            PlayerBodyAnimation.PlayLightFire();
+            Notice("Placing wood on the fire...");
+            for (float elapsed = 0f; elapsed < 1.1f; elapsed += Time.deltaTime)
+            {
+                if (pile == null || !isLit || PlayerHealth.Instance == null || PlayerHealth.Instance.isDead ||
+                    Vector3.Distance(player.position, pile.transform.position) > 2.7f)
+                    yield break;
+                float t = Mathf.SmoothStep(0f, 1f, elapsed / 1.1f);
+                log.transform.position = Vector3.Lerp(start, end, t) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * 0.12f);
+                log.transform.rotation = Quaternion.Slerp(player.rotation * Quaternion.Euler(0f, 0f, 75f), rest, t);
+                yield return null;
+            }
+            if (Inventory.Instance == null || !Inventory.Instance.UseWood(woodCost))
+            {
+                Notice("You need wood to feed the fire.");
+                yield break;
+            }
+            log.transform.SetPositionAndRotation(end, rest);
+            log.transform.SetParent(pile.transform, true);
+            AddFuelFromWood(woodCost);
+            Notice("Added wood to the fire.");
+            Destroy(log, Mathf.Max(1f, secondsPerWood * woodCost));
+            Destroy(bark, Mathf.Max(1f, secondsPerWood * woodCost));
+            log = null;
+            bark = null;
+        }
+        finally
+        {
+            if (log != null) Destroy(log);
+            if (bark != null) Destroy(bark);
+            addingWood = false;
+        }
+    }
     void AddFuelFromWood(int woodPieces)
     {
         if (woodPieces <= 0 || secondsPerWood <= 0f)
@@ -215,6 +310,18 @@ public class Campfire : MonoBehaviour
 
     void Cook()
     {
+        if (CastleShop.AtButchery())
+        {
+            if (Inventory.Instance == null || !Inventory.Instance.CookOneMeat())
+            {
+                Notice("No raw meat to cook.");
+                return;
+            }
+
+            Notice("The butcher cooked it. Press Q to eat.");
+            return;
+        }
+
         if (CraftBook.Current == null)
         {
             if (!isLit)

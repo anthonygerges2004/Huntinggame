@@ -5,10 +5,12 @@ public class HarvestableTree : MonoBehaviour
 {
     public int woodAmount = 3;
     public int hitsToFall = 3;
-    public float chopRange = 6f;
+    public float chopRange = 2.2f;
 
     int hits;
     bool chopped;
+    Quaternion restingRotation;
+    Coroutine recoil;
 
     void Start()
     {
@@ -19,8 +21,8 @@ public class HarvestableTree : MonoBehaviour
             return;
         }
 
-        if (chopRange < 6f)
-            chopRange = 6f;
+        chopRange = Mathf.Min(chopRange, 2.2f);
+        restingRotation = transform.localRotation;
     }
 
     public static HarvestableTree AimedTree()
@@ -34,7 +36,7 @@ public class HarvestableTree : MonoBehaviour
             return false;
 
         Vector3 point = transform.position + Vector3.up * 1.5f;
-        return Vector3.Distance(PlayerView.Position(), point) <= chopRange + 1.5f;
+        return Vector3.Distance(PlayerView.AimOrigin(), point) <= Mathf.Min(chopRange, 2.2f);
     }
 
     public static void ChopLookedAtTree()
@@ -49,15 +51,17 @@ public class HarvestableTree : MonoBehaviour
         if (chopped)
             return;
 
-        if (Inventory.Instance == null || !Inventory.Instance.hasPickaxe)
+        if (Inventory.Instance == null || !AxeSwing.HasAxe || !Inventory.AxeInHand)
         {
             if (Inventory.Instance != null)
-                Inventory.Instance.ShowNotice("Buy a pickaxe at the trader, then chop.");
+                Inventory.Instance.ShowNotice("Equip your axe to chop.");
             return;
         }
 
         hits++;
-        transform.localRotation *= Quaternion.Euler(0f, 0f, hits % 2 == 0 ? 8f : -8f);
+        if (recoil != null) StopCoroutine(recoil);
+        transform.localRotation = restingRotation;
+        recoil = StartCoroutine(ImpactRecoil());
 
         if (hits < hitsToFall)
         {
@@ -66,9 +70,24 @@ public class HarvestableTree : MonoBehaviour
         }
 
         chopped = true;
+        if (recoil != null) StopCoroutine(recoil);
+        transform.localRotation = restingRotation;
         Inventory.Instance.AddWood(woodAmount);
         Inventory.Instance.ShowNotice("Tree down. +" + woodAmount + " wood");
         StartCoroutine(FallOver());
+    }
+
+    IEnumerator ImpactRecoil()
+    {
+        for (float elapsed = 0f; elapsed < 0.3f; elapsed += Time.deltaTime)
+        {
+            float t = elapsed / 0.3f;
+            float bend = Mathf.Sin(t * Mathf.PI * 3f) * (1f - t) * 1.2f;
+            transform.localRotation = restingRotation * Quaternion.Euler(bend, 0f, bend * 0.4f);
+            yield return null;
+        }
+        transform.localRotation = restingRotation;
+        recoil = null;
     }
 
     IEnumerator FallOver()
@@ -92,34 +111,19 @@ public class HarvestableTree : MonoBehaviour
 
     static HarvestableTree FindLookedAtTree()
     {
-        HarvestableTree[] trees = Object.FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude);
+        // Use the first solid surface at the crosshair: walls and nearby props block a chop.
+        Ray ray = PlayerView.AimRay();
+        Transform player = PlayerView.Body();
+        RaycastHit[] contacts = Physics.RaycastAll(ray, 2.2f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        float nearest = float.MaxValue;
         HarvestableTree best = null;
-        float bestDistance = 999f;
-        Vector3 origin = PlayerView.AimOrigin();
-        Vector3 forward = PlayerView.AimDirection();
-
-        for (int i = 0; i < trees.Length; i++)
+        foreach (RaycastHit contact in contacts)
         {
-            HarvestableTree tree = trees[i];
-            if (tree == null || tree.chopped)
-                continue;
-
-            Vector3 point = tree.transform.position + Vector3.up * 1.5f;
-            Vector3 toTree = point - origin;
-            float distance = toTree.magnitude;
-            if (distance > tree.chopRange || distance < 0.2f)
-                continue;
-
-            if (Vector3.Dot(forward, toTree.normalized) < 0.65f)
-                continue;
-
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                best = tree;
-            }
+            if (player != null && (contact.transform == player || contact.transform.IsChildOf(player))) continue;
+            if (contact.distance >= nearest) continue;
+            nearest = contact.distance;
+            best = contact.collider.GetComponentInParent<HarvestableTree>();
         }
-
-        return best;
+        return best != null && !best.chopped ? best : null;
     }
 }

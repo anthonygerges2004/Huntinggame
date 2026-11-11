@@ -24,6 +24,7 @@ public class DeerWoundPose : MonoBehaviour
     float frontShinSign = 1f;
     float skullSign = -1f;
     bool bonesReady;
+    readonly System.Collections.Generic.Dictionary<Transform, Quaternion> poseBefore = new System.Collections.Generic.Dictionary<Transform, Quaternion>();
     float gait;
     Vector3 lastPosition;
     Animator animator;
@@ -87,6 +88,29 @@ public class DeerWoundPose : MonoBehaviour
         return null;
     }
 
+    void Update()
+    {
+        RestorePose();
+    }
+
+    void OnDisable()
+    {
+        RestorePose();
+    }
+
+    void RestorePose()
+    {
+        foreach (var entry in poseBefore)
+            if (entry.Key != null) entry.Key.localRotation = entry.Value;
+        poseBefore.Clear();
+    }
+
+    void Remember(Transform bone)
+    {
+        if (bone != null && !poseBefore.ContainsKey(bone))
+            poseBefore.Add(bone, bone.localRotation);
+    }
+
     void LateUpdate()
     {
         if (Severity < 0.02f)
@@ -98,6 +122,7 @@ public class DeerWoundPose : MonoBehaviour
         if (animator != null && !animator.enabled)
             return;
 
+        Remember(hindThigh); Remember(hindShin); Remember(frontThigh); Remember(frontShin); Remember(skull); Remember(spine);
         float moved = Vector3.Distance(transform.position, lastPosition);
         lastPosition = transform.position;
         bool stepping = moved > 0.0025f;

@@ -14,8 +14,14 @@ public class Settlement : MonoBehaviour
     public float ringRadius = 7f;
     public Vector3[] doors = new Vector3[0];
     public Vector3[] spots = new Vector3[0];
+    [System.NonSerialized] public int assignedWorkers;
 
     const float ArcStepDegrees = 25f;
+
+    void Start()
+    {
+        VillageMarket.Install(this);
+    }
 
     public Vector3 RingPoint(float angleRad)
     {
@@ -43,6 +49,12 @@ public class Settlement : MonoBehaviour
     {
         route.Clear();
         Vector3 target = RandomPoint();
+        RouteTo(from, target, route);
+    }
+
+    public void RouteTo(Vector3 from, Vector3 target, List<Vector3> route)
+    {
+        route.Clear();
         if (Flat(target - from).magnitude < 1.5f)
             return;
 

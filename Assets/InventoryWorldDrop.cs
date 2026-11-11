@@ -96,22 +96,14 @@ public class InventoryWorldDrop : MonoBehaviour
         if (Inventory.Instance == null)
             return;
 
-        if (itemId == "Wood")
-        {
-            Inventory.Instance.AddWood(amount);
-            Inventory.Instance.ShowNotice("+" + amount + " wood");
-        }
-        else if (itemId == "CookedMeat")
-        {
-            Inventory.Instance.AddCookedMeat(amount);
-            Inventory.Instance.ShowNotice("+" + amount + " cooked meat");
-        }
-        else
-        {
-            Inventory.Instance.AddMeat(amount);
-            Inventory.Instance.ShowNotice("+" + amount + " meat");
-        }
-
-        Destroy(gameObject);
+        if (Inventory.IsOpen)
+            return;
+        int collected = Inventory.Instance.CollectItem(itemId, amount);
+        if (collected <= 0)
+            return;
+        amount -= collected;
+        Inventory.Instance.ShowNotice("+" + collected + " " + itemId);
+        if (amount <= 0)
+            Destroy(gameObject);
     }
 }
