@@ -105,9 +105,11 @@ public class AnimalCarcass : MonoBehaviour
         {
             HuntGoods g = Focus.goods;
             string title = g.Title + "  ·  " + Mathf.RoundToInt(g.weightKg) + " KG";
+            if (RivalHunter.IsClaimed(Focus)) title = "ROWAN'S CLAIM · " + title;
             string detail = SkinProgress01 > 0f
                 ? "Skinning…  " + Mathf.RoundToInt(SkinProgress01 * 100f) + "%"
                 : "E  take carcass     hold E  skin here";
+            if (RivalHunter.IsClaimed(Focus)) detail += "  (taking this loses trust)";
             GameHUD.Instance.ShowWorldTag(Focus.transform.position + Vector3.up * 1.4f, title, detail);
         }
     }

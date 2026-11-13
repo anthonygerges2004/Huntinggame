@@ -16,7 +16,7 @@ public partial class GameHUD
         { "WASD", "Move" }, { "Shift", "Sprint / steady aim" }, { "Ctrl", "Crouch" }, { "Space", "Jump" },
         { "LMB", "Fire" }, { "RMB", "Aim" }, { "R", "Reload" }, { "1-5", "Hotbar" },
         { "G", "Inventory" }, { "F", "Light fire" }, { "C", "Cook" }, { "Q", "Eat" },
-        { "Z", "Drink" }, { "X", "Place bait" }, { "E", "Chop / talk" }, { "B", "Build" },
+        { "Z", "Drink" }, { "X", "Place bait" }, { "E", "Start/stop chop; hold: wood" }, { "B", "Build" },
         { "V", "Camera" }, { "T", "Bird cage" }, { "Y", "Sniper post" }, { "H", "Controls card" },
         { "Tab", "Hunter's Instinct" }, { "P", "Photo mode" }, { "J", "Journal" }, { "Esc", "Pause" },
     };

@@ -32,11 +32,14 @@ public class BuildPiece : MonoBehaviour
             return;
 
         broken = true;
+        foreach (Collider collider in GetComponentsInChildren<Collider>()) collider.enabled = false;
         if (Inventory.Instance != null)
         {
-            Inventory.Instance.AddWood(refund);
-            Inventory.Instance.ShowNotice("Wood broken. +" + refund + " wood");
+            int added = Inventory.Instance.CollectItem("Wood", refund);
+            if (added < refund) InventoryWorldDrop.Spawn(transform.position, "Wood", refund - added);
+            Inventory.Instance.ShowNotice("Wood broken. +" + added + " wood" + (added < refund ? "; remaining wood dropped." : ""));
         }
+        else InventoryWorldDrop.Spawn(transform.position, "Wood", refund);
         Destroy(gameObject);
     }
 

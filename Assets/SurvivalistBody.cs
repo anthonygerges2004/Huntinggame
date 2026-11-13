@@ -13,6 +13,8 @@ public class SurvivalistBody : MonoBehaviour
 
     Animator source;
     Transform body;
+    public Transform VisibleRightHand => dstHand;
+    public Animator VisibleAnimator { get; private set; }
     HumanPoseHandler from;
     HumanPoseHandler to;
     HumanPose pose;
@@ -120,6 +122,7 @@ public class SurvivalistBody : MonoBehaviour
         link.dstFeet = dstFeet;
         link.srcHand = src.GetBoneTransform(HumanBodyBones.RightHand);
         link.dstHand = dstHand;
+        link.VisibleAnimator = dst;
         link.moves = moveSet != null ? dst : null;
         link.controller = player.GetComponent<CharacterController>();
         link.own = new HumanPose();
@@ -154,8 +157,8 @@ public class SurvivalistBody : MonoBehaviour
 
         bool grounded = controller == null || controller.isGrounded;
         airTime = grounded ? 0f : airTime + dt;
-        moves.SetFloat(SpeedId, speed < 0.15f ? 0f : speed);
-        moves.SetFloat(MotionSpeedId, 1f);
+        moves.SetFloat(SpeedId, speed < 0.15f ? 0f : speed <= 5f ? speed * 0.4f : Mathf.Lerp(2f, 6f, Mathf.InverseLerp(5f, 8.5f, speed)));
+        moves.SetFloat(MotionSpeedId, speed < 0.15f ? 1f : Mathf.Clamp(speed / Mathf.Max(0.1f, moves.GetFloat(SpeedId)), 0.5f, 2.5f));
         moves.SetBool(GroundedId, airTime < 0.2f);
         moves.SetBool(FreeFallId, airTime > 0.35f);
         moves.SetBool(JumpId, false);
@@ -167,7 +170,7 @@ public class SurvivalistBody : MonoBehaviour
             return;
 
         from.GetHumanPose(ref pose);
-        if (moves != null && !PlayerMove.IsCrouching)
+        if (moves != null && !PlayerMove.IsCrouching && !RideableHorse.IsRiding)
         {
             // Legs and hips from the Survivalist's own animation (so it stands on its own feet);
             // spine, head and arms from the aiming rig (so it holds and points the gun).
@@ -208,9 +211,10 @@ public class SurvivalistBody : MonoBehaviour
     // The held gun is placed by the old rig's hand; carry it over to the new body's hand.
     void FollowHands()
     {
-        if (dstHand == null || srcHand == null || PlayerShotgun.Instance == null)
+        if (dstHand == null || srcHand == null)
             return;
-        Transform gun = PlayerShotgun.Instance.HandGun;
+        // The axe attaches directly to the visible palm after this retarget pass.
+        Transform gun = PlayerShotgun.Instance != null ? PlayerShotgun.Instance.HandGun : null;
         if (gun == null || !gun.gameObject.activeInHierarchy)
             return;
         gun.position += dstHand.position - srcHand.position;
@@ -273,4 +277,5 @@ public class SurvivalistBody : MonoBehaviour
         to?.Dispose();
     }
 }
+
 

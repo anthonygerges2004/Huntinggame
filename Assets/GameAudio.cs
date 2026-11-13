@@ -21,6 +21,7 @@ public class GameAudio : MonoBehaviour
     AudioClip shotgunShot, rifleShot, sniperShot, breakOpen, shellIn, boltCycle, hitThud;
     AudioClip[] steps;
     AudioClip windLoop, cricketLoop, crackleLoop, howl;
+    AudioClip axeBite, axeWhoosh;
     AudioClip[] chirps;
 
     AudioSource player2D;      // shots, reloads, footsteps: heard from the hunter's own position
@@ -60,6 +61,8 @@ public class GameAudio : MonoBehaviour
         shellIn = Clip("ShellIn", Mechanical(rng, new[] { 0f }, new[] { 2200f }, 0.18f));
         boltCycle = Clip("Bolt", Mechanical(rng, new[] { 0f, 0.12f, 0.3f, 0.38f }, new[] { 1700f, 2400f, 2100f, 1300f }, 0.55f));
         hitThud = Clip("Hit", Thud(rng));
+        axeBite = Clip("Axe wood impact", WoodImpact(rng));
+        axeWhoosh = Clip("Axe swing", SwingAir(rng));
         steps = new AudioClip[4];
         for (int i = 0; i < steps.Length; i++)
             steps[i] = Clip("Step" + i, Footstep(rng));
@@ -110,6 +113,48 @@ public class GameAudio : MonoBehaviour
     {
         if (Instance != null && Instance.ready)
             Instance.player2D.PlayOneShot(Instance.hitThud, 0.55f);
+    }
+
+    public static void WoodChop(Vector3 point)
+    {
+        if (Instance == null || !Instance.ready) return;
+        Instance.PlayAt(Instance.axeBite, point, 0.8f, Random.Range(0.94f, 1.06f), 28f);
+    }
+
+    public static void AxeWhoosh()
+    {
+        if (Instance == null || !Instance.ready) return;
+        Instance.player2D.PlayOneShot(Instance.axeWhoosh, 0.23f);
+    }
+
+    static float[] WoodImpact(System.Random rng)
+    {
+        float[] data = new float[(int)(Rate * 0.3f)];
+        float low = 0f;
+        for (int i = 0; i < data.Length; i++)
+        {
+            float t = i / (float)Rate;
+            float noise = Noise(rng);
+            low += 0.16f * (noise - low);
+            data[i] = noise * Mathf.Exp(-t * 180f) * 0.5f
+                + low * Mathf.Exp(-t * 28f) * 0.8f
+                + Mathf.Sin(t * 2f * Mathf.PI * 165f) * Mathf.Exp(-t * 35f) * 0.6f
+                + Mathf.Sin(t * 2f * Mathf.PI * 410f) * Mathf.Exp(-t * 55f) * 0.2f;
+        }
+        return Normalize(data, 0.85f);
+    }
+
+    static float[] SwingAir(System.Random rng)
+    {
+        float[] data = new float[(int)(Rate * 0.17f)];
+        float low = 0f;
+        for (int i = 0; i < data.Length; i++)
+        {
+            float t = i / (float)data.Length;
+            low += 0.1f * (Noise(rng) - low);
+            data[i] = low * Mathf.Sin(t * Mathf.PI);
+        }
+        return Normalize(data, 0.5f);
     }
 
     System.Collections.IEnumerator Later(float seconds, AudioClip clip, float volume)

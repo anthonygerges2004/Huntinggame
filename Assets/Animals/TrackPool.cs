@@ -67,6 +67,25 @@ namespace HuntingGame.Tracking
         public int MaxActive => slots.Length;
         public float SpacingSqr => minStepSqr;
 
+        public bool TryFreshTrail(Vector3 from, float radius, float after, out Vector3 point, out float born)
+        {
+            point = from;
+            born = after;
+            float best = float.MinValue;
+            foreach (Slot slot in slots)
+            {
+                if (slot == null || !slot.active || slot.born <= after || slot.dieAt <= Time.time) continue;
+                float distance = Vector3.Distance(from, slot.root.transform.position);
+                if (distance > radius || distance < 1.2f) continue;
+                float score = slot.born - distance * 0.35f;
+                if (score <= best) continue;
+                best = score;
+                point = slot.root.transform.position;
+                born = slot.born;
+            }
+            return best > float.MinValue;
+        }
+
         void Awake()
         {
             if (Current != null && Current != this)

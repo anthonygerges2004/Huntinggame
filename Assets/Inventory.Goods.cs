@@ -158,6 +158,7 @@ public partial class Inventory
             return;
         }
 
+        RivalHunter.NotifyLoot(carcass);
         RemoveObject(carcass.gameObject);
         string load = CarryKg > HeavyLoadKg ? " Heavy load: no sprinting." : "";
         ShowNotice("Took the " + g.Title.ToLowerInvariant() + " carcass (" + Mathf.RoundToInt(g.weightKg)
@@ -178,6 +179,7 @@ public partial class Inventory
         HuntGoods g = carcass.goods;
         Vector3 at = carcass.transform.position;
         SkinInto(g, true, at);
+        RivalHunter.NotifyLoot(carcass);
         RemoveObject(carcass.gameObject);
     }
 

@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
+[DefaultExecutionOrder(2100)]
 public class AxeSwing : MonoBehaviour
 {
     public static AxeSwing Instance;
@@ -32,7 +33,22 @@ public class AxeSwing : MonoBehaviour
     Vector3 restPos;
     Quaternion restRot;
     bool swinging;
+    public bool IsSwinging => swinging;
+    public bool IsChopping => repeatChop;
+    bool repeatChop;
+    bool sessionSwing;
+    HarvestableTree choppingTarget;
+    HarvestableTree swingTarget;
+    Vector3 choppingOrigin;
     int pickupFrame = -1;
+    [Tooltip("Optional marker at the axe blade. Otherwise the top of the axe mesh is used.")]
+    public Transform bladeContact;
+    bool treeContact;
+    bool strikeActive;
+    Vector3 chopPose;
+    Vector3 previousBlade;
+    Transform measuredAxe;
+    Vector3 bladeLocal;
 
     void Awake()
     {
@@ -60,37 +76,94 @@ public class AxeSwing : MonoBehaviour
 
     void Update()
     {
-        if (Inventory.IsOpen || !Inventory.AxeInHand || CampfireBuild.Busy || (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead))
+        if (Instance != this) return;
+        if (GameplayBlocked())
         {
+            StopChopping();
             if (swinging)
             {
                 StopAllCoroutines();
                 swinging = false;
+                strikeActive = false;
+                sessionSwing = false;
+                swingTarget = null;
+                PlayerBodyAnimation.EndChop();
                 transform.localRotation = restRot;
                 transform.localPosition = restPos;
             }
             return;
         }
 
+        bool pressedE = swingOnE && ChopKeyPressed();
+        if (repeatChop && pressedE)
+        {
+            StopChopping(); // A second tap stops after extracting the current stroke.
+            return;
+        }
+        if (repeatChop && !CanContinueChopping()) StopChopping();
+
         if (!HasAxe || swinging || Time.frameCount == pickupFrame)
             return;
 
-        if (ThrowPressed()) StartCoroutine(Throw());
+        if (ThrowPressed()) { StopChopping(); StartCoroutine(Throw()); }
+        else if (pressedE && StartChopping(HarvestableTree.AimedTree())) StartCoroutine(Swing());
+        else if (repeatChop) StartCoroutine(Swing());
         else if (SwingPressed()) StartCoroutine(Swing());
+    }
+
+    bool GameplayBlocked()
+    {
+        return Inventory.IsOpen || !Inventory.AxeInHand || CampfireBuild.Busy || WoodBuilder.IsBuilding
+            || BirdChallenge.Active || PlayerShotgun.IsEquipped || RideableHorse.BlocksAxeSwing()
+            || (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead);
+    }
+
+    public bool StartChopping(HarvestableTree target)
+    {
+        if (target == null || swinging || !target.CanBeChopped || GameplayBlocked() || !HasAxe || Inventory.Instance == null
+            || InventoryWorldDrop.WoodInReach || InventoryWorldDrop.CollectingWood || AnimalCarcass.PlayerNear
+            || MountainHermit.InTalkRange() || PlayerMove.IsMoving || PlayerMove.IsSprinting
+            || HarvestableTree.AimedTree() != target) return false;
+        choppingTarget = target;
+        choppingOrigin = PlayerView.Position();
+        repeatChop = true;
+        return true;
+    }
+
+    public void StopChopping()
+    {
+        repeatChop = false;
+        choppingTarget = null;
+    }
+
+    bool CanContinueChopping()
+    {
+        return choppingTarget != null && choppingTarget.CanBeChopped && HasAxe && !GameplayBlocked()
+            && !PlayerMove.IsMoving && !PlayerMove.IsSprinting
+            && Vector3.Distance(choppingOrigin, PlayerView.Position()) <= 0.3f
+            && HarvestableTree.AimedTree() == choppingTarget;
+    }
+
+    static bool ChopKeyPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.E);
+#endif
     }
 
     bool SwingPressed()
     {
+        if (InventoryWorldDrop.CollectingWood) return false;
         if (Inventory.IsOpen || WoodBuilder.IsBuilding || BirdChallenge.Active || PlayerShotgun.IsEquipped || !Inventory.AxeInHand) return false;
         if (RideableHorse.BlocksAxeSwing() || MountainHermit.InTalkRange()) return false;
         if (AnimalCarcass.PlayerNear) return false; // E is for the carcass at your feet
 #if ENABLE_INPUT_SYSTEM
-        var kb = Keyboard.current; var ms = Mouse.current;
-        return (swingOnE && kb != null && kb.eKey.wasPressedThisFrame)
-            || (swingOnLeftClick && ms != null && ms.leftButton.wasPressedThisFrame);
+        var ms = Mouse.current;
+        return swingOnLeftClick && ms != null && ms.leftButton.wasPressedThisFrame;
 #else
-        return (swingOnE && Input.GetKeyDown(KeyCode.E))
-            || (swingOnLeftClick && Input.GetMouseButtonDown(0));
+        return swingOnLeftClick && Input.GetMouseButtonDown(0);
 #endif
     }
 
@@ -105,39 +178,105 @@ public class AxeSwing : MonoBehaviour
 #endif
     }
 
+    void OnDisable()
+    {
+        if (Instance != this) return;
+        StopChopping();
+        StopAllCoroutines();
+        swinging = strikeActive = sessionSwing = false;
+        swingTarget = null;
+        PlayerBodyAnimation.EndChop();
+        transform.localPosition = restPos;
+        transform.localRotation = restRot;
+    }
+
+    void LateUpdate()
+    {
+        if (Instance != this || !swinging) return;
+        if (strikeActive) TryTreeContact();
+        else previousBlade = BladePoint();
+    }
+
     IEnumerator Swing()
     {
         swinging = true;
+        sessionSwing = repeatChop;
+        swingTarget = sessionSwing ? choppingTarget : null;
+        treeContact = false;
         PlayerBodyAnimation.PlayChop();
-        // A diagonal shoulder swing, then contact, extraction and a relaxed return.
-        Vector3 raised = new Vector3(0.16f, 0.20f, -0.12f);
-        Vector3 contact = new Vector3(-0.20f, -0.08f, 0.25f);
-        Vector3 pulled = new Vector3(-0.10f, 0.02f, 0.08f);
-        Vector3 cock = new Vector3(-65f, -20f, -30f);
-        Vector3 bite = new Vector3(48f, 16f, 22f);
-        yield return ChopBlend(Vector3.zero, Vector3.zero, cock, raised, PlayerBodyAnimation.ChopWindup, false);
-        yield return ChopBlend(cock, raised, bite, contact, PlayerBodyAnimation.ChopStrike, true);
-        StrikeWhatYouLookAt();
-        yield return new WaitForSeconds(PlayerBodyAnimation.ChopContact);
-        yield return ChopBlend(bite, contact, new Vector3(25f, 10f, 12f), pulled, PlayerBodyAnimation.ChopPull, false);
-        yield return ChopBlend(new Vector3(25f, 10f, 12f), pulled, Vector3.zero, Vector3.zero, PlayerBodyAnimation.ChopRecover, false);
+        Vector3 raised = new Vector3(0.12f, 0.18f, -0.10f);
+        Vector3 contact = new Vector3(-0.12f, -0.06f, 0.22f);
+        Vector3 pulled = new Vector3(-0.05f, 0.01f, 0.04f);
+        Quaternion cock = restRot * Quaternion.Euler(-55f, -18f, -24f);
+        Quaternion bite = restRot * Quaternion.Euler(40f, 12f, 18f);
+        Quaternion extracted = restRot * Quaternion.Euler(16f, 6f, 7f);
+        Vector3 readyPose = Vector3.zero;
+        Vector3 raisedPose = new Vector3(1f, 0f, 0f);
+        Vector3 hitPose = new Vector3(1f, 1f, 0f);
+        yield return ChopBlend(restRot, Vector3.zero, cock, raised, PlayerBodyAnimation.ChopWindup, false, readyPose, raisedPose);
+        if (sessionSwing && (!repeatChop || swingTarget == null || !swingTarget.CanBeChopped))
+        {
+            yield return RecoverCancelledSwing();
+            yield break;
+        }
+        previousBlade = BladePoint();
+        strikeActive = true;
+        GameAudio.AxeWhoosh();
+        yield return ChopBlend(cock, raised, bite, contact, PlayerBodyAnimation.ChopStrike, true, raisedPose, hitPose);
+        strikeActive = false;
+        // Preserve the pose at contact: recovery cannot jump to the end of a missed swing.
+        Quaternion stoppedRotation = transform.localRotation;
+        Vector3 stoppedPosition = transform.localPosition - restPos;
+        Vector3 stoppedPose = chopPose;
+        if (!treeContact)
+        {
+            if (sessionSwing)
+            {
+                bool missed = repeatChop;
+                StopChopping();
+                if (missed && Inventory.Instance != null) Inventory.Instance.ShowNotice("Move closer and line up the axe, then press E again.");
+            }
+            else StrikeWhatYouLookAt();
+        }
+        yield return new WaitForSeconds(treeContact ? PlayerBodyAnimation.ChopContact : 0.025f);
+        Vector3 pulledPose = new Vector3(1f, stoppedPose.y, 0.35f);
+        Vector3 restPose = new Vector3(1f, stoppedPose.y, 1f);
+        yield return ChopBlend(stoppedRotation, stoppedPosition, extracted, pulled, PlayerBodyAnimation.ChopPull, false, stoppedPose, pulledPose);
+        yield return ChopBlend(extracted, pulled, restRot, Vector3.zero, PlayerBodyAnimation.ChopRecover, false, pulledPose, restPose);
+        PlayerBodyAnimation.EndChop();
         swinging = false;
+        sessionSwing = false;
+        swingTarget = null;
     }
 
-    IEnumerator ChopBlend(Vector3 fromAngle, Vector3 fromOffset, Vector3 toAngle, Vector3 toOffset, float duration, bool accelerate)
+    IEnumerator RecoverCancelledSwing()
     {
-        Quaternion from = restRot * Quaternion.Euler(fromAngle);
-        Quaternion to = restRot * Quaternion.Euler(toAngle);
-        for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
+        yield return ChopBlend(transform.localRotation, transform.localPosition - restPos, restRot, Vector3.zero,
+            PlayerBodyAnimation.ChopRecover, false, chopPose, new Vector3(chopPose.x, chopPose.y, 1f));
+        PlayerBodyAnimation.EndChop();
+        swinging = strikeActive = sessionSwing = false;
+        swingTarget = null;
+    }
+
+    IEnumerator ChopBlend(Quaternion from, Vector3 fromOffset, Quaternion to, Vector3 toOffset,
+        float duration, bool striking, Vector3 poseFrom, Vector3 poseTo)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
         {
-            float t = Mathf.Clamp01(elapsed / duration);
-            float k = accelerate ? t * t : Mathf.SmoothStep(0f, 1f, t);
+            if (sessionSwing && !repeatChop && poseTo.z == 0f) yield break;
+            if (striking && treeContact) yield break;
+            elapsed = Mathf.Min(duration, elapsed + Time.deltaTime);
+            float t = Mathf.Clamp01(elapsed / Mathf.Max(0.001f, duration));
+            float k = striking ? t * t : Mathf.SmoothStep(0f, 1f, t);
             transform.localRotation = Quaternion.Slerp(from, to, k);
             transform.localPosition = restPos + Vector3.Lerp(fromOffset, toOffset, k);
+            if (striking) transform.localPosition += new Vector3(0.025f, 0.045f, -0.02f) * Mathf.Sin(t * Mathf.PI);
+            chopPose = Vector3.Lerp(poseFrom, poseTo, k);
+            PlayerBodyAnimation.SetChopPose(chopPose);
+            // One yield per frame. Collision runs after the visible hand's LateUpdate.
             yield return null;
         }
-        transform.localRotation = to;
-        transform.localPosition = restPos + toOffset;
     }
     static void StrikeWhatYouLookAt()
     {
@@ -159,7 +298,93 @@ public class AxeSwing : MonoBehaviour
             }
         }
 
-        HarvestableTree.ChopLookedAtTree();
+        // Trees are cut only by the blade sweep, never by a crosshair fallback.
+    }
+
+    Vector3 BladePoint()
+    {
+        if (bladeContact != null) return bladeContact.position;
+        if (CameraViewSwitcher.Instance != null && !CameraViewSwitcher.Instance.IsFirstPerson && HandAxeGrip.Instance != null)
+            return HandAxeGrip.Instance.BladeWorldPoint;
+        Transform axe = HeldVisual();
+        if (measuredAxe != axe)
+        {
+            measuredAxe = axe;
+            Bounds bounds = new Bounds();
+            bool any = false;
+            foreach (MeshFilter filter in axe.GetComponentsInChildren<MeshFilter>())
+            {
+                if (filter.sharedMesh == null) continue;
+                Bounds b = filter.sharedMesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    Vector3 corner = b.center + Vector3.Scale(b.extents,
+                        new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                    Vector3 local = axe.InverseTransformPoint(filter.transform.TransformPoint(corner));
+                    if (!any) { bounds = new Bounds(local, Vector3.zero); any = true; }
+                    else bounds.Encapsulate(local);
+                }
+            }
+            bladeLocal = bounds.center + Vector3.up * bounds.extents.y * 0.8f;
+        }
+        return axe.TransformPoint(bladeLocal);
+    }
+
+    public void TryTreeContact()
+    {
+        if (!swinging || !strikeActive || treeContact) return;
+        if (sessionSwing && (!repeatChop || swingTarget == null || !swingTarget.CanBeChopped))
+        {
+            StopChopping();
+            return;
+        }
+        Vector3 blade = BladePoint();
+        Transform owner = PlayerView.Body();
+        bool contact = TryBladeSurface(previousBlade, blade, owner, transform, out RaycastHit closest);
+        previousBlade = blade;
+        if (!contact) return;
+        // The nearest solid object blocks the swing, even when it is not a tree.
+        treeContact = true;
+        HarvestableTree tree = closest.collider.GetComponentInParent<HarvestableTree>();
+        if (sessionSwing && tree != swingTarget)
+        {
+            StopChopping();
+            if (Inventory.Instance != null) Inventory.Instance.ShowNotice("The axe was blocked. Reposition and press E again.");
+            return;
+        }
+        if (tree != null) tree.ChopAt(closest.point, closest.normal);
+        else
+        {
+            Animal animal = closest.collider.GetComponentInParent<Animal>();
+            BuildPiece piece = closest.collider.GetComponentInParent<BuildPiece>();
+            if (animal != null) animal.Hit();
+            else if (piece != null) piece.Hit();
+        }
+    }
+
+    public static bool TryBladeSurface(Vector3 from, Vector3 to, Transform owner, Transform held, out RaycastHit closest)
+    {
+        closest = default;
+        Vector3 step = to - from;
+        if (step.sqrMagnitude < 0.000001f) return false;
+        float nearest = float.MaxValue;
+        foreach (RaycastHit hit in Physics.SphereCastAll(from, 0.055f, step.normalized,
+            step.magnitude, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+        {
+            if (owner != null && (hit.transform == owner || hit.transform.IsChildOf(owner))) continue;
+            if (held != null && (hit.transform == held || hit.transform.IsChildOf(held))) continue;
+            if (hit.distance >= nearest) continue;
+            nearest = hit.distance;
+            closest = hit;
+            if (hit.distance <= 0.0001f && hit.point == Vector3.zero)
+            {
+                // Unity reports a zero point when the sweep starts overlapping a collider.
+                closest.point = hit.collider.ClosestPoint(from);
+                Vector3 normal = from - closest.point;
+                closest.normal = normal.sqrMagnitude > 0.000001f ? normal.normalized : -step.normalized;
+            }
+        }
+        return closest.collider != null;
     }
 
     IEnumerator Throw()
@@ -211,9 +436,9 @@ public class AxeSwing : MonoBehaviour
         if (thrown == null)
             thrown = flying.AddComponent<ThrownAxe>();
 
-        origin += throwDir * 0.4f + Vector3.up * 0.12f;
+        // Release from the palm without a visible forward teleport.
         flying.transform.SetPositionAndRotation(origin, rot);
-        thrown.Launch(throwDir * throwSpeed + Vector3.up * 2.8f, throwRight * -throwSpin + throwDir * 5f);
+        thrown.Launch(throwDir * throwSpeed, throwRight * -throwSpin);
 
         SetHeldVisible(false);
         HasAxe = false;
@@ -222,6 +447,7 @@ public class AxeSwing : MonoBehaviour
 
         transform.localRotation = restRot;
         transform.localPosition = restPos;
+        yield return new WaitForSeconds(PlayerBodyAnimation.ThrowRecover);
         swinging = false;
     }
 
@@ -235,21 +461,22 @@ public class AxeSwing : MonoBehaviour
 
     Vector3 ThrowDirection()
     {
-        if (CameraViewSwitcher.Instance != null && CameraViewSwitcher.Instance.IsFirstPerson)
+        Camera view = PlayerView.GetCamera();
+        if (view == null) return PlayerView.AimDirection();
+        Ray sight = view.ViewportPointToRay(new Vector3(0.5f, 0.5f));
+        Vector3 target = sight.GetPoint(80f);
+        float nearest = 80f;
+        Transform owner = PlayerView.Body();
+        foreach (RaycastHit hit in Physics.RaycastAll(sight, 80f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
         {
-            Camera cam = Camera.main;
-            if (cam != null)
-                return cam.transform.forward;
+            if (owner != null && (hit.transform == owner || hit.transform.IsChildOf(owner))) continue;
+            if (hit.distance >= nearest) continue;
+            nearest = hit.distance;
+            target = hit.point;
         }
-
-        PlayerMove move = CameraViewSwitcher.Instance != null
-            ? CameraViewSwitcher.Instance.GetComponent<PlayerMove>()
-            : null;
-        float pitch = move != null ? move.LookPitch : 0f;
-        Transform body = move != null ? move.transform : transform.root;
-        return Quaternion.Euler(pitch, body.eulerAngles.y, 0f) * Vector3.forward;
+        Vector3 direction = target - HeldVisual().position;
+        return Vector3.Dot(direction, sight.direction) > 0f ? direction.normalized : sight.direction;
     }
-
     public void GiveBack()
     {
         HasAxe = true;

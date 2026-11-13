@@ -939,26 +939,34 @@ public class Animal : MonoBehaviour
         return "It drops.";
     }
 
-    void FinishKill(Vector3 shotDirection, bool sniperVital = false, float shotDistance = 0f, ShotPlace place = ShotPlace.Body)
+    public void RivalKill(Vector3 direction)
+    {
+        if (dead || !IsPresent()) return;
+        FinishKill(direction, playerCredit: false);
+    }
+
+    void FinishKill(Vector3 shotDirection, bool sniperVital = false, float shotDistance = 0f, ShotPlace place = ShotPlace.Body, bool playerCredit = true)
     {
         if (dead)
             return;
 
         dead = true;
-        if (TakesFieldDressing())
+        if (playerCredit && TakesFieldDressing())
             meatAmount += HuntProgress.BonusMeat;
         LeaveBlood(transform.position);
         float killDistance = shotDistance > 0.1f
             ? shotDistance
             : Vector3.Distance(PlayerView.Position(), transform.position);
-        HuntFeedback.Kill(this, lastHitPlace, killDistance, meatAmount);
-
-        HuntChallenges.ReportKill(this);
-        DeerChallenge.NotifyKill(this, sniperVital, shotDistance);
+        if (playerCredit)
+        {
+            HuntFeedback.Kill(this, lastHitPlace, killDistance, meatAmount);
+            HuntChallenges.ReportKill(this);
+            DeerChallenge.NotifyKill(this, sniperVital, shotDistance);
+        }
         WildlifeAlarm.NotifyShot(transform.position);
         Overhunt.RegisterKill(transform.position);
 
-        if (kind == AnimalKind.Legendary && Trader.Instance != null)
+        if (playerCredit && kind == AnimalKind.Legendary && Trader.Instance != null)
             Trader.Instance.LegendaryTakenByPlayer();
 
         if (kind == AnimalKind.Bird)
@@ -971,10 +979,10 @@ public class Animal : MonoBehaviour
         }
 
         // The animal stays as a carcass: take it to the tanner whole, or skin it on the spot.
-        HuntWeapon weapon = PlayerShotgun.Instance != null ? PlayerShotgun.Instance.Equipped : HuntWeapon.None;
+        HuntWeapon weapon = playerCredit && PlayerShotgun.Instance != null ? PlayerShotgun.Instance.Equipped : HuntWeapon.None;
         AnimalCarcass.Create(this, HuntGoods.FromAnimal(this, lastHitPlace, weapon, killDistance, hitsTaken));
         BeginDrop(shotDirection, place);
-        if (Inventory.Instance != null)
+        if (playerCredit && Inventory.Instance != null)
             Inventory.Instance.ShowNotice(DownedLine() + "  Walk up to it: E takes the carcass, hold E skins it.");
     }
 

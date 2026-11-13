@@ -64,6 +64,22 @@ public class TrackTests
     }
 
     [Test]
+    public void RivalTrail_UsesNewEvidenceInsideRangeAndSkipsExpiredPrints()
+    {
+        MakePool(8);
+        Vector3 origin = new Vector3(10000f, 0f, 10000f);
+        float now = Time.time;
+        Vector3 fresh = origin + Vector3.right * 5f;
+        pool.Place(TrackKind.Footprint, fresh, 0f, 0.4f, 60f, now);
+        pool.Place(TrackKind.Footprint, origin + Vector3.forward * 100f, 0f, 0.4f, 60f, now + 1f);
+        pool.Place(TrackKind.Footprint, origin + Vector3.forward * 4f, 0f, 0.4f, 2f, now - 10f);
+        Assert.IsTrue(pool.TryFreshTrail(origin, 20f, now - 1f, out Vector3 point, out float born));
+        Assert.AreEqual(fresh, point);
+        Assert.AreEqual(now, born);
+        Assert.IsFalse(pool.TryFreshTrail(origin, 20f, born, out _, out _));
+    }
+
+    [Test]
     public void Footprints_SpawnOnStepInterval_NotEveryMove()
     {
         MakePool(8);

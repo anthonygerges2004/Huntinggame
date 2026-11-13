@@ -777,7 +777,7 @@ public partial class GameHUD : MonoBehaviour
     {
         string[,] keys =
         {
-            { "F", "Light fire" }, { "C", "Cook" }, { "Q", "Eat" }, { "X", "Bait" }, { "E", "Chop" },
+            { "F", "Light fire" }, { "C", "Cook" }, { "Q", "Eat" }, { "X", "Bait" }, { "E", "Start/stop chop; hold: wood" },
             { "B", "Build" }, { "G", "Inventory" }, { "1-5", "Hotbar" }, { "RMB", "Aim" }, { "LMB", "Fire" },
             { "Z", "Drink" }, { "R", "Reload" }, { "Shift", "Steady aim" }, { "V", "Camera" },
             { "T", "Bird cage" }, { "Y", "Sniper post" }, { "Trader", "1 2 3" }, { "Esc", "Pause" },

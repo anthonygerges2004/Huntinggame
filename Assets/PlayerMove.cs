@@ -101,7 +101,7 @@ public class PlayerMove : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        if (!MountainHermit.TryTalk())
+        if (!InventoryWorldDrop.WoodInReach && !MountainHermit.TryTalk())
             RideableHorse.TryHandleMountKey(this);
 
         float lookScale = 1f;

@@ -117,12 +117,14 @@ public class FallenBird : MonoBehaviour
         if (!InPickupRange())
             return;
 
-        if (Inventory.Instance == null)
+        if (Inventory.Instance == null || Inventory.IsOpen)
             return;
 
-        Inventory.Instance.AddMeat(meat);
-        Inventory.Instance.ShowNotice("+" + meat + " meat  from the bird");
-        Destroy(gameObject);
+        int collected = Inventory.Instance.CollectItem("RawMeat", meat);
+        if (collected <= 0) return;
+        meat -= collected;
+        Inventory.Instance.ShowNotice("+" + collected + " meat  from the bird");
+        if (meat <= 0) Destroy(gameObject);
     }
 
     void OnCollisionEnter(Collision collision)

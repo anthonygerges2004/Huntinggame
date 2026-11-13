@@ -67,6 +67,7 @@ public static class RealisticTreeSetup
             Remap(mi, "Bark", bark); Remap(mi, "Leaves", leaves);
             Remap(mi, "LeavesMid", mid); Remap(mi, "LeavesInner", inner);
             mi.importNormals = ModelImporterNormals.Import;
+            mi.isReadable = true; // Axe cuts deform each tree instance's mesh at contact.
             mi.SaveAndReimport();
         }
         BuildLodPrefab();

@@ -119,6 +119,7 @@ public class OpenWorld : MonoBehaviour
         MountainHermit.EnsureSpawn(camp);
         RideableHorse.EnsureOnLivestock(force: true);
         BuildDens();
+        RivalHunter.EnsureSpawn(camp);
         worldReady = true;
 
         MinimapFollow map = Object.FindAnyObjectByType<MinimapFollow>();

@@ -8,12 +8,13 @@ public class PlayerBodyAnimation : MonoBehaviour
     public const float ThrowSnap = 0.16f;
     public const float ThrowRecover = 0.32f;
     public const float ChopWindup = 0.42f;
-    public const float ChopStrike = 0.18f;
-    public const float ChopContact = 0.10f;
-    public const float ChopPull = 0.18f;
+    public const float ChopStrike = 0.17f;
+    public const float ChopContact = 0.12f;
+    public const float ChopPull = 0.22f;
     public const float ChopRecover = 0.34f;
 
     public static PlayerBodyAnimation Instance { get; private set; }
+    public static Vector3 CurrentChopPose => Instance != null && Instance.chopTime >= 0f ? Instance.chopPose : Vector3.zero;
 
     CharacterController controller;
     float cycle;
@@ -22,6 +23,8 @@ public class PlayerBodyAnimation : MonoBehaviour
     float fatiguePoseWeight;
     float throwTime = -1f;
     float chopTime = -1f;
+    Vector3 chopPose;
+    float pickupBlend;
     float lightTime = -1f;
 
     Transform hips;
@@ -78,7 +81,14 @@ public class PlayerBodyAnimation : MonoBehaviour
         Instance = this;
         animators = GetComponentsInChildren<Animator>(true);
         for (int i = 0; i < animators.Length; i++)
-            animators[i].enabled = false;
+            if (!IsVisibleBodyAnimator(animators[i])) animators[i].enabled = false;
+    }
+
+    static bool IsVisibleBodyAnimator(Animator animator)
+    {
+        for (Transform t = animator.transform; t != null; t = t.parent)
+            if (t.name == SurvivalistBody.BodyName) return true;
+        return false;
     }
 
     void Start()
@@ -101,7 +111,22 @@ public class PlayerBodyAnimation : MonoBehaviour
         if (Instance == null)
             return;
         Instance.chopTime = 0f;
+        Instance.chopPose = Vector3.zero;
         Instance.throwTime = -1f;
+    }
+
+    public static void SetChopPose(Vector3 pose)
+    {
+        if (Instance == null) return;
+        Instance.chopTime = 0f;
+        Instance.chopPose = new Vector3(Mathf.Clamp01(pose.x), Mathf.Clamp01(pose.y), Mathf.Clamp01(pose.z));
+    }
+
+    public static void EndChop()
+    {
+        if (Instance == null) return;
+        Instance.chopTime = -1f;
+        Instance.chopPose = Vector3.zero;
     }
 
     public static void PlayLightFire()
@@ -128,7 +153,7 @@ public class PlayerBodyAnimation : MonoBehaviour
             for (int i = 0; i < animators.Length; i++)
             {
                 if (animators[i] != null && animators[i].enabled)
-                    animators[i].enabled = false;
+                    if (!IsVisibleBodyAnimator(animators[i])) animators[i].enabled = false;
             }
         }
 
@@ -327,43 +352,22 @@ public class PlayerBodyAnimation : MonoBehaviour
         if (chopTime >= 0f)
         {
             acting = true;
-            chopTime += Time.deltaTime;
-            float recover = ChopContact + ChopPull + ChopRecover;
-            float strikeStart = ChopWindup;
-            float recoverStart = ChopWindup + ChopStrike;
-            float total = recoverStart + recover;
-            if (chopTime < strikeStart)
-            {
-                float k = Ease(chopTime / strikeStart);
-                actionHang = Mathf.Lerp(hangR, -18f, k);
-                actionPitch = Mathf.Lerp(0f, -40f, k);
-                actionElbow = Mathf.Lerp(12f, 22f, k);
-                actionLean = Mathf.Lerp(0f, -10f, k);
-                actionYaw = Mathf.Lerp(0f, 8f, k);
-            }
-            else if (chopTime < recoverStart)
-            {
-                float k = Ease((chopTime - strikeStart) / ChopStrike);
-                actionHang = Mathf.Lerp(-18f, -70f, k);
-                actionPitch = Mathf.Lerp(-40f, 38f, k);
-                actionElbow = Mathf.Lerp(22f, 8f, k);
-                actionLean = Mathf.Lerp(-10f, 10f, k);
-                actionYaw = Mathf.Lerp(8f, -6f, k);
-            }
-            else if (chopTime < total)
-            {
-                float k = Ease((chopTime - recoverStart) / recover);
-                actionHang = Mathf.Lerp(-70f, hangR, k);
-                actionPitch = Mathf.Lerp(38f, 0f, k);
-                actionElbow = Mathf.Lerp(8f, holdingAxe ? 12f : 0f, k);
-                actionLean = Mathf.Lerp(10f, 0f, k);
-                actionYaw = Mathf.Lerp(-6f, 0f, k);
-            }
-            else
-            {
-                chopTime = -1f;
-                acting = false;
-            }
+            float lift, drive, release;
+            ChopWeights(out lift, out drive, out release);
+            actionHang = Mathf.Lerp(Mathf.Lerp(hangR, -18f, lift), -70f, drive);
+            actionPitch = Mathf.Lerp(-40f * lift, 38f, drive);
+            actionElbow = Mathf.Lerp(Mathf.Lerp(12f, 22f, lift), 8f, drive);
+            // Small weight transfer and torso rotation power the axe; avoid a deep
+            // backwards bend, especially on the visible retargeted character.
+            actionLean = Mathf.Lerp(-3f * lift, 5f, drive);
+            actionYaw = Mathf.Lerp(8f * lift, -6f, drive);
+            actionHipYaw = Mathf.Lerp(4f * lift, -3f, drive) * (1f - release);
+            actionSpineYaw = Mathf.Lerp(12f * lift, -9f, drive) * (1f - release);
+            actionHang = Mathf.Lerp(actionHang, hangR, release);
+            actionPitch = Mathf.Lerp(actionPitch, 0f, release);
+            actionElbow = Mathf.Lerp(actionElbow, holdingAxe ? 12f : 0f, release);
+            actionLean *= 1f - release;
+            actionYaw *= 1f - release;
         }
         else if (throwTime >= 0f)
         {
@@ -513,12 +517,16 @@ public class PlayerBodyAnimation : MonoBehaviour
             rightThigh += actionRightThigh;
         }
 
+        pickupBlend = Mathf.MoveTowards(pickupBlend, !acting && InventoryWorldDrop.CollectingWood ? 1f : 0f, Time.deltaTime * 6f);
+        spinePitch += 18f * pickupBlend;
         Pose(hips, hipsRot, breathe * 1.2f * idleW, hipYaw, hipRoll);
         if (hips != null)
             hips.localPosition = hipsPos + Vector3.up * hipBob;
 
-        Pose(spine, spineRot, spinePitch + actionLean, spineTwist + (acting ? actionYaw * 0.4f : 0f), 0f);
-        Pose(spine1, spine1Rot, spinePitch * 0.45f + actionLean * 0.3f, spineTwist * 0.5f, 0f);
+        // actionLean was already added to spinePitch above. Applying it a second
+        // time made chops jerk the torso twice as far as the authored pose.
+        Pose(spine, spineRot, spinePitch, spineTwist + (acting ? actionYaw * 0.4f : 0f), 0f);
+        Pose(spine1, spine1Rot, spinePitch * 0.45f, spineTwist * 0.5f, 0f);
         Pose(spine2, spine2Rot, 6f + spinePitch * 0.2f, spineTwist * 0.25f, 0f);
         Pose(neck, neckRot, 8f, 0f, 0f);
         Pose(leftUpLeg, leftUpLegRot, leftThigh, 0f, 0f);
@@ -602,20 +610,52 @@ public class PlayerBodyAnimation : MonoBehaviour
         {
             float lift, drive, release;
             ChopWeights(out lift, out drive, out release);
+            Vector3 readyShoulder = (right * 0.55f + down * 0.7f + fwd * 0.25f).normalized;
+            Vector3 raisedShoulder = (right * 0.7f + down * 0.25f - fwd * 0.12f).normalized;
+            Vector3 strikingShoulder = (right * 0.48f + down * 0.52f + fwd * 0.45f).normalized;
+            Vector3 shoulder = Vector3.Slerp(Vector3.Slerp(readyShoulder, raisedShoulder, lift), strikingShoulder, drive);
+            PointAlong(rightShoulder, rightShoulderRot, Vector3.Slerp(shoulder, readyShoulder, release));
             Vector3 readyArm = (down * 0.62f + fwd * 0.52f + right * 0.22f).normalized;
             Vector3 readyFore = (up * 0.58f + fwd * 0.68f + right * 0.1f).normalized;
-            Vector3 cockArm = (right * 0.55f + up * 0.65f - fwd * 0.25f).normalized;
-            Vector3 cockFore = (up * 0.85f - fwd * 0.35f - right * 0.12f).normalized;
-            Vector3 hitArm = (fwd * 0.90f + down * 0.28f + right * 0.12f).normalized;
-            Vector3 hitFore = (fwd * 0.92f - up * 0.30f - right * 0.16f).normalized;
+            // Fold the elbow during preparation and keep some flex at contact.
+            // The old upper/forearm vectors nearly aligned into a rigid pole.
+            Vector3 cockArm = (right * 0.52f + up * 0.25f - fwd * 0.55f).normalized;
+            Vector3 cockFore = (up * 0.82f + fwd * 0.18f - right * 0.25f).normalized;
+            Vector3 hitArm = (fwd * 0.80f + down * 0.52f + right * 0.20f).normalized;
+            Vector3 hitFore = (fwd * 0.96f + up * 0.04f - right * 0.12f).normalized;
             rightArmDir = Vector3.Slerp(Vector3.Slerp(readyArm, cockArm, lift), hitArm, drive);
             rightForeDir = Vector3.Slerp(Vector3.Slerp(readyFore, cockFore, lift), hitFore, drive);
-            rightArmDir = Vector3.Slerp(rightArmDir, readyArm, release);
-            rightForeDir = Vector3.Slerp(rightForeDir, readyFore, release);
+            // Pull the embedded blade back with a bent elbow, then lower it to
+            // ready. This follows the driver's existing extraction/recovery phases.
+            float pull = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(release / 0.35f));
+            float relax = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((release - 0.35f) / 0.65f));
+            Vector3 pulledArm = (down * 0.5f + fwd * 0.7f + right * 0.3f).normalized;
+            Vector3 pulledFore = (up * 0.45f + fwd * 0.75f + right * 0.15f).normalized;
+            if (drive <= 0.0001f)
+            {
+                // A cancelled windup has no embedded blade to extract.
+                rightArmDir = Vector3.Slerp(rightArmDir, readyArm, release);
+                rightForeDir = Vector3.Slerp(rightForeDir, readyFore, release);
+            }
+            else
+            {
+                rightArmDir = Vector3.Slerp(Vector3.Slerp(rightArmDir, pulledArm, pull), readyArm, relax);
+                rightForeDir = Vector3.Slerp(Vector3.Slerp(rightForeDir, pulledFore, pull), readyFore, relax);
+            }
             // The free hand stays clear of the blade and balances the torso.
-            leftArmDir = Vector3.Slerp(leftArmDir, (down - right * 0.35f - fwd * 0.2f).normalized, lift * (1f - release));
+            float balance = lift * (1f - release);
+            leftArmDir = Vector3.Slerp(leftArmDir, (down - right * 0.3f - fwd * 0.12f).normalized, balance);
+            leftForeDir = Vector3.Slerp(leftForeDir, (down * 0.6f + fwd * 0.35f - right * 0.2f).normalized, balance);
         }
 
+        if (pickupBlend > 0f)
+        {
+            Vector3 reach = (fwd * 0.6f + down * 0.8f - right * 0.15f).normalized;
+            if (leftArm != null && InventoryWorldDrop.CollectingWood)
+                reach = (InventoryWorldDrop.PickupPoint - leftArm.position).normalized;
+            leftArmDir = Vector3.Slerp(leftArmDir, reach, pickupBlend);
+            leftForeDir = Vector3.Slerp(leftForeDir, reach, pickupBlend);
+        }
         PointAlong(leftArm, leftArmRot, leftArmDir);
         PointAlong(rightArm, rightArmRot, rightArmDir);
         PointAlong(leftForeArm, leftForeArmRot, leftForeDir);
@@ -654,10 +694,9 @@ public class PlayerBodyAnimation : MonoBehaviour
 
     void ChopWeights(out float lift, out float drive, out float release)
     {
-        lift = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(chopTime / ChopWindup));
-        float strike = Mathf.Clamp01((chopTime - ChopWindup) / ChopStrike);
-        drive = strike * strike;
-        release = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((chopTime - ChopWindup - ChopStrike - ChopContact) / (ChopPull + ChopRecover)));
+        lift = chopPose.x;
+        drive = chopPose.y;
+        release = chopPose.z;
     }
 
     void PointAlong(Transform bone, Quaternion bind, Vector3 along)

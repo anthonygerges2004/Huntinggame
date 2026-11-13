@@ -14,6 +14,7 @@ public enum PeltCondition
 /// species, quality, condition and age. The tanner turns a carcass into a pelt plus meat,
 /// and buys pelts for coins; the price is worked out here.
 /// </summary>
+[System.Serializable]
 public sealed class HuntGoods
 {
     // Carcass freshness: full value for a while, then it slides until the meat turns.

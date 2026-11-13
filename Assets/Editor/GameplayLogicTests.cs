@@ -19,6 +19,181 @@ public class GameplayLogicTests
     public void TearDown() { Object.DestroyImmediate(root); }
 
     [Test]
+    public void WoodPickup_CollectsOnlyWhatFitsAndCannotDuplicateItems()
+    {
+        inventory.CollectItem("Wood", 1599);
+        InventoryWorldDrop log = root.AddComponent<InventoryWorldDrop>();
+        log.itemId = "Wood";
+        log.amount = 3;
+        Assert.AreEqual(1, log.CollectAvailableWood(inventory));
+        Assert.AreEqual(1600, inventory.wood);
+        Assert.AreEqual(2, log.amount);
+        Assert.AreEqual(0, log.CollectAvailableWood(inventory));
+        Assert.AreEqual(2, log.amount);
+        Assert.IsTrue(inventory.UseWood(2));
+        Assert.AreEqual(2, log.CollectAvailableWood(inventory));
+        Assert.AreEqual(0, log.amount);
+        Assert.AreEqual(0, log.CollectAvailableWood(inventory));
+        Assert.AreEqual(1600, inventory.wood);
+    }
+
+    [Test]
+    public void WoodOnGround_DoesNotSpinOrCollectWithoutInteraction()
+    {
+        Inventory previousInventory = Inventory.Instance;
+        try
+        {
+            Inventory.Instance = inventory;
+            InventoryWorldDrop log = root.AddComponent<InventoryWorldDrop>();
+            log.itemId = "Wood";
+            log.amount = 1;
+            Vector3 position = root.transform.position;
+            Quaternion rotation = root.transform.rotation;
+            typeof(InventoryWorldDrop).GetMethod("Update", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(log, null);
+            Assert.AreEqual(1, log.amount);
+            Assert.AreEqual(0, inventory.wood);
+            Assert.AreEqual(position, root.transform.position);
+            Assert.AreEqual(rotation, root.transform.rotation);
+        }
+        finally { Inventory.Instance = previousInventory; }
+    }
+
+    [Test]
+    public void UnpausingAfterDeath_KeepsTheWorldStopped()
+    {
+        PlayerHealth previousHealth = PlayerHealth.Instance;
+        bool paused = GamePause.Active;
+        float clock = Time.timeScale;
+        bool audio = AudioListener.pause;
+        try
+        {
+            PlayerHealth health = root.AddComponent<PlayerHealth>();
+            PlayerHealth.Instance = health;
+            GamePause.Set(true);
+            typeof(PlayerHealth).GetProperty("isDead").SetValue(health, true);
+            GamePause.Set(false);
+            Assert.IsFalse(GamePause.Active);
+            Assert.AreEqual(0f, Time.timeScale);
+        }
+        finally
+        {
+            PlayerHealth.Instance = previousHealth;
+            GamePause.Set(paused);
+            Time.timeScale = clock;
+            AudioListener.pause = audio;
+        }
+    }
+
+    [Test]
+    public void FullBag_BirdPickupKeepsUncollectedMeat()
+    {
+        Inventory previousInventory = Inventory.Instance;
+        PlayerHealth previousHealth = PlayerHealth.Instance;
+        try
+        {
+            Inventory.Instance = inventory;
+            PlayerHealth.Instance = null;
+            inventory.CollectItem("Wood", 1600);
+            FallenBird bird = root.AddComponent<FallenBird>();
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            typeof(FallenBird).GetField("landed", flags).SetValue(bird, true);
+            typeof(FallenBird).GetField("meat", flags).SetValue(bird, 2);
+            typeof(FallenBird).GetField("player", flags).SetValue(bird, root.transform);
+            typeof(FallenBird).GetMethod("Update", flags).Invoke(bird, null);
+            Assert.AreEqual(2, typeof(FallenBird).GetField("meat", flags).GetValue(bird));
+            Assert.AreEqual(0, inventory.meat);
+            inventory.UseWood(64);
+            inventory.CollectItem("RawMeat", 63);
+            typeof(FallenBird).GetMethod("Update", flags).Invoke(bird, null);
+            Assert.AreEqual(1, typeof(FallenBird).GetField("meat", flags).GetValue(bird));
+            Assert.AreEqual(64, inventory.meat);
+        }
+        finally { Inventory.Instance = previousInventory; PlayerHealth.Instance = previousHealth; }
+    }
+
+    [Test]
+    public void FailedFoodSpend_DoesNotConsumePartialPayment()
+    {
+        inventory.CollectItem("RawMeat", 1);
+        inventory.CollectItem("CookedMeat", 1);
+        inventory.CollectItem("SpoiledMeat", 1);
+        Assert.IsFalse(inventory.SpendRaw(2));
+        Assert.IsFalse(inventory.SpendCooked(2));
+        Assert.IsFalse(inventory.RemoveSpoiledMeat(2));
+        Assert.AreEqual(1, inventory.meat);
+        Assert.AreEqual(1, inventory.cookedMeat);
+        Assert.AreEqual(1, inventory.spoiledMeat);
+        Assert.IsFalse(inventory.SpendRaw(0));
+        Assert.IsFalse(inventory.SpendCooked(-1));
+        Assert.IsTrue(inventory.SpendRaw(1));
+        Assert.IsTrue(inventory.SpendCooked(1));
+        Assert.IsTrue(inventory.RemoveSpoiledMeat(1));
+    }
+
+    [Test]
+    public void RivalRelationship_ClampsTrustAndAllowsReconciliation()
+    {
+        Assert.AreEqual(100, RivalHunter.AdjustedTrust(90, 35));
+        Assert.AreEqual(-100, RivalHunter.AdjustedTrust(-90, -20));
+        Assert.AreEqual(30, RivalHunter.AdjustedTrust(-5, 35));
+        Assert.AreEqual(-25, RivalHunter.AdjustedTrust(-10, -15));
+    }
+
+    [Test]
+    public void RivalKill_DoesNotAwardPlayerKillsOrExperience()
+    {
+        Animal animal = root.AddComponent<Animal>();
+        animal.kind = AnimalKind.Deer;
+        int kills = HuntFeedback.Kills;
+        int xp = HuntProgress.Xp;
+        animal.RivalKill(Vector3.forward);
+        Assert.IsTrue(animal.Dead);
+        Assert.AreEqual(kills, HuntFeedback.Kills);
+        Assert.AreEqual(xp, HuntProgress.Xp);
+        Assert.IsNotNull(root.GetComponent<AnimalCarcass>());
+        animal.RivalKill(Vector3.forward);
+        Assert.AreEqual(1, root.GetComponents<AnimalCarcass>().Length);
+    }
+
+    [Test]
+    public void AxeBladeSweep_MissesWhenOnlyCrosshairWouldHit()
+    {
+        Vector3 origin = new Vector3(10000f, 10000f, 10000f);
+        GameObject trunk = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        try
+        {
+            trunk.transform.position = origin + Vector3.forward;
+            Physics.SyncTransforms();
+            Assert.IsFalse(AxeSwing.TryBladeSurface(origin + Vector3.right * 2f,
+                origin + Vector3.right * 2f + Vector3.forward * 2f, null, null, out _));
+            Assert.IsTrue(AxeSwing.TryBladeSurface(origin, origin + Vector3.forward * 2f, null, null, out RaycastHit hit));
+            Assert.AreEqual(trunk.GetComponent<Collider>(), hit.collider);
+            Assert.That(hit.point.z, Is.EqualTo(trunk.transform.position.z - 0.5f).Within(0.02f));
+        }
+        finally { Object.DestroyImmediate(trunk); }
+    }
+
+    [Test]
+    public void AxeBladeSweep_WallBlocksTreeAndOwnerIsIgnored()
+    {
+        Vector3 origin = new Vector3(10000f, 10000f, 10000f);
+        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject trunk = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        try
+        {
+            wall.transform.position = origin + Vector3.forward;
+            trunk.transform.position = origin + Vector3.forward * 3f;
+            Physics.SyncTransforms();
+            Assert.IsTrue(AxeSwing.TryBladeSurface(origin, origin + Vector3.forward * 4f, null, null, out RaycastHit hit));
+            Assert.AreEqual(wall.GetComponent<Collider>(), hit.collider);
+            Assert.IsTrue(AxeSwing.TryBladeSurface(origin, origin + Vector3.forward * 4f, wall.transform, null, out hit));
+            Assert.AreEqual(trunk.GetComponent<Collider>(), hit.collider);
+            Assert.IsFalse(AxeSwing.TryBladeSurface(origin, origin, null, null, out _));
+        }
+        finally { Object.DestroyImmediate(wall); Object.DestroyImmediate(trunk); }
+    }
+
+    [Test]
     public void FullInventory_RejectsPickupWithoutClaimingItWasCollected()
     {
         Assert.AreEqual(1600, inventory.CollectItem("Wood", 1600));

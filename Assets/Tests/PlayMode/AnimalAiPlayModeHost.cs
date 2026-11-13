@@ -254,6 +254,9 @@ namespace HuntingGame.Animals
                 yield break;
             }
 
+            // Remembered fear is allowed to survive an LOD change. Wait for its
+            // decay before checking that reduced senses do not reacquire this cue.
+            yield return new WaitForSeconds(3f);
             brain.ArmIdle();
             float quietUntil = Time.time + 0.8f;
             while (Time.time < quietUntil)

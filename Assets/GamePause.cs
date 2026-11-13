@@ -26,14 +26,15 @@ public static class GamePause
             return;
 
         Active = on;
-        Time.timeScale = on ? 0f : 1f;
+        bool dead = PlayerHealth.Instance != null && PlayerHealth.Instance.isDead;
+        Time.timeScale = on || dead ? 0f : 1f;
         AudioListener.pause = on;
         if (on)
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
         }
-        else
+        else if (!dead)
         {
             GameSettings.Save();
         }

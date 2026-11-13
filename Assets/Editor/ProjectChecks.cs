@@ -9,19 +9,25 @@ using UnityEngine;
 public static class ProjectChecks
 {
     const string Request = "Temp/project-checks-request.txt";
-    static ProjectChecks() { EditorApplication.delayCall += CheckRequest; }
+    static double nextCheck;
+    static ProjectChecks() { EditorApplication.update += CheckRequest; }
     static void CheckRequest()
     {
-        if (!File.Exists(Request) || EditorApplication.isPlayingOrWillChangePlaymode) return;
+        if (EditorApplication.timeSinceStartup < nextCheck) return;
+        nextCheck = EditorApplication.timeSinceStartup + 1d;
+        if (!File.Exists(Request) || Application.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+        bool editorOnly = File.ReadAllText(Request).Trim() == "editor";
         File.Delete(Request);
         Run();
-        AnimalAiPlayModeRunner.Run();
+        if (!editorOnly) AnimalAiPlayModeRunner.Run();
     }
 
     [MenuItem("Hunting Game/Run All Editor Checks")]
     public static void Run()
     {
-        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        if (Application.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode)
         {
             Debug.LogWarning("Exit Play Mode before running editor checks.");
             return;

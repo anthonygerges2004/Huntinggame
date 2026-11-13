@@ -18,6 +18,7 @@ public class ThrownAxe : MonoBehaviour
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.linearVelocity = velocity;
+        body.maxAngularVelocity = Mathf.Max(7f, spin.magnitude);
         body.angularVelocity = spin;
 
         IgnorePlayer();
@@ -27,7 +28,10 @@ public class ThrownAxe : MonoBehaviour
     {
         Collider[] existing = GetComponentsInChildren<Collider>(true);
         for (int i = 0; i < existing.Length; i++)
+        {
+            existing[i].enabled = false;
             Destroy(existing[i]);
+        }
 
         Bounds local = new Bounds(Vector3.zero, Vector3.zero);
         bool any = false;
@@ -131,7 +135,7 @@ public class ThrownAxe : MonoBehaviour
             return;
         }
 
-        if (age < 0.45f || !InPickupRange())
+        if (!landed || age < 0.45f || !InPickupRange())
             return;
 
         ReturnToPlayer();
@@ -141,6 +145,7 @@ public class ThrownAxe : MonoBehaviour
     {
         Vector3 from = PlayerPickupPoint();
         Vector3 to = transform.position;
+        if (Mathf.Abs(from.y - to.y) > 2.5f) return false;
         from.y = 0f;
         to.y = 0f;
         return Vector3.Distance(from, to) <= pickupRange;
@@ -158,6 +163,8 @@ public class ThrownAxe : MonoBehaviour
 
     void ReturnToPlayer()
     {
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) return;
+        if (Inventory.IsOpen) return;
         if (AxeSwing.Instance != null)
             AxeSwing.Instance.GiveBack();
         else

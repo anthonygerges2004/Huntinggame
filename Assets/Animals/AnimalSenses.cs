@@ -129,6 +129,7 @@ namespace HuntingGame.Senses
 
         int deerReaction;
         float deerAlarm;
+        float lastDeerSense = -1f;
         float trailWatchUntil;
 
         void TickDeer(float scaleSqr)
@@ -225,7 +226,11 @@ namespace HuntingGame.Senses
             // A strong cue sets the alarm at once. After the hunter slips out of sight
             // it falls off, instead of dropping to calm on the same tick.
             if (Application.isPlaying)
-                deerAlarm = Mathf.Max(sensed, deerAlarm - 0.45f * Time.deltaTime);
+            {
+                float elapsed = lastDeerSense >= 0f ? Mathf.Max(0f, Time.time - lastDeerSense) : 0f;
+                deerAlarm = Mathf.Max(sensed, deerAlarm - 0.45f * elapsed);
+                lastDeerSense = Time.time;
+            }
             else
                 deerAlarm = sensed;
 

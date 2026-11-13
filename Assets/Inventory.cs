@@ -265,7 +265,7 @@ public partial class Inventory : MonoBehaviour
 
     public bool RemoveSpoiledMeat(int amount)
     {
-        return RemoveItem(ItemKind.SpoiledMeat, amount) == amount;
+        return amount > 0 && spoiledMeat >= amount && RemoveItem(ItemKind.SpoiledMeat, amount) == amount;
     }
 
     public bool UseWood(int amount)
@@ -850,12 +850,12 @@ public partial class Inventory : MonoBehaviour
 
     public bool SpendRaw(int amount)
     {
-        return amount > 0 && RemoveItem(ItemKind.RawMeat, amount) == amount;
+        return amount > 0 && meat >= amount && RemoveItem(ItemKind.RawMeat, amount) == amount;
     }
 
     public bool SpendCooked(int amount)
     {
-        return amount > 0 && RemoveItem(ItemKind.CookedMeat, amount) == amount;
+        return amount > 0 && cookedMeat >= amount && RemoveItem(ItemKind.CookedMeat, amount) == amount;
     }
 
     public int SpaceForWood()
