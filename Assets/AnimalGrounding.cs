@@ -26,6 +26,7 @@ public class AnimalGrounding : MonoBehaviour
     };
 
     Animal animal;
+    DeerHunt.Health deerHealth;
     Transform model;
     Transform[] feet = System.Array.Empty<Transform>();
     Vector3 baseLocal;
@@ -48,10 +49,16 @@ public class AnimalGrounding : MonoBehaviour
     void Start()
     {
         animal = GetComponent<Animal>();
+        deerHealth = GetComponent<DeerHunt.Health>();
+        if (animal != null && animal.kind == AnimalKind.Bird)
+        {
+            enabled = false;
+            return;
+        }
         model = FindModel();
         if (model == null)
         {
-            enabled = false;
+            // Root-only models still need the living-root height repair below.
             return;
         }
 
@@ -102,6 +109,7 @@ public class AnimalGrounding : MonoBehaviour
 
     void LateUpdate()
     {
+        GroundLivingRoot(animal);
         if (model == null)
             return;
 
@@ -111,7 +119,7 @@ public class AnimalGrounding : MonoBehaviour
         Vector3 root = transform.position;
         Quaternion rootRot = transform.rotation;
         float playerDist = (PlayerView.Position() - root).magnitude;
-        bool dead = animal != null && animal.Dead;
+        bool dead = (animal != null && animal.Dead) || (deerHealth != null && deerHealth.Dead);
         if (!smoothed || dead || (root - smoothRoot).sqrMagnitude > 15f * 15f || model.parent != transform)
         {
             smoothRoot = root;
@@ -126,6 +134,14 @@ public class AnimalGrounding : MonoBehaviour
             smoothRot = Quaternion.Slerp(smoothRot, rootRot, a);
         }
 
+        // Interpolating Y between sparse AI ticks cuts across hills and leaves the
+        // visible animal above downhill terrain. Sample at the displayed XZ instead.
+        // Preserve the root's intentional ground offset (for example a NavMesh base offset).
+        bool interpolating = Mathf.Abs(smoothRoot.x - root.x) + Mathf.Abs(smoothRoot.z - root.z) > 0.001f;
+        if (!dead && interpolating && WorldGround.TryGetGround(root, out Vector3 rootGround, out _)
+            && WorldGround.TryGetGround(smoothRoot, out Vector3 displayedGround, out _))
+            smoothRoot.y = displayedGround.y + (root.y - rootGround.y);
+
         // Put the model where it was left, in case the animator wrote its root this frame.
         PlaceModel();
 
@@ -133,7 +149,7 @@ public class AnimalGrounding : MonoBehaviour
         if (dead)
             return;
 
-        if (playerDist > ActiveRange)
+        if (playerDist > ActiveRange && measured)
             return;
 
         float lowestGap = float.PositiveInfinity;
@@ -171,10 +187,13 @@ public class AnimalGrounding : MonoBehaviour
         if (float.IsPositiveInfinity(lowestGap))
             return;
 
-        float target = Mathf.Clamp(shift - (lowestGap - SoleLift), -MaxShift, MaxShift);
-        if (!measured)
+        // Imported root/pivot offsets can exceed 2.5 m. A lower clamp permanently
+        // leaves those models in the air even when the measured ground gap is known.
+        float target = Mathf.Min(shift - (lowestGap - SoleLift), MaxShift);
+        if (!measured || lowestGap > 0.35f)
         {
-            // First look: snap straight down so the deer never starts in the air.
+            // Correct large visible hover gaps immediately, including steep descents.
+            // Small gaps retain smoothing so a normal gallop does not bob the body.
             shift = target;
             measured = true;
         }
@@ -185,6 +204,20 @@ public class AnimalGrounding : MonoBehaviour
         }
 
         PlaceModel();
+    }
+
+    public static void GroundLivingRoot(Animal owner)
+    {
+        if (owner == null || owner.Dead || owner.kind == AnimalKind.Bird) return;
+        Vector3 position = owner.transform.position;
+        if (!WorldGround.TryGetGround(position, out Vector3 ground, out _)) return;
+        // Idle/dormant AI does not necessarily call MoveOnGround. Repair Y without
+        // moving XZ, changing AI targets, or treating a stale height as an intentional offset.
+        if (Mathf.Abs(position.y - ground.y) > 0.01f)
+        {
+            position.y = ground.y;
+            owner.transform.position = position;
+        }
     }
 
     void PlaceModel()

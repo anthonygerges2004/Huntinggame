@@ -27,6 +27,8 @@ public class CameraViewSwitcher : MonoBehaviour
     [SerializeField] private float maxDistance = 7f;
     [SerializeField] private float zoomSpeed = 0.012f;
     [SerializeField] private float followSmooth = 0.08f;
+    [SerializeField, Min(0.01f)] private float collisionRadius = 0.18f;
+    [SerializeField] private LayerMask collisionMask = ~0;
 
     public static CameraViewSwitcher Instance { get; private set; }
     public bool IsFirstPerson => isFirstPerson;
@@ -50,7 +52,9 @@ public class CameraViewSwitcher : MonoBehaviour
     private Renderer[] weaponRenderers;
     private Renderer[] handAxeRenderers;
     private Transform cameraParent;
-    private Vector3 followVelocity;
+    private float boomVelocity;
+    private float boomDistance;
+    private readonly RaycastHit[] collisionHits = new RaycastHit[64];
     private float orbitPitch;
     private float currentDistance;
     const float ShoulderDistance = 3.3f;
@@ -165,14 +169,15 @@ public class CameraViewSwitcher : MonoBehaviour
         // The camera sits over the right shoulder, so the crosshair has a clear line past the hunter.
         float shoulder = Mathf.Lerp(ShoulderOffset, ShoulderOffset + 0.12f, aim);
         Vector3 pivot = lookPoint + Vector3.up * 0.2f + transform.right * shoulder;
-        Vector3 desired = ResolveCollision(pivot, pivot + orbit * Vector3.back * distance);
-
-        Vector3 smoothed = Vector3.SmoothDamp(cam.position, desired, ref followVelocity, followSmooth);
-        // Recheck after smoothing: interpolation must not travel through an obstacle.
-        cam.position = ResolveCollision(pivot, smoothed);
-        if ((cam.position - smoothed).sqrMagnitude > 0.0001f)
-            followVelocity = Vector3.zero;
-        cam.rotation = Quaternion.Euler(-PlayerShotgun.ViewKick, 0f, PlayerShotgun.ViewRoll * 0.35f) * orbit;
+        Vector3 direction = orbit * Vector3.back;
+        Vector3 safePosition = ResolveCollision(pivot, pivot + direction * distance);
+        float safeDistance = Vector3.Distance(pivot, safePosition);
+        // Follow translation and orbit together. Lagging world position while applying yaw
+        // immediately makes the player slide across the frame whenever they turn.
+        // Only ease the boom outward; retract immediately to avoid passing through walls.
+        boomDistance = FollowBoom(boomDistance, safeDistance, ref boomVelocity, followSmooth, Time.deltaTime);
+        cam.position = pivot + direction * boomDistance;
+        cam.rotation = orbit * Quaternion.Euler(-PlayerShotgun.ViewKick, 0f, PlayerShotgun.ViewRoll * 0.35f);
 
         playerCamera.nearClipPlane = 0.05f;
     }
@@ -182,7 +187,7 @@ public class CameraViewSwitcher : MonoBehaviour
         if (playerCamera == null)
             return;
 
-        followVelocity = Vector3.zero;
+        boomVelocity = 0f;
         Transform cam = playerCamera.transform;
         if (isFirstPerson)
         {
@@ -197,6 +202,7 @@ public class CameraViewSwitcher : MonoBehaviour
         Vector3 pivot = lookPoint + Vector3.up * 0.2f + transform.right * ShoulderOffset;
         Vector3 desired = pivot + orbit * Vector3.back * currentDistance;
         cam.position = ResolveCollision(pivot, desired);
+        boomDistance = Vector3.Distance(pivot, cam.position);
         cam.rotation = Quaternion.Euler(orbitPitch, transform.eulerAngles.y, 0f);
     }
 
@@ -232,9 +238,18 @@ public class CameraViewSwitcher : MonoBehaviour
             return desired;
 
         Vector3 direction = offset / distance;
-        RaycastHit[] hits = Physics.SphereCastAll(from, 0.18f, direction, distance, ~0, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = collisionHits;
+        int hitCount = Physics.SphereCastNonAlloc(from, collisionRadius, direction, hits, distance,
+            collisionMask, QueryTriggerInteraction.Ignore);
+        // A full NonAlloc buffer is unordered and may omit the nearest obstacle. Keep
+        // correctness in unusually dense geometry; the normal path allocates nothing.
+        if (hitCount == hits.Length)
+        {
+            hits = Physics.SphereCastAll(from, collisionRadius, direction, distance, collisionMask, QueryTriggerInteraction.Ignore);
+            hitCount = hits.Length;
+        }
         float closest = distance;
-        for (int i = 0; i < hits.Length; i++)
+        for (int i = 0; i < hitCount; i++)
         {
             Transform hitTransform = hits[i].transform;
             if (hitTransform == transform || hitTransform.IsChildOf(transform))
@@ -248,6 +263,19 @@ public class CameraViewSwitcher : MonoBehaviour
 
         float allowed = Mathf.Max(0f, closest - cameraPadding);
         return from + direction * allowed;
+    }
+
+    public static float FollowBoom(float current, float safeDistance, ref float velocity, float smoothTime, float deltaTime)
+    {
+        safeDistance = Mathf.Max(0f, safeDistance);
+        if (current >= safeDistance || smoothTime <= 0f)
+        {
+            velocity = 0f;
+            return safeDistance;
+        }
+        if (deltaTime <= 0f) return current;
+        return Mathf.Clamp(Mathf.SmoothDamp(current, safeDistance, ref velocity, smoothTime,
+            Mathf.Infinity, deltaTime), 0f, safeDistance);
     }
 
     private void CacheWeaponRenderers()

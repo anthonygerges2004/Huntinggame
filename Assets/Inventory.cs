@@ -42,6 +42,7 @@ public partial class Inventory : MonoBehaviour
     {
         get
         {
+            if (CarcassBackCarry.IsCarrying) return false;
             if (Instance == null)
                 return true;
             int i = Instance.selectedHotbar;
@@ -690,6 +691,11 @@ public partial class Inventory : MonoBehaviour
                 line = weapon == HuntWeapon.None ? ItemShortName(kind) : WeaponNotice(weapon);
         }
 
+        if (CarcassBackCarry.IsCarrying)
+        {
+            weapon = HuntWeapon.None;
+            line = "Hands supporting the carcass. U to drop it.";
+        }
         if (PlayerShotgun.Instance != null)
             PlayerShotgun.Instance.Equip(weapon);
 

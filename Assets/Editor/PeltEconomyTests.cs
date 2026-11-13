@@ -55,6 +55,69 @@ public class PeltEconomyTests
     // ---------------------------------------------------------------- appraisal
 
     [Test]
+    public void TakenCarcass_HasBackVisual_AndSkinningRemovesIt()
+    {
+        AnimalCarcass carcass = CarcassOf(Deer());
+        GameObject model = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        model.transform.SetParent(carcass.transform, false);
+        HuntGoods goods = carcass.goods;
+
+        inventory.TakeCarcass(carcass);
+        CarcassBackCarry carry = root.GetComponentInChildren<CarcassBackCarry>(true);
+        Assert.IsNotNull(carry);
+        Assert.IsTrue(inventory.ContainsCarcass(goods));
+        Assert.AreEqual(1, carry.GetComponentsInChildren<MeshRenderer>().Length);
+        Assert.AreEqual(0, carry.GetComponentsInChildren<Collider>().Length);
+        Assert.IsTrue(carcass == null);
+
+        inventory.SkinAllCarcasses(out _);
+        carry.SendMessage("LateUpdate");
+        Assert.IsFalse(inventory.ContainsCarcass(goods));
+        Assert.IsTrue(carry == null);
+    }
+
+    [Test]
+    public void DroppedCarcass_CanBePickedUpAgain_WithoutLosingItsMeshOrGoods()
+    {
+        AnimalCarcass carcass = CarcassOf(Deer());
+        GameObject model = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        model.transform.SetParent(carcass.transform, false);
+        HuntGoods goods = carcass.goods;
+        inventory.TakeCarcass(carcass);
+        CarcassBackCarry carry = root.GetComponentInChildren<CarcassBackCarry>(true);
+        carry.SendMessage("Release");
+        AnimalCarcass dropped = carry.GetComponent<AnimalCarcass>();
+        Assert.AreSame(goods, dropped.goods);
+        Assert.AreEqual(0, inventory.CarcassCount);
+        Assert.IsNotNull(dropped.GetComponent<Rigidbody>());
+        Assert.IsNotNull(dropped.GetComponent<BoxCollider>());
+        inventory.TakeCarcass(dropped);
+        CarcassBackCarry pickedUp = root.GetComponentInChildren<CarcassBackCarry>(true);
+        Assert.IsTrue(dropped == null);
+        Assert.IsTrue(inventory.ContainsCarcass(goods));
+        Assert.IsNotNull(pickedUp.GetComponentInChildren<MeshFilter>(true).sharedMesh);
+        Assert.AreEqual(0, pickedUp.GetComponentsInChildren<Collider>(true).Length);
+    }
+
+    [Test]
+    public void CarryArmIK_ReachesTarget_WithoutChangingBoneLengths()
+    {
+        Transform upper = new GameObject("Upper").transform;
+        upper.SetParent(root.transform);
+        Transform lower = new GameObject("Lower").transform;
+        lower.SetParent(upper);
+        lower.localPosition = Vector3.right;
+        Transform hand = new GameObject("Hand").transform;
+        hand.SetParent(lower);
+        hand.localPosition = Vector3.right;
+        Vector3 target = upper.position + Vector3.right + Vector3.up;
+        CarcassBackCarry.SolveArm(upper, lower, hand, target, Vector3.up, 1f);
+        Assert.Less(Vector3.Distance(hand.position, target), 0.001f);
+        Assert.AreEqual(1f, Vector3.Distance(upper.position, lower.position), 0.001f);
+        Assert.AreEqual(1f, Vector3.Distance(lower.position, hand.position), 0.001f);
+    }
+
+    [Test]
     public void CommonDeer_GoodFreshPelt_IsWorthTheBasePrice()
     {
         Assert.AreEqual(18, Deer().PeltValue(Time.time));

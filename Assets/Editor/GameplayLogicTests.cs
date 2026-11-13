@@ -4,6 +4,96 @@ using UnityEngine;
 
 public class GameplayLogicTests
 {
+    [Test]
+    public void Grounding_RepairsElevatedIdleRootAndModelOffsetLargerThanOldLimit()
+    {
+        TerrainData data = new TerrainData { heightmapResolution = 33, size = new Vector3(32f, 20f, 32f) };
+        GameObject terrain = Terrain.CreateTerrainGameObject(data);
+        terrain.transform.position = new Vector3(200000f, 4f, 200000f);
+        GameObject walker = new GameObject("ElevatedIdleDeer");
+        walker.SetActive(false);
+        try
+        {
+            Animal animal = walker.AddComponent<Animal>();
+            animal.kind = AnimalKind.Deer;
+            walker.transform.position = new Vector3(200016f, 29f, 200016f);
+            Transform model = new GameObject(AnimalVisuals.ModelChildName).transform;
+            model.SetParent(walker.transform, false);
+            model.localPosition = Vector3.up * 7f;
+            Transform hoof = new GameObject("toe.L").transform;
+            hoof.SetParent(model, false);
+            AnimalGrounding grounding = walker.AddComponent<AnimalGrounding>();
+            grounding.SendMessage("Start");
+            grounding.SendMessage("LateUpdate");
+            Assert.AreEqual(4f, walker.transform.position.y, 0.01f);
+            Assert.AreEqual(4.03f, hoof.position.y, 0.04f,
+                "A model offset above 2.5 metres must not remain permanently airborne.");
+            animal.kind = AnimalKind.Bird;
+            walker.transform.position += Vector3.up * 20f;
+            AnimalGrounding.GroundLivingRoot(animal);
+            Assert.AreEqual(24f, walker.transform.position.y, 0.01f, "Bird flight must be preserved.");
+        }
+        finally
+        {
+            Object.DestroyImmediate(walker);
+            Object.DestroyImmediate(terrain);
+            Object.DestroyImmediate(data);
+        }
+    }
+
+    [Test]
+    public void Grounding_InterpolatedModelFollowsSlopeInsteadOfWalkingAboveIt()
+    {
+        TerrainData data = new TerrainData { heightmapResolution = 33, size = new Vector3(32f, 20f, 32f) };
+        float[,] heights = new float[33, 33];
+        for (int z = 0; z < 33; z++)
+            for (int x = 0; x < 33; x++) heights[z, x] = x / 32f;
+        data.SetHeights(0, 0, heights);
+        GameObject terrain = Terrain.CreateTerrainGameObject(data);
+        terrain.transform.position = new Vector3(100000f, 0f, 100000f);
+        GameObject walker = new GameObject("SlopeWalker");
+        try
+        {
+            walker.transform.position = new Vector3(100020f, 12.5f, 100016f);
+            Transform model = new GameObject(AnimalVisuals.ModelChildName).transform;
+            model.SetParent(walker.transform, false);
+            Transform hoof = new GameObject("toe.L").transform;
+            hoof.SetParent(model, false);
+            AnimalGrounding grounding = walker.AddComponent<AnimalGrounding>();
+            grounding.SendMessage("Start");
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            typeof(AnimalGrounding).GetField("smoothed", flags).SetValue(grounding, true);
+            typeof(AnimalGrounding).GetField("smoothRoot", flags).SetValue(grounding, new Vector3(100008f, 12.5f, 100016f));
+            grounding.SendMessage("LateUpdate");
+            Assert.IsTrue(WorldGround.TryGetGround(hoof.position, out Vector3 ground, out _));
+            Assert.AreEqual(ground.y + 0.03f, hoof.position.y, 0.04f,
+                "The displayed hoof must follow terrain at its smoothed XZ, even beyond the close-detail range.");
+        }
+        finally
+        {
+            Object.DestroyImmediate(walker);
+            Object.DestroyImmediate(terrain);
+            Object.DestroyImmediate(data);
+        }
+    }
+
+    [Test]
+    public void BirdFlight_OnGroundAnimalCannotRaiseItsPosition()
+    {
+        GameObject walker = new GameObject("GroundAnimalWithFlightComponent");
+        walker.SetActive(false);
+        try
+        {
+            walker.AddComponent<Animal>().kind = AnimalKind.Deer;
+            BirdFlight flight = walker.AddComponent<BirdFlight>();
+            Vector3 before = walker.transform.position;
+            flight.SendMessage("Start");
+            Assert.IsFalse(flight.enabled);
+            Assert.AreEqual(before, walker.transform.position);
+        }
+        finally { Object.DestroyImmediate(walker); }
+    }
+
     GameObject root;
     Inventory inventory;
 

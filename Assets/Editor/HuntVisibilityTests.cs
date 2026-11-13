@@ -5,6 +5,28 @@ using UnityEngine;
 // and a solid box only hides what it completely covers. A gap stays drawn.
 public class HuntVisibilityTests
 {
+    [Test]
+    public void CameraBoom_NewObstacleRetractsImmediately_AndClearingItReturnsSmoothly()
+    {
+        float velocity = 4f;
+        float distance = CameraViewSwitcher.FollowBoom(3.3f, 0.8f, ref velocity, 0.08f, 1f / 60f);
+        Assert.AreEqual(0.8f, distance, 0.0001f);
+        Assert.AreEqual(0f, velocity);
+        distance = CameraViewSwitcher.FollowBoom(distance, 3.3f, ref velocity, 0.08f, 1f / 60f);
+        Assert.Greater(distance, 0.8f);
+        Assert.Less(distance, 3.3f);
+        for (int i = 0; i < 120; i++)
+            distance = CameraViewSwitcher.FollowBoom(distance, 3.3f, ref velocity, 0.08f, 1f / 60f);
+        Assert.AreEqual(3.3f, distance, 0.001f);
+    }
+
+    [Test]
+    public void CameraBoom_PausedFrameDoesNotAdvance_AndCollisionStillTakesPriority()
+    {
+        float velocity = 0f;
+        Assert.AreEqual(1f, CameraViewSwitcher.FollowBoom(1f, 3f, ref velocity, 0.08f, 0f));
+        Assert.AreEqual(0.5f, CameraViewSwitcher.FollowBoom(1f, 0.5f, ref velocity, 0.08f, 0f));
+    }
     GameObject cameraObject;
     Camera view;
 

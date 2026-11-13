@@ -27,6 +27,12 @@ public class BirdFlight : MonoBehaviour
 
     void Start()
     {
+        Animal owner = GetComponent<Animal>();
+        if (owner == null || owner.kind != AnimalKind.Bird)
+        {
+            enabled = false;
+            return;
+        }
         animal = GetComponent<Animal>();
         CacheWings();
         ApplyStats();
@@ -83,7 +89,7 @@ public class BirdFlight : MonoBehaviour
 
     void Update()
     {
-        if (animal == null || animal.Dead || !animal.IsPresent())
+        if (animal == null || animal.kind != AnimalKind.Bird || animal.Dead || !animal.IsPresent())
             return;
 
         age += Time.deltaTime;

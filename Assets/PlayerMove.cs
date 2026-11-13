@@ -124,7 +124,7 @@ public class PlayerMove : MonoBehaviour
                 sway.y,
                 PlayerShotgun.ViewRoll);
 
-        if (Frozen)
+        if (Frozen || CarcassBackCarry.IsHandling)
         {
             UpdateSprint(false);
             IsCrouching = false;
@@ -155,7 +155,7 @@ public class PlayerMove : MonoBehaviour
 
         IsCrouching = Keyboard.current.leftCtrlKey.isPressed;
         // A heavy carcass load rules out sprinting.
-        bool running = !IsCrouching && !PlayerShotgun.IsAiming && !Inventory.TooHeavyToSprint && Keyboard.current.leftShiftKey.isPressed;
+        bool running = !CarcassBackCarry.IsCarrying && !IsCrouching && !PlayerShotgun.IsAiming && !Inventory.TooHeavyToSprint && Keyboard.current.leftShiftKey.isPressed;
 
         Vector2 moveInput = Vector2.zero;
         if (Keyboard.current.aKey.isPressed) moveInput.x -= 1f;
@@ -180,7 +180,7 @@ public class PlayerMove : MonoBehaviour
         if (controller.isGrounded && verticalSpeed < 0f)
             verticalSpeed = -2f;
 
-        if (controller.isGrounded && Keyboard.current.spaceKey.wasPressedThisFrame)
+        if (!CarcassBackCarry.IsCarrying && controller.isGrounded && Keyboard.current.spaceKey.wasPressedThisFrame)
             verticalSpeed = Mathf.Sqrt(jumpHeight * -2f * gravity);
 
         verticalSpeed += gravity * Time.deltaTime;
@@ -196,6 +196,7 @@ public class PlayerMove : MonoBehaviour
         if (HuntingGame.Survival.SurvivalStats.Current != null)
             currentSpeed *= HuntingGame.Survival.SurvivalStats.Current.MoveSpeedMultiplier;
         currentSpeed *= Inventory.CarrySpeedMultiplier;
+        if (CarcassBackCarry.IsCarrying) currentSpeed *= 0.75f;
         Vector3 motion = move * currentSpeed;
         motion.y = verticalSpeed;
         bool wasGrounded = controller.isGrounded;

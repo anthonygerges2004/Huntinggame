@@ -144,6 +144,8 @@ public partial class Inventory
     {
         if (carcass == null || carcass.goods == null)
             return;
+        if (CarcassBackCarry.IsHandling || RideableHorse.IsRiding)
+            return;
 
         HuntGoods g = carcass.goods;
         if (CarryKg + g.weightKg > MaxCarryKg)
@@ -159,10 +161,32 @@ public partial class Inventory
         }
 
         RivalHunter.NotifyLoot(carcass);
+        CarcassBackCarry.Attach(this, carcass, Mathf.Max(0, CarcassCount - 1));
+        ApplySelectedWeapon(false);
         RemoveObject(carcass.gameObject);
         string load = CarryKg > HeavyLoadKg ? " Heavy load: no sprinting." : "";
-        ShowNotice("Took the " + g.Title.ToLowerInvariant() + " carcass (" + Mathf.RoundToInt(g.weightKg)
-                   + " kg). The tanner in the castle market will skin it." + load);
+        ShowNotice("Carrying the " + g.Title.ToLowerInvariant() + " on your back (" + Mathf.RoundToInt(g.weightKg)
+                   + " kg). U drops it. The tanner in the castle market will skin it." + load);
+    }
+
+    public bool ContainsCarcass(HuntGoods goods)
+    {
+        for (int i = 0; i < slots.Length; i++)
+            if (slots[i].count > 0 && slots[i].kind == ItemKind.Carcass && ReferenceEquals(slots[i].goods, goods))
+                return true;
+        return false;
+    }
+
+    public bool ReleaseCarcass(HuntGoods goods)
+    {
+        for (int i = 0; i < slots.Length; i++)
+            if (slots[i].count > 0 && slots[i].kind == ItemKind.Carcass && ReferenceEquals(slots[i].goods, goods))
+            {
+                slots[i] = default;
+                RecalculatePublicCounts();
+                return true;
+            }
+        return false;
     }
 
     public void FieldSkin(AnimalCarcass carcass)

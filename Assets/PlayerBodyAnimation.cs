@@ -25,6 +25,7 @@ public class PlayerBodyAnimation : MonoBehaviour
     float chopTime = -1f;
     Vector3 chopPose;
     float pickupBlend;
+    float carryBlend;
     float lightTime = -1f;
 
     Transform hips;
@@ -208,6 +209,8 @@ public class PlayerBodyAnimation : MonoBehaviour
         // Velocity already controls cadence. Shorten the step and compensate its frequency
         // together so fatigue does not simply slow the feet while the body slides forward.
         float stepScale = Mathf.Lerp(1f, 0.86f, fatiguePose);
+        carryBlend = Mathf.MoveTowards(carryBlend, CarcassBackCarry.IsCarrying && !riding ? 1f : 0f, Time.deltaTime * 4f);
+        stepScale *= Mathf.Lerp(1f, 0.82f, carryBlend);
         float stride = (walkW * 8.4f + runW * 12.6f) / stepScale;
         if (crouch)
             stride *= 0.78f;
@@ -519,6 +522,8 @@ public class PlayerBodyAnimation : MonoBehaviour
 
         pickupBlend = Mathf.MoveTowards(pickupBlend, !acting && InventoryWorldDrop.CollectingWood ? 1f : 0f, Time.deltaTime * 6f);
         spinePitch += 18f * pickupBlend;
+        spinePitch += (CarcassBackCarry.IsHandling ? 24f : 11f) * carryBlend;
+        hipBob -= 0.025f * carryBlend;
         Pose(hips, hipsRot, breathe * 1.2f * idleW, hipYaw, hipRoll);
         if (hips != null)
             hips.localPosition = hipsPos + Vector3.up * hipBob;

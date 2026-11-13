@@ -4,9 +4,6 @@ using UnityEngine;
 
 public static class BakeOcclusionForFoliage
 {
-    const int OccluderStatic = 16;
-    const int OccludeeStatic = 32;
-
     [MenuItem("Tools/Hunting Game/Mark Foliage Static And Bake Occlusion")]
     public static void Run()
     {
@@ -16,6 +13,30 @@ public static class BakeOcclusionForFoliage
             return;
         }
 
+        if (StaticOcclusionCulling.isRunning)
+        {
+            Debug.LogWarning("An occlusion bake is already running.");
+            return;
+        }
+
+        PrepareLoadedScenes();
+        if (!StaticOcclusionCulling.Compute())
+            throw new System.InvalidOperationException("Occlusion bake failed. See the Editor log.");
+
+        EditorSceneManager.SaveOpenScenes();
+        AssetDatabase.SaveAssets();
+        Debug.Log("Occlusion bake completed and scenes saved. Data size: " + StaticOcclusionCulling.umbraDataSize + " bytes.");
+    }
+
+    // Entry point for a noninteractive bake of the actual build scene.
+    public static void BakeMainScene()
+    {
+        EditorSceneManager.OpenScene("Assets/Scenes/GetStarted_Scene.unity", OpenSceneMode.Single);
+        Run();
+    }
+
+    static void PrepareLoadedScenes()
+    {
         int marked = 0;
         HarvestableTree[] trees = Object.FindObjectsByType<HarvestableTree>(FindObjectsInactive.Exclude);
         for (int i = 0; i < trees.Length; i++)
@@ -23,15 +44,21 @@ public static class BakeOcclusionForFoliage
             if (trees[i] == null)
                 continue;
 
-            GameObject go = trees[i].gameObject;
-            LODGroup lod = go.GetComponent<LODGroup>();
-            if (lod != null)
-                go = lod.gameObject;
-
-            StaticEditorFlags flags = GameObjectUtility.GetStaticEditorFlags(go);
-            flags |= (StaticEditorFlags)OccluderStatic;
-            flags |= (StaticEditorFlags)OccludeeStatic;
-            GameObjectUtility.SetStaticEditorFlags(go, flags);
+            // Harvestable trees move, deform and disappear. Their baked silhouettes must
+            // never hide objects after chopping. Apply this to renderer children too.
+            foreach (Transform child in trees[i].GetComponentsInChildren<Transform>(true))
+            {
+                GameObject go = child.gameObject;
+                StaticEditorFlags flags = GameObjectUtility.GetStaticEditorFlags(go);
+                flags &= ~(StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
+                GameObjectUtility.SetStaticEditorFlags(go, flags);
+                Renderer renderer = go.GetComponent<Renderer>();
+                if (renderer != null)
+                {
+                    renderer.allowOcclusionWhenDynamic = true;
+                    EditorUtility.SetDirty(renderer);
+                }
+            }
             marked++;
         }
 
@@ -43,21 +70,16 @@ public static class BakeOcclusionForFoliage
             GameObjectUtility.SetStaticEditorFlags(
                 terrains[i].gameObject,
                 GameObjectUtility.GetStaticEditorFlags(terrains[i].gameObject) |
-                (StaticEditorFlags)OccluderStatic |
-                (StaticEditorFlags)OccludeeStatic);
+                StaticEditorFlags.OccluderStatic |
+                StaticEditorFlags.OccludeeStatic);
         }
 
-        GameCulling.ApplyToAllTerrains();
-        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-
-        if (!StaticOcclusionCulling.isRunning)
-            StaticOcclusionCulling.GenerateInBackground();
-
-        EditorUtility.DisplayDialog(
-            "Occlusion",
-            "Marked " + marked + " trees and terrain tiles as static.\n" +
-            "Occlusion bake is running in the background (see progress bar).\n" +
-            "Save the scene when the bake finishes.",
-            "OK");
+        foreach (Camera camera in Object.FindObjectsByType<Camera>(FindObjectsInactive.Include))
+        {
+            camera.useOcclusionCulling = true;
+            EditorUtility.SetDirty(camera);
+        }
+        EditorSceneManager.MarkAllScenesDirty();
+        Debug.Log("Prepared " + marked + " harvestable trees as dynamic occludees and " + terrains.Length + " terrain occluders.");
     }
 }

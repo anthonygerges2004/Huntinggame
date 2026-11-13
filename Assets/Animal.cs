@@ -162,6 +162,8 @@ public class Animal : MonoBehaviour
         if (dead)
             return;
 
+        AnimalGrounding.GroundLivingRoot(this);
+
         bool shouldBePresent = IsPresent();
         if (shouldBePresent != present)
             SetPresent(shouldBePresent);
