@@ -91,6 +91,7 @@ public static class HuntFeedback
 
         int xp = HuntProgress.OnKill(animal, place, distance);
         HuntExtras.NotifyKill(animal, distance);
+        FieldChallenges.ReportKill(animal, distance);
         AnimalTrophy trophy = animal != null ? animal.GetComponent<AnimalTrophy>() : null;
 
         string detail = "";

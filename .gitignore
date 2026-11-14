@@ -41,3 +41,7 @@ AssetStoreTools/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local SRS document and Python generation artifacts
+/Docs/Hunting_Game_SRS.docx
+/Docs/SRS_work/

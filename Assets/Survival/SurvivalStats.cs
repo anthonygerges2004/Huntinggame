@@ -133,6 +133,11 @@ namespace HuntingGame.Survival
             return true;
         }
 
+        public void Warm(float amount)
+        {
+            warmth = Mathf.Clamp01(warmth + Mathf.Max(0f, amount));
+        }
+
         public void Drink(float amount)
         {
             water = Mathf.Min(1f, water + amount);

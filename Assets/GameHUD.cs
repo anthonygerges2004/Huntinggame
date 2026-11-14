@@ -161,6 +161,8 @@ public partial class GameHUD : MonoBehaviour
             GamePause.Set(false);
         if (canvas != null)
             Destroy(canvas.gameObject);
+        if (mapCanvas != null) Destroy(mapCanvas.gameObject);
+        if (mapTexture != null) Destroy(mapTexture);
         if (pauseCanvas != null)
             Destroy(pauseCanvas.gameObject);
     }
@@ -180,8 +182,9 @@ public partial class GameHUD : MonoBehaviour
         bool hidden = dead || Inventory.IsOpen;
         rootGroup.alpha = Mathf.MoveTowards(rootGroup.alpha, hidden ? 0f : 1f, dt * 6f);
 
+        UpdateFieldChallenges();
         HandleControlsToggle();
-        UpdatePause(dt);
+        if (!UpdateMap()) UpdatePause(dt);
 
         UpdateVitals(dt);
         UpdateCompass();
@@ -218,6 +221,8 @@ public partial class GameHUD : MonoBehaviour
         BuildPause();
         BuildCareer();
         BuildShop();
+        BuildMap();
+        BuildFieldChallenges();
         if (GetComponent<HuntExtras>() == null)
             gameObject.AddComponent<HuntExtras>();
         GameAudio.Ensure(gameObject);
@@ -778,7 +783,7 @@ public partial class GameHUD : MonoBehaviour
         string[,] keys =
         {
             { "F", "Light fire" }, { "C", "Cook" }, { "Q", "Eat" }, { "X", "Bait" }, { "E", "Start/stop chop; hold: wood" },
-            { "B", "Build" }, { "G", "Inventory" }, { "1-5", "Hotbar" }, { "RMB", "Aim" }, { "LMB", "Fire" },
+            { "M", "World map" }, { "B", "Build" }, { "G", "Inventory" }, { "1-5", "Hotbar" }, { "RMB", "Aim" }, { "LMB", "Fire" },
             { "Z", "Drink" }, { "R", "Reload" }, { "Shift", "Steady aim" }, { "V", "Camera" },
             { "T", "Bird cage" }, { "Y", "Sniper post" }, { "Trader", "1 2 3" }, { "Esc", "Pause" },
             { "Tab", "Instinct" }, { "P", "Photo" }, { "J", "Journal" },
