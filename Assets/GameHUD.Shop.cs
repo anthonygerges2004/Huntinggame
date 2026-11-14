@@ -11,7 +11,7 @@ using UnityEngine.UI;
 // Callers ask every frame from Update or LateUpdate; anything not asked for is hidden.
 public partial class GameHUD
 {
-    const int ShopRows = 8;
+    const int ShopRows = 9;
     const int WorldTags = 10;
 
     CanvasGroup shopGroup;

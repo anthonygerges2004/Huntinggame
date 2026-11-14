@@ -77,6 +77,26 @@ public class PeltEconomyTests
     }
 
     [Test]
+    public void PutDown_LowersOnceThenLeavesTheSameAnimalAvailableForPickup()
+    {
+        AnimalCarcass carcass = CarcassOf(Deer());
+        GameObject model = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        model.transform.SetParent(carcass.transform, false);
+        HuntGoods goods = carcass.goods;
+        inventory.TakeCarcass(carcass);
+        CarcassBackCarry carry = root.GetComponentInChildren<CarcassBackCarry>(true);
+        Assert.IsTrue(CarcassBackCarry.TryPutDown(inventory));
+        Assert.IsFalse(CarcassBackCarry.TryPutDown(inventory), "Repeated presses must not restart the lowering animation.");
+        Assert.IsTrue(inventory.ContainsCarcass(goods), "Keep inventory intact until the lowering finishes.");
+        carry.SendMessage("Release");
+        Assert.IsFalse(inventory.ContainsCarcass(goods));
+        Assert.AreSame(goods, carry.GetComponent<AnimalCarcass>().goods);
+        inventory.TakeCarcass(carry.GetComponent<AnimalCarcass>());
+        Assert.IsTrue(inventory.ContainsCarcass(goods));
+        Assert.AreEqual(1, inventory.CarcassCount);
+    }
+
+    [Test]
     public void DroppedCarcass_CanBePickedUpAgain_WithoutLosingItsMeshOrGoods()
     {
         AnimalCarcass carcass = CarcassOf(Deer());

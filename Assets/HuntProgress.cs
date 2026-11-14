@@ -48,6 +48,41 @@ public static class HuntProgress
 
     public static bool Has(int rank) => RankIndex >= rank;
 
+    public static int WeaponRank(HuntWeapon weapon)
+    {
+        switch (weapon)
+        {
+            case HuntWeapon.Shotgun: return 1;
+            case HuntWeapon.SMG: return 2;
+            case HuntWeapon.Rifle: return 3;
+            case HuntWeapon.Sniper: return 4;
+            default: return 0;
+        }
+    }
+
+    public static bool WeaponUnlocked(HuntWeapon weapon) => weapon >= HuntWeapon.Shotgun
+        && weapon <= HuntWeapon.SMG && Has(WeaponRank(weapon));
+
+    public static string WeaponRequirement(HuntWeapon weapon)
+    {
+        int rank = WeaponRank(weapon);
+        return "Requires rank " + (rank + 1) + " - " + Ranks[rank].title + " (" + Ranks[rank].xp + " XP).";
+    }
+
+    public static string UnlockText(int rank)
+    {
+        HuntWeapon weapon;
+        switch (rank)
+        {
+            case 1: weapon = HuntWeapon.Shotgun; break;
+            case 2: weapon = HuntWeapon.SMG; break;
+            case 3: weapon = HuntWeapon.Rifle; break;
+            case 4: weapon = HuntWeapon.Sniper; break;
+            default: return "";
+        }
+        return WeaponVisual.DisplayName(weapon) + " awarded free (bag space required)";
+    }
+
     // Perk effects other systems read.
     public static float BreathMultiplier => Has(1) ? 1.4f : 1f;
     public static float FootstepNoise => Has(2) ? 0.75f : 1f;
@@ -88,6 +123,7 @@ public static class HuntProgress
         public int need;
         public int have;
         public int reward;
+        public HuntWeapon requiredWeapon;
         public System.Func<KillInfo, bool> counts;
         public bool Done => have >= need;
     }
@@ -139,13 +175,13 @@ public static class HuntProgress
         System.Random rng = new System.Random(day * 7919 + 17);
         List<Contract> pool = new List<Contract>
         {
-            new Contract { text = "Take a deer with the rifle", need = 1, reward = 60,
+            new Contract { text = "Take a deer with the rifle", need = 1, reward = 60, requiredWeapon = HuntWeapon.Rifle,
                 counts = k => k.kind == AnimalKind.Deer && k.weapon == HuntWeapon.Rifle },
             new Contract { text = "Head-shot a deer", need = 1, reward = 80,
                 counts = k => k.kind == AnimalKind.Deer && k.place == "Head" },
-            new Contract { text = "Make a kill from 120 m or more", need = 1, reward = 90,
+            new Contract { text = "Make a kill from 120 m or more", need = 1, reward = 90, requiredWeapon = HuntWeapon.Rifle,
                 counts = k => k.distance >= 120f },
-            new Contract { text = "Shoot 2 birds with the shotgun", need = 2, reward = 50,
+            new Contract { text = "Shoot 2 birds with the shotgun", need = 2, reward = 50, requiredWeapon = HuntWeapon.Shotgun,
                 counts = k => k.kind == AnimalKind.Bird && k.weapon == HuntWeapon.Shotgun },
             new Contract { text = "Hunt something at night", need = 1, reward = 70,
                 counts = k => k.night },
@@ -167,6 +203,7 @@ public static class HuntProgress
                 counts = k => k.animal != null && k.animal.kind == AnimalKind.Bird && k.animal.flyer == FlyerKind.Thrush },
         };
 
+        pool.RemoveAll(c => c.requiredWeapon != HuntWeapon.None && !WeaponUnlocked(c.requiredWeapon));
         for (int i = 0; i < 3 && pool.Count > 0; i++)
         {
             int pick = rng.Next(pool.Count);
@@ -244,17 +281,43 @@ public static class HuntProgress
         return earned;
     }
 
+#if UNITY_EDITOR
+    /// <summary>Play-mode testing only; excluded from player builds.</summary>
+    public static void SetRankForTesting(int index)
+    {
+        index = Mathf.Clamp(index, 0, Ranks.Length - 1);
+        RankIndex = index;
+        Xp = Ranks[index].xp;
+        if (Inventory.Instance != null) Inventory.Instance.GrantRankWeapons();
+        if (PlayerShotgun.Instance != null && PlayerShotgun.Instance.Equipped != HuntWeapon.None
+            && !WeaponUnlocked(PlayerShotgun.Instance.Equipped))
+            PlayerShotgun.Instance.Equip(HuntWeapon.None);
+        // Test switching must not leave contracts for weapons that are now locked.
+        contractDay = -1;
+        TickContracts();
+        while (HuntFeedback.TryTakeBanner(out _)) { }
+        HuntFeedback.PushBanner("TEST RANK - " + Current.title, UnlockText(index), true);
+        if (Inventory.Instance != null)
+            Inventory.Instance.ShowNotice("TEST RANK " + (index + 1) + " - " + Current.title + " / " + Xp + " XP");
+    }
+#endif
+
     public static void AddXp(int amount)
     {
         if (amount <= 0)
             return;
 
-        Xp += amount;
+        Xp = (int)System.Math.Min((long)Xp + amount, int.MaxValue);
         while (!IsMaxRank && Xp >= Ranks[RankIndex + 1].xp)
         {
             RankIndex++;
             Rank rank = Ranks[RankIndex];
-            HuntFeedback.PushBanner("RANK UP  ·  " + rank.title, rank.perk + "   ·   " + rank.perkText.ToUpperInvariant(), true);
+            string unlock = UnlockText(RankIndex);
+            string detail = rank.perk + "   ·   " + rank.perkText.ToUpperInvariant();
+            if (unlock.Length > 0)
+                detail += "   ·   UNLOCKED: " + unlock.ToUpperInvariant();
+            HuntFeedback.PushBanner("RANK UP  ·  " + rank.title, detail, true);
         }
+        if (Inventory.Instance != null) Inventory.Instance.GrantRankWeapons();
     }
 }

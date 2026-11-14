@@ -145,7 +145,7 @@ public partial class Inventory : MonoBehaviour
         if (GetComponent<GunAdvisor>() == null)
             gameObject.AddComponent<GunAdvisor>();
 
-        // You start with a pistol and the axe; every other gun is bought at the castle gun shop.
+        // Start with a pistol and axe; further guns are free career rewards.
         slots[0] = new Slot { kind = ItemKind.Pistol, count = 1 };
         slots[1] = new Slot { kind = ItemKind.Axe, count = 1 };
         selectedHotbar = 0;
@@ -163,6 +163,7 @@ public partial class Inventory : MonoBehaviour
         if (startWood > 0)
             AddItem(ItemKind.Wood, startWood);
         RecalculatePublicCounts();
+        GrantRankWeapons();
     }
 
     void OnDisable()
@@ -174,6 +175,11 @@ public partial class Inventory : MonoBehaviour
 
     void Update()
     {
+        if (Time.time >= nextRankRewardCheck)
+        {
+            nextRankRewardCheck = Time.time + 1f;
+            GrantRankWeapons();
+        }
         // Gun pictures are photographed once from the real models. Rendering has to happen here, not in OnGUI.
         WeaponIcons.Warm();
         UpdateView();
@@ -694,7 +700,7 @@ public partial class Inventory : MonoBehaviour
         if (CarcassBackCarry.IsCarrying)
         {
             weapon = HuntWeapon.None;
-            line = "Hands supporting the carcass. U to drop it.";
+            line = "Hands supporting the carcass. E to put it down.";
         }
         if (PlayerShotgun.Instance != null)
             PlayerShotgun.Instance.Equip(weapon);
@@ -811,7 +817,7 @@ public partial class Inventory : MonoBehaviour
 
     public bool TryAddWeapon(HuntWeapon weapon)
     {
-        if (weapon == HuntWeapon.None || OwnsWeapon(weapon))
+        if (weapon == HuntWeapon.None || !HuntProgress.WeaponUnlocked(weapon) || OwnsWeapon(weapon))
             return false;
 
         ItemKind kind = ItemKind.None;

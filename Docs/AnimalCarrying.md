@@ -14,7 +14,7 @@ Controls:
    over 1.15 seconds. Movement is blocked during the lift.
 3. Walk with the load. Weapons are holstered, movement uses 75% of the existing
    weight-adjusted speed, and sprinting/jumping are disabled.
-4. Press U. A 0.8-second lowering motion releases a physical carcass. It retains
+4. Press E again after the pickup finishes. A 0.8-second lowering motion releases a physical carcass. It retains
    the same species, shot condition, spoilage time and inventory identity.
 5. Tap E to retrieve it, hold E to field-skin it, or take it to the tanner.
 

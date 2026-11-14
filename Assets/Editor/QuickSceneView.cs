@@ -52,7 +52,8 @@ public static class QuickSceneView
         float width = Mathf.Min(260f, view.position.width - 24f);
         float available = view.position.height - 90f;
         if (width < 130f || available < 30f) return;
-        float height = expanded ? Mathf.Min(available, 76f + Mathf.Min(scenes.Length, 7) * 26f) : 28f;
+        float height = expanded ? Mathf.Min(available, 126f + Mathf.Min(scenes.Length, 7) * 26f
+            + HuntProgress.Ranks.Length * 26f) : 28f;
         Rect panel = new Rect(view.position.width - width - 12f, view.position.height - height - 34f, width, height);
         Event current = Event.current;
         bool overPanel = panel.Contains(current.mousePosition);
@@ -63,11 +64,11 @@ public static class QuickSceneView
         expanded = EditorGUILayout.Foldout(expanded, "Quick Scenes", true, EditorStyles.foldoutHeader);
         if (expanded)
         {
+            scroll = EditorGUILayout.BeginScrollView(scroll);
             if (scenes.Length == 0)
                 GUILayout.Label("Add scenes in Build Settings / Profiles.", EditorStyles.wordWrappedMiniLabel);
             else
             {
-                scroll = EditorGUILayout.BeginScrollView(scroll);
                 string active = SceneManager.GetActiveScene().path;
                 foreach (var scene in scenes)
                 {
@@ -80,9 +81,24 @@ public static class QuickSceneView
                     using (new EditorGUI.DisabledScope(!exists || selected || opening || EditorApplication.isCompiling || EditorApplication.isPlayingOrWillChangePlaymode))
                         if (GUILayout.Button(new GUIContent(label, tooltip), GUILayout.Height(23f))) QueueOpen(path);
                 }
-                EditorGUILayout.EndScrollView();
             }
             GUILayout.Label(EditorApplication.isPlayingOrWillChangePlaymode ? "Exit Play mode to switch scenes." : "Scenes from Build Settings", EditorStyles.miniLabel);
+            GUILayout.Space(5f);
+            GUILayout.Label("Test Ranks", EditorStyles.boldLabel);
+            GUILayout.Label(EditorApplication.isPlaying ? "Click to change rank now." : "Choose a rank, then press Play.", EditorStyles.miniLabel);
+            for (int i = 0; i < HuntProgress.Ranks.Length; i++)
+            {
+                int index = i;
+                HuntProgress.Rank rank = HuntProgress.Ranks[i];
+                bool selected = EditorApplication.isPlaying ? HuntProgress.RankIndex == i : HuntRankTesting.StartingRank == i;
+                string label = (selected ? "\u25cf " : "") + (i + 1) + " - " + rank.title + " (" + rank.xp + " XP)";
+                using (new EditorGUI.DisabledScope(EditorApplication.isCompiling || opening
+                    || (EditorApplication.isPlayingOrWillChangePlaymode && !EditorApplication.isPlaying)))
+                    if (GUILayout.Button(new GUIContent(label, HuntProgress.UnlockText(i)), GUILayout.Height(23f)))
+                        EditorApplication.delayCall += () => HuntRankTesting.ChooseRank(index);
+            }
+            if (GUILayout.Button("Normal start (no rank override)", GUILayout.Height(23f))) HuntRankTesting.NormalStart();
+            EditorGUILayout.EndScrollView();
         }
         GUILayout.EndArea();
         Handles.EndGUI();

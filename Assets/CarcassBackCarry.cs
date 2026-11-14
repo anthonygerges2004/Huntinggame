@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 /// <summary>A frozen copy of the picked-up animal, with no AI, physics or animation updates.</summary>
 [DefaultExecutionOrder(2200)]
@@ -153,17 +152,22 @@ public sealed class CarcassBackCarry : MonoBehaviour
         rightHand = rig.GetBoneTransform(HumanBodyBones.RightHand);
     }
 
-    void Update()
+    /// <summary>Starts lowering the latest load; inventory is removed only when it reaches the ground.</summary>
+    public static bool TryPutDown(Inventory owner)
     {
-        if (released || GamePause.Active || Inventory.IsOpen || RideableHorse.IsRiding) return;
-        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) return;
-        // Only the latest load handles the key; older inventory goods remain intact.
-        if (carried.Count > 0 && carried[carried.Count - 1] == this && phase >= pickupSeconds && !dropping
-            && Keyboard.current != null && Keyboard.current.uKey.wasPressedThisFrame)
+        if (owner == null || GamePause.Active || Inventory.IsOpen || RideableHorse.IsRiding || IsHandling)
+            return false;
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead) return false;
+        for (int i = carried.Count - 1; i >= 0; i--)
         {
-            dropping = true;
-            phase = 0f;
+            CarcassBackCarry carry = carried[i];
+            if (carry == null || carry.released || carry.inventory != owner || !owner.ContainsCarcass(carry.goods))
+                continue;
+            carry.dropping = true;
+            carry.phase = 0f;
+            return true;
         }
+        return false;
     }
 
     void LateUpdate()

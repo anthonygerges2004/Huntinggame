@@ -35,6 +35,7 @@ namespace HuntingGame.Ballistics
         float drag = 0.65f;
         float pelletRadius = 0.02f;
         Material leadMaterial;
+        BulletImpactPool impacts;
 
         void Awake()
         {
@@ -45,6 +46,8 @@ namespace HuntingGame.Ballistics
             }
 
             Current = this;
+            impacts = GetComponent<BulletImpactPool>();
+            if (impacts == null) impacts = gameObject.AddComponent<BulletImpactPool>();
             if (settings == null)
                 settings = ScriptableObject.CreateInstance<BallisticsSettings>();
 
@@ -177,8 +180,24 @@ namespace HuntingGame.Ballistics
                     distance = remain;
 
                 Vector3 direction = step / step.magnitude;
-                if (Cast(pellet.position, direction, distance, pellet.ignore, out RaycastHit hit))
+                bool solidHit = Cast(pellet.position, direction, distance, pellet.ignore, out RaycastHit hit);
+                float surfaceDistance = solidHit ? hit.distance : distance;
+                if (WaterBodies.SegmentSurface(pellet.position, pellet.position + direction * surfaceDistance,
+                    out Vector3 waterHit, out _))
                 {
+                    impacts.Play(waterHit, Vector3.up, true);
+                    Stop(pellet);
+                    continue;
+                }
+                if (solidHit)
+                {
+                    if (hit.collider.GetComponentInParent<LakeWater>() != null
+                        || hit.collider.GetComponentInParent<RiverWater>() != null)
+                    {
+                        impacts.Play(hit.point, Vector3.up, true);
+                        Stop(pellet);
+                        continue;
+                    }
                     Debug.DrawLine(pellet.position, hit.point, Color.green, 0.35f);
                     Resolve(hit, direction, pellet.velocity.magnitude, pellet.shotHits);
                     Stop(pellet);
@@ -218,6 +237,9 @@ namespace HuntingGame.Ballistics
             // Blood only where a living animal was actually struck. Ground, rocks and trees stay clean.
             if (bled && WoundPool.Current != null)
                 WoundPool.Current.Mark(hit.point, heavy);
+            if (!bled && hit.collider.GetComponentInParent<Animal>() == null
+                && hit.collider.GetComponentInParent<AnimalCarcass>() == null)
+                impacts.Play(hit.point, hit.normal, false);
         }
 
         static void PushBody(Animal animal, Vector3 direction, float speed)

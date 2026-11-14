@@ -22,6 +22,7 @@ public class GameAudio : MonoBehaviour
     AudioClip[] steps;
     AudioClip windLoop, cricketLoop, crackleLoop, howl;
     AudioClip axeBite, axeWhoosh;
+    AudioClip dirtImpact, waterImpact;
     AudioClip[] chirps;
 
     AudioSource player2D;      // shots, reloads, footsteps: heard from the hunter's own position
@@ -63,6 +64,8 @@ public class GameAudio : MonoBehaviour
         hitThud = Clip("Hit", Thud(rng));
         axeBite = Clip("Axe wood impact", WoodImpact(rng));
         axeWhoosh = Clip("Axe swing", SwingAir(rng));
+        dirtImpact = Clip("Bullet dirt impact", ImpactNoise(rng, false));
+        waterImpact = Clip("Bullet water splash", ImpactNoise(rng, true));
         steps = new AudioClip[4];
         for (int i = 0; i < steps.Length; i++)
             steps[i] = Clip("Step" + i, Footstep(rng));
@@ -113,6 +116,28 @@ public class GameAudio : MonoBehaviour
     {
         if (Instance != null && Instance.ready)
             Instance.player2D.PlayOneShot(Instance.hitThud, 0.55f);
+    }
+
+    public static void BulletImpact(Vector3 point, bool water)
+    {
+        if (Instance == null || !Instance.ready) return;
+        Instance.PlayAt(water ? Instance.waterImpact : Instance.dirtImpact, point, water ? 0.5f : 0.35f,
+            Random.Range(0.9f, 1.1f), 40f);
+    }
+
+    static float[] ImpactNoise(System.Random rng, bool water)
+    {
+        float[] samples = new float[(int)(Rate * (water ? 0.45f : 0.2f))];
+        float low = 0f;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = i / (float)Rate;
+            float noise = Noise(rng);
+            low += (water ? 0.09f : 0.3f) * (noise - low);
+            samples[i] = (water ? low * 2.5f + noise * 0.15f : low + noise * 0.3f)
+                * Mathf.Exp(-t * (water ? 9f : 30f));
+        }
+        return samples;
     }
 
     public static void WoodChop(Vector3 point)

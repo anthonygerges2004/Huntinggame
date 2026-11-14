@@ -275,7 +275,10 @@ public partial class GameHUD
             HuntProgress.Rank next = HuntProgress.Ranks[HuntProgress.RankIndex + 1];
             jRankXp.text = HuntProgress.Xp + " / " + next.xp + " XP";
             jNextPerk.text = "Next: <color=#F5C466>" + next.title + "</color> unlocks " + next.perk.ToLowerInvariant()
-                             + ". " + next.perkText;
+                             + ".";
+            string unlock = HuntProgress.UnlockText(HuntProgress.RankIndex + 1);
+            if (unlock.Length > 0)
+                jNextPerk.text += " " + unlock + ".";
         }
 
         jRankFill.anchorMax = new Vector2(HuntProgress.RankProgress01, 1f);

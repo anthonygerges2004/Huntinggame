@@ -155,6 +155,8 @@ public class CastleShop : MonoBehaviour
     public Kind ShopKind { get; private set; }
     float range = 2.4f;
     bool numberKeys;
+    bool skinShop;
+    HuntWeapon skinWeapon = HuntWeapon.Pistol;
     float discount;
     float bargainUntil;
     float nextBargain;
@@ -274,7 +276,7 @@ public class CastleShop : MonoBehaviour
                 float distance = Vector3.Distance(PlayerView.Position(), transform.position);
                 if (distance < 65f)
                     hud.ShowWorldTag(transform.position + Vector3.up * 2.8f, "GUN SHOP  " + Mathf.RoundToInt(distance) + " m",
-                                     "Weapons  ·  Ammo  ·  Lighters");
+                                     "Gun skins  ·  Ammo  ·  Lighters");
             }
             return;
         }
@@ -305,7 +307,7 @@ public class CastleShop : MonoBehaviour
                 Vector3 label = Camera.main.WorldToScreenPoint(transform.position + Vector3.up * 2.8f);
                 if (distance < 65f && label.z > 0f)
                     GUI.Box(new Rect(label.x - 110f, Screen.height - label.y - 22f, 220f, 44f),
-                        "GUN SHOP  " + Mathf.RoundToInt(distance) + " m\nWeapons / Ammo / Lighters");
+                        "GUN SHOP  " + Mathf.RoundToInt(distance) + " m\nSkins / Ammo / Lighters");
             }
             return;
         }
@@ -359,6 +361,20 @@ public class CastleShop : MonoBehaviour
 
     void TickGuns()
     {
+        if (Keyboard.current.digit9Key.wasPressedThisFrame)
+        {
+            skinShop = !skinShop;
+            return;
+        }
+        if (skinShop)
+        {
+            if (Keyboard.current.digit0Key.wasPressedThisFrame) NextSkinWeapon();
+            else if (Keyboard.current.digit1Key.wasPressedThisFrame) BuySkin(0);
+            else if (Keyboard.current.digit2Key.wasPressedThisFrame) BuySkin(1);
+            else if (Keyboard.current.digit3Key.wasPressedThisFrame) BuySkin(2);
+            else if (Keyboard.current.digit4Key.wasPressedThisFrame) BuySkin(3);
+            return;
+        }
         if (Keyboard.current.digit1Key.wasPressedThisFrame)
             GunOrAmmo(0);
         else if (Keyboard.current.digit2Key.wasPressedThisFrame)
@@ -502,12 +518,11 @@ public class CastleShop : MonoBehaviour
             + PlayerShotgun.Instance.CartridgeCount(weapon) + " carried.");
     }
 
-    // The gun rack: key, weapon, gun price, ammo per box, ammo price (prices in coins).
+    // Guns are rank rewards; the rack sells ammunition only.
     struct GunOffer
     {
         public string key;
         public HuntWeapon weapon;
-        public int gunCoins;
         public int box;
         public int boxCoins;
         public string ammo;
@@ -515,11 +530,11 @@ public class CastleShop : MonoBehaviour
 
     static readonly GunOffer[] Rack =
     {
-        new GunOffer { key = "1", weapon = HuntWeapon.Shotgun, gunCoins = 45, box = 8, boxCoins = 6, ammo = "shotgun shells" },
-        new GunOffer { key = "2", weapon = HuntWeapon.SMG, gunCoins = 70, box = 30, boxCoins = 8, ammo = "SMG rounds" },
-        new GunOffer { key = "3", weapon = HuntWeapon.Rifle, gunCoins = 110, box = 30, boxCoins = 10, ammo = "rifle rounds" },
-        new GunOffer { key = "4", weapon = HuntWeapon.Sniper, gunCoins = 160, box = 5, boxCoins = 9, ammo = "sniper rounds" },
-        new GunOffer { key = "7", weapon = HuntWeapon.Pistol, gunCoins = 20, box = 12, boxCoins = 3, ammo = "pistol rounds" },
+        new GunOffer { key = "1", weapon = HuntWeapon.Shotgun, box = 8, boxCoins = 6, ammo = "shotgun shells" },
+        new GunOffer { key = "2", weapon = HuntWeapon.SMG, box = 30, boxCoins = 8, ammo = "SMG rounds" },
+        new GunOffer { key = "3", weapon = HuntWeapon.Rifle, box = 30, boxCoins = 10, ammo = "rifle rounds" },
+        new GunOffer { key = "4", weapon = HuntWeapon.Sniper, box = 5, boxCoins = 9, ammo = "sniper rounds" },
+        new GunOffer { key = "7", weapon = HuntWeapon.Pistol, box = 12, boxCoins = 3, ammo = "pistol rounds" },
     };
 
     void GunOrAmmo(int index)
@@ -528,7 +543,11 @@ public class CastleShop : MonoBehaviour
         if (inv == null || PlayerShotgun.Instance == null)
             return;
         GunOffer o = Rack[index];
-        string name = WeaponVisual.DisplayName(o.weapon).ToLowerInvariant();
+        if (!HuntProgress.WeaponUnlocked(o.weapon))
+        {
+            Notice(HuntProgress.WeaponRequirement(o.weapon));
+            return;
+        }
         if (inv.OwnsWeapon(o.weapon))
         {
             if (PlayerShotgun.Instance.CartridgeCount(o.weapon) + o.box > 240)
@@ -543,15 +562,9 @@ public class CastleShop : MonoBehaviour
             return;
         }
 
-        if (!PayCoins(o.gunCoins))
-            return;
-        if (!inv.TryAddWeapon(o.weapon))
-        {
-            inv.RefundCoins(lastPaid);
-            Notice("Make room in the bag.");
-            return;
-        }
-        Notice("Bought the " + name + ". Find it in your bag (Tab) or press its hotbar number.");
+        inv.GrantRankWeapons();
+        Notice(inv.OwnsWeapon(o.weapon) ? "Free rank reward added to your bag."
+            : "This gun is a free rank reward. Make room in your bag to collect it.");
     }
 
     bool PayCoins(int coins)
@@ -573,9 +586,40 @@ public class CastleShop : MonoBehaviour
     static string RackLine(GunOffer o)
     {
         Inventory inv = Inventory.Instance;
-        if (inv != null && inv.OwnsWeapon(o.weapon))
+        if (HuntProgress.WeaponUnlocked(o.weapon) && inv != null && inv.OwnsWeapon(o.weapon))
             return o.key + "  " + o.box + " " + o.ammo + "   " + o.boxCoins + " coins";
-        return o.key + "  " + WeaponVisual.DisplayName(o.weapon) + "   " + o.gunCoins + " coins";
+        if (!HuntProgress.WeaponUnlocked(o.weapon))
+            return o.key + "  " + WeaponVisual.DisplayName(o.weapon) + "   LOCKED - RANK " + (HuntProgress.WeaponRank(o.weapon) + 1);
+        return o.key + "  " + WeaponVisual.DisplayName(o.weapon) + "   FREE RANK REWARD - BAG FULL";
+    }
+
+    void NextSkinWeapon()
+    {
+        Inventory inv = Inventory.Instance;
+        for (int i = 1; i < WeaponVisual.Count; i++)
+        {
+            HuntWeapon next = (HuntWeapon)(((int)skinWeapon - 1 + i) % (WeaponVisual.Count - 1) + 1);
+            if (inv != null && inv.OwnsWeapon(next) && HuntProgress.WeaponUnlocked(next))
+            {
+                skinWeapon = next;
+                return;
+            }
+        }
+    }
+
+    void BuySkin(int skin)
+    {
+        Inventory inv = Inventory.Instance;
+        if (inv != null) inv.BuyOrEquipSkin(skinWeapon, skin, skin == 0 ? 0 : Price(GunSkins.Price(skin)));
+    }
+
+    string SkinLine(int skin)
+    {
+        Inventory inv = Inventory.Instance;
+        string price = inv != null && inv.OwnsSkin(skinWeapon, skin)
+            ? (inv.SelectedSkin(skinWeapon) == skin ? "EQUIPPED" : "OWNED - EQUIP FREE")
+            : Price(GunSkins.Price(skin)) + " coins";
+        return (skin + 1) + "  " + GunSkins.Name(skin) + " skin   " + price;
     }
 
     void BuyHuntingGear()
@@ -588,30 +632,6 @@ public class CastleShop : MonoBehaviour
             BuyPickaxe();
         else
             BuyBait();
-    }
-
-    void BuyGun(HuntWeapon weapon, int cost, string label)
-    {
-        Inventory inv = Inventory.Instance;
-        if (inv == null)
-            return;
-        if (inv.OwnsWeapon(weapon))
-        {
-            Notice("You already have that " + label + ".");
-            return;
-        }
-
-        if (!Pay(cost))
-            return;
-
-        if (!inv.TryAddWeapon(weapon))
-        {
-            inv.RefundCoins(lastPaid);
-            Notice("Make room in the bag.");
-            return;
-        }
-
-        Notice("Bought a " + label + ".");
     }
 
     void BuyPickaxe()
@@ -842,6 +862,9 @@ public class CastleShop : MonoBehaviour
     {
         if (ShopKind == Kind.Guns)
         {
+            if (skinShop)
+                return new[] { "0  Gun: " + WeaponVisual.DisplayName(skinWeapon) + " (next gun)",
+                    SkinLine(0), SkinLine(1), SkinLine(2), SkinLine(3), "9  Back to ammo and supplies" };
             return new[]
             {
                 RackLine(Rack[0]),
@@ -851,7 +874,8 @@ public class CastleShop : MonoBehaviour
                 RackLine(Rack[4]),
                 "8  " + GearLine(),
                 LighterBuyLine(),
-                LighterRentLine()
+                LighterRentLine(),
+                "9  Browse gun skins"
             };
         }
 

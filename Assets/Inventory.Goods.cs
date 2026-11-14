@@ -166,7 +166,7 @@ public partial class Inventory
         RemoveObject(carcass.gameObject);
         string load = CarryKg > HeavyLoadKg ? " Heavy load: no sprinting." : "";
         ShowNotice("Carrying the " + g.Title.ToLowerInvariant() + " on your back (" + Mathf.RoundToInt(g.weightKg)
-                   + " kg). U drops it. The tanner in the castle market will skin it." + load);
+                   + " kg). E puts it down. The tanner in the castle market will skin it." + load);
     }
 
     public bool ContainsCarcass(HuntGoods goods)

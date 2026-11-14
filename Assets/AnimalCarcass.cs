@@ -61,8 +61,20 @@ public class AnimalCarcass : MonoBehaviour
     /// <summary>Called by the inventory every frame while the bag is closed.</summary>
     public static void Tick(Inventory inv)
     {
-        Focus = Nearest();
         Keyboard kb = Keyboard.current;
+        // E has one carcass action per press: put down the current load before taking another.
+        // Clear the pickup hold so the drop press cannot also pick up a nearby carcass.
+        if (CarcassBackCarry.IsCarrying || CarcassBackCarry.IsHandling)
+        {
+            Focus = null;
+            holding = false;
+            holdTarget = null;
+            holdTime = 0f;
+            if (kb != null && kb.eKey.wasPressedThisFrame)
+                CarcassBackCarry.TryPutDown(inv);
+            return;
+        }
+        Focus = Nearest();
         if (Focus == null || kb == null || inv == null)
         {
             holding = false;

@@ -19,7 +19,7 @@ public class PlayerShotgun : MonoBehaviour
     public static float AimFovScale => Instance != null && Instance.active != null && Instance.equipped
         ? Instance.active.zoom
         : 1f;
-    public static bool ScopeIsUp => Instance != null && Instance.equipped && Instance.active != null
+    public static bool ScopeIsUp => Instance != null && Instance.equipped && !Instance.reloading && Instance.active != null
         && Instance.active.scope && Instance.mount > 0.72f;
 
     public static bool IsReloading => Instance != null && Instance.equipped && Instance.reloading;
@@ -40,7 +40,10 @@ public class PlayerShotgun : MonoBehaviour
 
     float ReloadSeconds()
     {
-        return active == null || active.id == HuntWeapon.Shotgun ? 2.15f : 0.7f;
+        if (active == null || active.id == HuntWeapon.Shotgun) return 2.15f;
+        if (active.id == HuntWeapon.Pistol) return 1.45f;
+        if (active.id == HuntWeapon.Sniper) return 2.6f;
+        return active.id == HuntWeapon.SMG ? 1.8f : 2.1f;
     }
 
     public int pellets = 24;
@@ -97,6 +100,8 @@ public class PlayerShotgun : MonoBehaviour
     float gunTo = 1f;
     float gunDur = 0.45f;
     bool gunHolster;
+    bool hasPendingDraw;
+    HuntWeapon pendingDraw;
     bool axeWanted;
     float axeClock = -1f;
     float axeFrom;
@@ -135,7 +140,7 @@ public class PlayerShotgun : MonoBehaviour
         if (Inventory.Instance != null)
             Inventory.Instance.ApplySelectedWeapon(false);
         else
-            Equip(HuntWeapon.Shotgun);
+            Equip(HuntWeapon.Pistol);
     }
 
     void OnDestroy()
@@ -148,13 +153,14 @@ public class PlayerShotgun : MonoBehaviour
 
     void Update()
     {
-        bool canAim = equipped
+        bool canAim = equipped && !gunHolster
             && !CampfireBuild.Busy
             && !Inventory.IsOpen
             && !BirdChallenge.Active
             && !WoodBuilder.IsBuilding
             && (PlayerHealth.Instance == null || !PlayerHealth.Instance.isDead);
-        aimHeld = canAim && Mouse.current != null && Mouse.current.rightButton.isPressed;
+        aimHeld = canAim && !reloading && !gunHolster && GunPresent > 0.9f
+            && Mouse.current != null && Mouse.current.rightButton.isPressed;
 
         // R tops the gun up early instead of waiting for it to run dry.
         if (canAim && !reloading && GunPresent > 0.9f && active != null && shells < active.magSize
@@ -183,7 +189,7 @@ public class PlayerShotgun : MonoBehaviour
         }
 
         bool firstPerson = CameraViewSwitcher.Instance != null && CameraViewSwitcher.Instance.IsFirstPerson;
-        bool scoped = firstPerson && active != null && active.scope && mount > 0.72f;
+        bool scoped = firstPerson && !reloading && active != null && active.scope && mount > 0.72f;
         SetGunVisible(viewGun, firstPerson && !scoped);
         SetGunVisible(handGun, !firstPerson);
 
@@ -194,6 +200,15 @@ public class PlayerShotgun : MonoBehaviour
 
         DriveBreak(viewGun);
         DriveBreak(handGun);
+        DriveReload(viewGun);
+        DriveReload(handGun);
+    }
+
+    void DriveReload(Transform gun)
+    {
+        if (gun == null) return;
+        GunReloadVisual visual = gun.GetComponent<GunReloadVisual>();
+        if (visual != null) visual.Pose(reloading, reloading ? Reload01 : 0f);
     }
 
     void DriveBreak(Transform gun)
@@ -232,7 +247,9 @@ public class PlayerShotgun : MonoBehaviour
         fireTime += dt;
         float window = KickWindow();
         float rise = 0.032f;
-        if (fireTime < rise)
+        if (reloading)
+            recoil = Mathf.MoveTowards(recoil, 0f, dt * 6f);
+        else if (fireTime < rise)
             recoil = Mathf.SmoothStep(0f, 1f, fireTime / rise);
         else
         {
@@ -260,7 +277,7 @@ public class PlayerShotgun : MonoBehaviour
             else
                 breakOpen = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(shutStart, done, fireTime));
 
-            mount = fireTime < done ? 1f : 0f;
+            mount = Mathf.MoveTowards(mount, 0.25f, dt * 5f);
             if (fireTime >= done)
                 FinishReload();
             return;
@@ -423,7 +440,7 @@ public class PlayerShotgun : MonoBehaviour
         rounds = 0;
         mag = 0;
         gunRange = 0f;
-        if (built == null || weapon == HuntWeapon.None)
+        if (built == null || !HuntProgress.WeaponUnlocked(weapon))
             return false;
 
         int index = (int)weapon;
@@ -446,9 +463,26 @@ public class PlayerShotgun : MonoBehaviour
     {
         if (built == null)
             return;
+        if (weapon != HuntWeapon.None &&
+            ((int)weapon < 0 || (int)weapon >= built.Length || built[(int)weapon] == null
+            || !HuntProgress.WeaponUnlocked(weapon)
+            || (Inventory.Instance != null && !Inventory.Instance.OwnsWeapon(weapon))))
+            return;
 
         if (active != null)
             active.ammo = shells;
+
+        if (equipped && active != null && weapon != HuntWeapon.None && (weapon != active.id || gunHolster))
+        {
+            pendingDraw = weapon;
+            hasPendingDraw = true;
+            aimHeld = false;
+            reloading = false;
+            fireTime = -1f;
+            BeginGunHolster();
+            return;
+        }
+        if (weapon == HuntWeapon.None) hasPendingDraw = false;
 
         bool axe = weapon == HuntWeapon.None && Inventory.AxeInHand;
         bool sameGun = weapon != HuntWeapon.None && active != null && active.id == weapon && equipped && !gunHolster;
@@ -522,6 +556,9 @@ public class PlayerShotgun : MonoBehaviour
 
     void FinishHolster()
     {
+        bool drawNext = hasPendingDraw;
+        HuntWeapon next = pendingDraw;
+        hasPendingDraw = false;
         gunHolster = false;
         active = null;
         equipped = false;
@@ -530,6 +567,7 @@ public class PlayerShotgun : MonoBehaviour
         leftGrip = null;
         GunPresent = 0f;
         SetAllHidden();
+        if (drawNext) Equip(next);
     }
 
     void SetAxe(bool want)
@@ -642,7 +680,7 @@ public class PlayerShotgun : MonoBehaviour
             return;
         if (GunPresent < 0.84f)
             return;
-        if (!equipped || reloading)
+        if (!equipped || reloading || gunHolster)
             return;
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.isDead)
             return;
@@ -690,12 +728,14 @@ public class PlayerShotgun : MonoBehaviour
 
     void StartReload()
     {
+        if (reloading || active == null || active.reserve <= 0 || shells >= active.magSize) return;
         if (!reloading)
             GameAudio.Reload(active != null ? active.id : HuntWeapon.Shotgun);
+        recoil = fireTime >= 0f && fireTime < 0.06f ? 1f : 0f;
         reloading = true;
-        if (fireTime < 0f)
-            fireTime = 0f;
-        mount = 1f;
+        fireTime = 0f;
+        aimHeld = false;
+        mount = 0f;
     }
 
     void FirePellets()
@@ -752,6 +792,12 @@ public class PlayerShotgun : MonoBehaviour
         pos.y += plant * 0.025f;
         rot = Quaternion.Slerp(hipRot * rot, rot, level);
         rot = Quaternion.Euler(-8f * plant, 0f, 4f * plant) * rot;
+        if (reloading)
+        {
+            float tilt = ReloadPose01(Reload01);
+            pos += new Vector3(-0.07f, -0.10f, -0.06f) * tilt;
+            rot *= Quaternion.Euler(-12f * tilt, -20f * tilt, -32f * tilt);
+        }
         viewGun.localPosition = pos;
         viewGun.localRotation = rot;
         WeaponHold.SetWorldScale(viewGun, (active != null ? active.scale : 1f) * ViewGunScale);
@@ -805,6 +851,8 @@ public class PlayerShotgun : MonoBehaviour
         Vector3 rolledUp = Vector3.Cross(barrel, side).normalized;
         Vector3 gunUp = Vector3.Slerp(up, rolledUp, 0.2f + 0.8f * mount);
         Quaternion rot = Quaternion.LookRotation(barrel, gunUp);
+        float reloadPose = reloading ? ReloadPose01(Reload01) : 0f;
+        rot *= Quaternion.Euler(-12f * reloadPose, -15f * reloadPose, -30f * reloadPose);
 
         Transform shoulder = hold.ShoulderAnchor();
         Vector3 pocket = shoulder.position + right * 0.07f - up * 0.03f;
@@ -824,8 +872,14 @@ public class PlayerShotgun : MonoBehaviour
         Vector3 leftHandTarget = leftGrip != null
             ? leftGrip.position
             : handGun.TransformPoint(new Vector3(0f, 0.03f, 0.28f));
+        if (reloading && active != null && active.id != HuntWeapon.Shotgun)
+            leftHandTarget = handGun.TransformPoint(new Vector3(0f, -0.09f - 0.22f * GunReloadVisual.Removal01(Reload01),
+                active.id == HuntWeapon.Pistol ? -0.025f : 0.12f));
         hold.HandsOnWeapon(rightHandTarget, leftHandTarget, barrel);
     }
+
+    public static float ReloadPose01(float progress) => Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.18f, progress))
+        * (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.82f, 1f, progress)));
 
     void BuildGuns()
     {
@@ -881,6 +935,8 @@ public class PlayerShotgun : MonoBehaviour
 
         if (id == HuntWeapon.Shotgun)
         {
+            ShotgunBreak.Rig(rig.hand);
+            if (rig.view != null) ShotgunBreak.Rig(rig.view);
             ShotgunBreak handBreak = rig.hand.GetComponent<ShotgunBreak>();
             if (handBreak != null)
                 handBreak.GrabForeend(rig.leftGrip);
@@ -893,6 +949,26 @@ public class PlayerShotgun : MonoBehaviour
         }
 
         built[(int)id] = rig;
+        rig.hand.gameObject.AddComponent<GunReloadVisual>().Build(id);
+        if (rig.view != null) rig.view.gameObject.AddComponent<GunReloadVisual>().Build(id);
+        RefreshSkin(id);
+    }
+
+    public void RefreshSkin(HuntWeapon weapon)
+    {
+        Rig rig = RigFor(weapon);
+        if (rig == null) return;
+        int skin = Inventory.Instance != null ? Inventory.Instance.SelectedSkin(weapon) : 0;
+        ApplySkin(rig.hand, skin);
+        ApplySkin(rig.view, skin);
+    }
+
+    static void ApplySkin(Transform model, int skin)
+    {
+        if (model == null) return;
+        GunSkinVisual visual = model.GetComponent<GunSkinVisual>();
+        if (visual == null) visual = model.gameObject.AddComponent<GunSkinVisual>();
+        visual.Apply(skin);
     }
 
     void SetAllHidden()
@@ -920,7 +996,7 @@ public class PlayerShotgun : MonoBehaviour
     void OnGUI()
     {
         bool firstPerson = CameraViewSwitcher.Instance == null || CameraViewSwitcher.Instance.IsFirstPerson;
-        if (!equipped || !firstPerson || active == null || !active.scope || mount < 0.25f || Inventory.IsOpen)
+        if (!equipped || reloading || gunHolster || !firstPerson || active == null || !active.scope || mount < 0.25f || Inventory.IsOpen)
             return;
 
         EnsureScopeMask();
