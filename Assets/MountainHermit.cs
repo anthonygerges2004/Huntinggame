@@ -173,7 +173,7 @@ public class MountainHermit : MonoBehaviour
         if (villager.body != null)
         {
             villager.body.localScale = Vector3.one * 0.9f;
-            villager.body.localRotation = Quaternion.Euler(14f, 0f, 0f);
+            villager.body.localRotation = Quaternion.Euler(7f, 0f, 0f); // an old man's stoop
         }
 
         if (villager.head != null)
@@ -205,23 +205,43 @@ public class MountainHermit : MonoBehaviour
 
     void BuildTrailMarker(Vector3 ground)
     {
+        // The marker post stands beside his camp (it used to go straight through him), and the
+        // smoke rises from a small fire in front of him instead of from his head.
+        Vector3 side = transform.right * 2.6f - transform.forward * 1.4f;
+        Vector3 postBase = ground + side;
+        postBase.y = SampleHeight(postBase);
+
         GameObject pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         pole.name = "HermitTrailMarker";
         Object.Destroy(pole.GetComponent<Collider>());
-        pole.transform.SetParent(transform, false);
-        pole.transform.position = ground + Vector3.up * 5f;
-        pole.transform.localScale = new Vector3(0.35f, 5f, 0.35f);
+        pole.transform.SetParent(transform, true);
+        pole.transform.position = postBase + Vector3.up * 2.4f;
+        pole.transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 3f);
+        pole.transform.localScale = new Vector3(0.16f, 2.4f, 0.16f);
+        Material wood = Mat("HermitPostWood", new Color(0.33f, 0.24f, 0.15f));
+        pole.GetComponent<Renderer>().sharedMaterial = wood;
+
+        // Cross-arm with a hanging lantern, the light that guides you up the mountain.
+        GameObject arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Object.Destroy(arm.GetComponent<Collider>());
+        arm.name = "HermitPostArm";
+        arm.transform.SetParent(transform, true);
+        arm.transform.position = postBase + Vector3.up * 4.55f + transform.right * 0.3f;
+        arm.transform.rotation = pole.transform.rotation;
+        arm.transform.localScale = new Vector3(0.75f, 0.1f, 0.1f);
+        arm.GetComponent<Renderer>().sharedMaterial = wood;
 
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        mat.color = new Color(0.92f, 0.72f, 0.22f);
-        pole.GetComponent<Renderer>().sharedMaterial = mat;
+        mat.color = new Color(1f, 0.78f, 0.35f);
+        mat.EnableKeyword("_EMISSION");
+        mat.SetColor("_EmissionColor", new Color(1f, 0.7f, 0.3f) * 2.2f);
 
         GameObject top = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         Object.Destroy(top.GetComponent<Collider>());
         top.name = "HermitMarkerLight";
-        top.transform.SetParent(pole.transform, false);
-        top.transform.localPosition = new Vector3(0f, 1.05f, 0f);
-        top.transform.localScale = Vector3.one * 0.55f;
+        top.transform.SetParent(transform, true);
+        top.transform.position = postBase + Vector3.up * 4.2f + transform.right * 0.6f;
+        top.transform.localScale = new Vector3(0.22f, 0.3f, 0.22f);
         top.GetComponent<Renderer>().sharedMaterial = mat;
 
         Light glow = top.AddComponent<Light>();
@@ -232,7 +252,10 @@ public class MountainHermit : MonoBehaviour
 
         GameObject smokeRoot = new GameObject("HermitSmoke");
         smokeRoot.transform.SetParent(transform, false);
-        smokeRoot.transform.position = ground + Vector3.up * 2.2f;
+        Vector3 fire = ground + transform.forward * 1.8f + transform.right * 0.6f;
+        fire.y = SampleHeight(fire);
+        BuildFirePit(fire);
+        smokeRoot.transform.position = fire + Vector3.up * 0.35f;
         ParticleSystem ps = smokeRoot.AddComponent<ParticleSystem>();
         var main = ps.main;
         main.startLifetime = 4f;
@@ -259,6 +282,43 @@ public class MountainHermit : MonoBehaviour
             new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(0.55f, 0.15f), new GradientAlphaKey(0f, 1f) });
         colour.color = fade;
         ps.GetComponent<ParticleSystemRenderer>().sharedMaterial = SmokeMaterial();
+    }
+
+    // A ring of stones with a couple of logs and a low flickering glow.
+    void BuildFirePit(Vector3 at)
+    {
+        Material stone = Mat("HermitStone", new Color(0.42f, 0.41f, 0.39f));
+        Material log = Mat("HermitLog", new Color(0.24f, 0.16f, 0.1f));
+        for (int i = 0; i < 7; i++)
+        {
+            float a = i / 7f * Mathf.PI * 2f;
+            GameObject s = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            Object.Destroy(s.GetComponent<Collider>());
+            s.name = "FireStone";
+            s.transform.SetParent(transform, true);
+            s.transform.position = at + new Vector3(Mathf.Cos(a), 0.05f, Mathf.Sin(a)) * 0.45f;
+            s.transform.localScale = new Vector3(0.26f, 0.16f, 0.22f);
+            s.GetComponent<Renderer>().sharedMaterial = stone;
+        }
+        for (int i = 0; i < 2; i++)
+        {
+            GameObject l = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            Object.Destroy(l.GetComponent<Collider>());
+            l.name = "FireLog";
+            l.transform.SetParent(transform, true);
+            l.transform.position = at + Vector3.up * 0.08f;
+            l.transform.rotation = Quaternion.Euler(0f, 40f + i * 90f, 90f);
+            l.transform.localScale = new Vector3(0.09f, 0.32f, 0.09f);
+            l.GetComponent<Renderer>().sharedMaterial = log;
+        }
+        GameObject glowGo = new GameObject("HermitFireGlow");
+        glowGo.transform.SetParent(transform, true);
+        glowGo.transform.position = at + Vector3.up * 0.4f;
+        Light fireLight = glowGo.AddComponent<Light>();
+        fireLight.type = LightType.Point;
+        fireLight.range = 7f;
+        fireLight.intensity = 2.2f;
+        fireLight.color = new Color(1f, 0.55f, 0.22f);
     }
 
     static Material smokeMaterial;
