@@ -36,6 +36,7 @@ public class AnimalGrounding : MonoBehaviour
     bool smoothed;
     float shift;
     bool measured;
+    float hoverTime;
     Renderer[] bodies;
 
     public static void Ensure(Animal animal)
@@ -190,17 +191,19 @@ public class AnimalGrounding : MonoBehaviour
         // Imported root/pivot offsets can exceed 2.5 m. A lower clamp permanently
         // leaves those models in the air even when the measured ground gap is known.
         float target = Mathf.Min(shift - (lowestGap - SoleLift), MaxShift);
-        if (!measured || lowestGap > 0.35f)
+        // A gallop lifts all four hooves for ~0.15 s; snapping on that made running deer stutter.
+        // Only a gap that lasts (a real hover, or a steep descent) is pulled down quickly, and
+        // even then smoothly. The very first look snaps so an animal never starts in the air.
+        hoverTime = lowestGap > 0.35f ? hoverTime + Time.deltaTime : 0f;
+        if (!measured)
         {
-            // Correct large visible hover gaps immediately, including steep descents.
-            // Small gaps retain smoothing so a normal gallop does not bob the body.
             shift = target;
             measured = true;
         }
         else
         {
-            // Slow follow so a gallop, when all four hooves leave the ground, does not bob the body.
-            shift = Mathf.Lerp(shift, target, 1f - Mathf.Exp(-FollowRate * Time.deltaTime));
+            float rate = hoverTime > 0.25f ? 18f : FollowRate;
+            shift = Mathf.Lerp(shift, target, 1f - Mathf.Exp(-rate * Time.deltaTime));
         }
 
         PlaceModel();

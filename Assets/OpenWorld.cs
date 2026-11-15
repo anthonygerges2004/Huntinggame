@@ -10,16 +10,16 @@ using UnityEngine.Rendering;
 [DefaultExecutionOrder(-200)]
 public class OpenWorld : MonoBehaviour
 {
-    const float ShowDistance = 145f;
-    const float HideDistance = 200f;
+    const float ShowDistance = 260f;
+    const float HideDistance = 330f;
     const float CampClearing = 75f;
     const float DenClearance = 28f;
     const float RespawnSeconds = 90f;
 
-    const int MaxDeer = 7;
-    const int MaxBirds = 6;
-    const int MaxLarge = 2;
-    const int MaxGame = 9; // pigs, boar, foxes, rabbits and wolves were too rare to ever run into
+    const int MaxDeer = 12;
+    const int MaxBirds = 10;
+    const int MaxLarge = 3;
+    const int MaxGame = 14; // pigs, boar, foxes, rabbits and wolves were too rare to ever run into
 
     static readonly FlyerKind[] WoodBirds =
     {
