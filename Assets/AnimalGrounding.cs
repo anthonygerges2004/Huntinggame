@@ -31,6 +31,7 @@ public class AnimalGrounding : MonoBehaviour
     bool smoothed;
     float shift;
     bool measured;
+    float hoverTime;
     Renderer[] bodies;
     Renderer[] carcassBodies;
     Mesh carcassPose;
@@ -201,17 +202,18 @@ public class AnimalGrounding : MonoBehaviour
         // Animation poses can move the feet in either direction. Correct the full
         // measured gap; capping upward correction leaves low poses underground.
         float target = shift - (lowestGap - SoleLift);
-        if (!measured || Mathf.Abs(lowestGap - SoleLift) > 0.35f)
+        // Let brief airborne gallop poses blend smoothly. Sustained hover uses
+        // the faster follow rate below; large errors and penetration repair at once.
+        hoverTime = lowestGap > 0.35f ? hoverTime + Time.deltaTime : 0f;
+        if (!measured || Mathf.Abs(lowestGap - SoleLift) > 1f || lowestGap < -0.35f)
         {
-            // Correct large visible hover gaps immediately, including steep descents.
-            // Small gaps retain smoothing so a normal gallop does not bob the body.
             shift = target;
             measured = true;
         }
         else
         {
-            // Slow follow so a gallop, when all four hooves leave the ground, does not bob the body.
-            shift = Mathf.Lerp(shift, target, 1f - Mathf.Exp(-FollowRate * Time.deltaTime));
+            float rate = hoverTime > 0.25f ? 18f : FollowRate;
+            shift = Mathf.Lerp(shift, target, 1f - Mathf.Exp(-rate * Time.deltaTime));
         }
 
         PlaceModel();

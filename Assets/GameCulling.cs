@@ -9,7 +9,7 @@ public static class GameCulling
     // Billboards closer than ~500 m read as blurry flat cards, which made the whole
     // forest look low-resolution. Keep real 3D trees out to a sensible range.
     public const float TerrainTreeDistance = 1500f;
-    public const float TerrainTreeBillboard = 550f;
+    public const float TerrainTreeBillboard = 220f;
     public const float TerrainDetailDistance = 110f;
     public const float TerrainDetailDensity = 0.8f;
     // Lower = the drawn ground follows the true height more closely at a distance, so animals on
@@ -37,6 +37,10 @@ public static class GameCulling
         terrain.detailObjectDensity = TerrainDetailDensity;
         terrain.heightmapPixelError = TerrainPixelError;
         terrain.basemapDistance = TerrainBasemapDistance;
+        // The forests are dense: only the nearest trees get full 3D meshes, the rest are
+        // billboards, with a soft cross-fade so the switch is not visible.
+        terrain.treeMaximumFullLODCount = 150;
+        terrain.treeCrossFadeLength = 30f;
         // Heightmap frustum culling cuts holes in the ground mesh.
         // Trees and grass use the distances above, and the camera frustum
         // culls everything else. Distances stay fixed so nothing pops while walking.
