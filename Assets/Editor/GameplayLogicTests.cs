@@ -23,8 +23,8 @@ public class GameplayLogicTests
             Transform hoof = new GameObject("toe.L").transform;
             hoof.SetParent(model, false);
             AnimalGrounding grounding = walker.AddComponent<AnimalGrounding>();
-            grounding.SendMessage("Start");
-            grounding.SendMessage("LateUpdate");
+            InvokeLifecycle(grounding, "Start");
+            InvokeLifecycle(grounding, "LateUpdate");
             Assert.AreEqual(4f, walker.transform.position.y, 0.01f);
             Assert.AreEqual(4.03f, hoof.position.y, 0.04f,
                 "A model offset above 2.5 metres must not remain permanently airborne.");
@@ -60,11 +60,11 @@ public class GameplayLogicTests
             Transform hoof = new GameObject("toe.L").transform;
             hoof.SetParent(model, false);
             AnimalGrounding grounding = walker.AddComponent<AnimalGrounding>();
-            grounding.SendMessage("Start");
+            InvokeLifecycle(grounding, "Start");
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             typeof(AnimalGrounding).GetField("smoothed", flags).SetValue(grounding, true);
             typeof(AnimalGrounding).GetField("smoothRoot", flags).SetValue(grounding, new Vector3(100008f, 12.5f, 100016f));
-            grounding.SendMessage("LateUpdate");
+            InvokeLifecycle(grounding, "LateUpdate");
             Assert.IsTrue(WorldGround.TryGetGround(hoof.position, out Vector3 ground, out _));
             Assert.AreEqual(ground.y + 0.03f, hoof.position.y, 0.04f,
                 "The displayed hoof must follow terrain at its smoothed XZ, even beyond the close-detail range.");
@@ -87,11 +87,153 @@ public class GameplayLogicTests
             walker.AddComponent<Animal>().kind = AnimalKind.Deer;
             BirdFlight flight = walker.AddComponent<BirdFlight>();
             Vector3 before = walker.transform.position;
-            flight.SendMessage("Start");
+            InvokeLifecycle(flight, "Start");
             Assert.IsFalse(flight.enabled);
             Assert.AreEqual(before, walker.transform.position);
         }
         finally { Object.DestroyImmediate(walker); }
+    }
+
+    static void InvokeLifecycle(MonoBehaviour component, string method)
+    {
+        // SendMessage skips inactive objects; these fixtures deliberately avoid
+        // activating Animal.Start and its unrelated scene/gameplay initialization.
+        component.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(component, null);
+    }
+
+    [Test]
+    public void Grounding_ImportedPlacementOffsetCannotSeparateModelFromAnimal()
+    {
+        TerrainData data = new TerrainData { heightmapResolution = 33, size = new Vector3(32f, 20f, 32f) };
+        GameObject terrain = Terrain.CreateTerrainGameObject(data);
+        terrain.transform.position = new Vector3(300000f, 4f, 300000f);
+        GameObject walker = new GameObject("OffsetDeer");
+        walker.SetActive(false);
+        try
+        {
+            walker.AddComponent<Animal>().kind = AnimalKind.Deer;
+            walker.transform.SetPositionAndRotation(new Vector3(300016f, 4f, 300016f), Quaternion.Euler(0f, 90f, 0f));
+            Transform container = new GameObject("ImportedVisual").transform;
+            container.SetParent(walker.transform, false);
+            container.localPosition = new Vector3(20f, 7f, -13f);
+            Transform rig = new GameObject("Rig").transform;
+            rig.SetParent(container, false);
+            rig.gameObject.AddComponent<Animator>();
+            Transform hoof = new GameObject("toe.L").transform;
+            hoof.SetParent(rig, false);
+            AnimalGrounding grounding = walker.AddComponent<AnimalGrounding>();
+            InvokeLifecycle(grounding, "Start");
+            InvokeLifecycle(grounding, "LateUpdate");
+            Assert.AreEqual(walker.transform.position.x, hoof.position.x, 0.04f);
+            Assert.AreEqual(walker.transform.position.z, hoof.position.z, 0.04f);
+            Assert.AreEqual(4.03f, hoof.position.y, 0.04f);
+            walker.transform.rotation = Quaternion.Euler(0f, 270f, 0f);
+            InvokeLifecycle(grounding, "LateUpdate");
+            Assert.AreEqual(walker.transform.position.x, hoof.position.x, 0.04f);
+            Assert.AreEqual(walker.transform.position.z, hoof.position.z, 0.04f);
+        }
+        finally { Object.DestroyImmediate(walker); Object.DestroyImmediate(terrain); Object.DestroyImmediate(data); }
+    }
+
+    [Test]
+    public void Grounding_RecoversImmediatelyFromLargeAnimationHeightChangesInBothDirections()
+    {
+        TerrainData data = new TerrainData { heightmapResolution = 33, size = new Vector3(32f, 20f, 32f) };
+        GameObject terrain = Terrain.CreateTerrainGameObject(data);
+        terrain.transform.position = new Vector3(400000f, 4f, 400000f);
+        GameObject walker = new GameObject("AnimatedDeer");
+        walker.SetActive(false);
+        try
+        {
+            walker.AddComponent<Animal>().kind = AnimalKind.Deer;
+            walker.transform.position = new Vector3(400016f, 4f, 400016f);
+            Transform model = new GameObject(AnimalVisuals.ModelChildName).transform;
+            model.SetParent(walker.transform, false);
+            Transform hoof = new GameObject("toe.L").transform;
+            hoof.SetParent(model, false);
+            AnimalGrounding grounding = walker.AddComponent<AnimalGrounding>();
+            InvokeLifecycle(grounding, "Start");
+            foreach (float height in new[] { 8f, -8f, 0f })
+            {
+                hoof.localPosition = Vector3.up * height;
+                InvokeLifecycle(grounding, "LateUpdate");
+                Assert.AreEqual(4.03f, hoof.position.y, 0.04f, "Failed to correct pose height " + height);
+            }
+        }
+        finally { Object.DestroyImmediate(walker); Object.DestroyImmediate(terrain); Object.DestroyImmediate(data); }
+    }
+
+    [Test]
+    public void Grounding_FallenBodySettlesOnSlopesWithoutKeepingStandingHeightOffset()
+    {
+        TerrainData data = new TerrainData { heightmapResolution = 33, size = new Vector3(32f, 8f, 32f) };
+        float[,] heights = new float[33, 33];
+        for (int z = 0; z < 33; z++)
+            for (int x = 0; x < 33; x++) heights[z, x] = x / 32f;
+        data.SetHeights(0, 0, heights);
+        GameObject terrain = Terrain.CreateTerrainGameObject(data);
+        terrain.transform.position = new Vector3(500000f, 4f, 500000f);
+        GameObject walker = new GameObject("FallenDeer");
+        walker.SetActive(false);
+        try
+        {
+            Animal animal = walker.AddComponent<Animal>();
+            animal.kind = AnimalKind.Deer;
+            walker.transform.position = new Vector3(500016f, 8.26f, 500016f);
+            Transform model = new GameObject(AnimalVisuals.ModelChildName).transform;
+            model.SetParent(walker.transform, false);
+            GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            body.transform.SetParent(model, false);
+            body.transform.localPosition = Vector3.up;
+            body.transform.localScale = new Vector3(0.6f, 1f, 2f);
+            AnimalGrounding grounding = walker.AddComponent<AnimalGrounding>();
+            InvokeLifecycle(grounding, "Start");
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            typeof(Animal).GetField("dead", flags).SetValue(animal, true);
+            Vector3 rootPosition = walker.transform.position;
+            foreach (float roll in new[] { 46f, -78f, 86f })
+            {
+                walker.transform.rotation = Quaternion.Euler(8f, 35f, roll);
+                typeof(AnimalGrounding).GetField("shift", flags).SetValue(grounding, 2.5f);
+                InvokeLifecycle(grounding, "LateUpdate");
+                float gap = float.PositiveInfinity;
+                foreach (Vector3 vertex in body.GetComponent<MeshFilter>().sharedMesh.vertices)
+                {
+                    Vector3 world = body.transform.TransformPoint(vertex);
+                    Assert.IsTrue(WorldGround.TryGetGround(world, out Vector3 ground, out _));
+                    gap = Mathf.Min(gap, world.y - ground.y);
+                }
+                Assert.AreEqual(0.03f, gap, 0.04f, "Carcass must touch the terrain after roll " + roll);
+                Assert.AreEqual(rootPosition, walker.transform.position, "Keep the death path and loot origin intact.");
+                Vector3 settled = model.position;
+                InvokeLifecycle(grounding, "LateUpdate");
+                Assert.AreEqual(settled, model.position, "A settled carcass must not drift.");
+            }
+        }
+        finally { Object.DestroyImmediate(walker); Object.DestroyImmediate(terrain); Object.DestroyImmediate(data); }
+    }
+
+    [Test]
+    public void Grounding_DistanceSuspendedAnimalStillFinishesItsDeathFall()
+    {
+        GameObject body = new GameObject("DistantShotDeer");
+        body.SetActive(false);
+        try
+        {
+            Animal animal = body.AddComponent<Animal>();
+            animal.SetSuspendSelfTick(true);
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            typeof(Animal).GetField("dead", flags).SetValue(animal, true);
+            typeof(Animal).GetField("dropping", flags).SetValue(animal, true);
+            typeof(Animal).GetField("dropTime", flags).SetValue(animal, 1f);
+            typeof(Animal).GetField("fallSeconds", flags).SetValue(animal, 1f);
+            typeof(Animal).GetField("standRotation", flags).SetValue(animal, Quaternion.identity);
+            InvokeLifecycle(animal, "Update");
+            Assert.IsFalse((bool)typeof(Animal).GetField("dropping", flags).GetValue(animal),
+                "Suspended AI must not freeze the death animation mid-fall.");
+        }
+        finally { Object.DestroyImmediate(body); }
     }
 
     GameObject root;
@@ -125,6 +267,35 @@ public class GameplayLogicTests
         Assert.AreEqual(0, log.amount);
         Assert.AreEqual(0, log.CollectAvailableWood(inventory));
         Assert.AreEqual(1600, inventory.wood);
+    }
+
+    [Test]
+    public void Cooking_LastRawMeatUsesTheSlotItFrees()
+    {
+        inventory.CollectItem("Wood", 24 * 64);
+        inventory.CollectItem("RawMeat", 1);
+        Assert.IsTrue(inventory.CookOneMeat());
+        Assert.AreEqual(0, inventory.meat);
+        Assert.AreEqual(1, inventory.cookedMeat);
+    }
+
+    [Test]
+    public void Cooking_FullBagPreservesRawMeatWhenNoSlotIsFreed()
+    {
+        inventory.CollectItem("Wood", 24 * 64);
+        inventory.CollectItem("RawMeat", 2);
+        Assert.IsFalse(inventory.CookOneMeat());
+        Assert.AreEqual(2, inventory.meat);
+        Assert.AreEqual(0, inventory.cookedMeat);
+    }
+
+    [Test]
+    public void MeatBait_DoesNotAttractHerbivores()
+    {
+        Assert.IsFalse(MeatBait.EatsMeatBait(AnimalKind.Deer));
+        Assert.IsFalse(MeatBait.EatsMeatBait(AnimalKind.Game, QuarryKind.Rabbit));
+        Assert.IsTrue(MeatBait.EatsMeatBait(AnimalKind.Game, QuarryKind.Wolf));
+        Assert.IsTrue(MeatBait.EatsMeatBait(AnimalKind.Game, QuarryKind.Boar));
     }
 
     [Test]

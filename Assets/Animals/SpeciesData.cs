@@ -8,6 +8,13 @@ namespace HuntingGame.Animals
     {
         public AnimalKind kind = AnimalKind.Deer;
         public bool prey = true;
+        public bool predator;
+        public float hungerPerSecond = 0.004f;
+        public float feedingPerSecond = 0.12f;
+        public float hideSeconds = 4f;
+        public float huntRadius = 35f;
+        public float territoryRadius = 65f;
+        public float catchRange = 1.6f;
         public AnimalSenseSettings senses;
         public float grazeSpeed = 2f;
         public float fleeSpeed = 8f;

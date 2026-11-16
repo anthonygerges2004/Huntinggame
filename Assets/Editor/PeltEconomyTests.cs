@@ -209,6 +209,17 @@ public class PeltEconomyTests
         Assert.AreEqual(now, later);
     }
 
+    [Test]
+    public void SkinningTwice_CannotCreateMeatOrImproveARoughPelt()
+    {
+        HuntGoods g = Deer(meat: 5);
+        Assert.Greater(g.Skin(Time.time, true, out _), 0);
+        int value = g.PeltValue(Time.time);
+        Assert.AreEqual(0, g.Skin(Time.time, false, out _));
+        Assert.IsTrue(g.rough);
+        Assert.AreEqual(value, g.PeltValue(Time.time));
+    }
+
     // ---------------------------------------------------------------- the full loop
 
     [Test]

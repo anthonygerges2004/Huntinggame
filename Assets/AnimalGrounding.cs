@@ -1,19 +1,15 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
-/// Keeps a walking animal's hooves on the terrain. The animal's own position is already
-/// snapped to the ground, but the imported model could sit above it once the animator
-/// rebinds with an avatar, which made living deer hover while they walked and ran.
-/// Runs after the animator and only shifts the model child, never the animal itself,
-/// so movement, AI and hit boxes are untouched.
+/// Keeps living animal roots and hooves on the terrain after animation.
+/// Fallen animals settle using their posed mesh while retaining the death path.
 /// </summary>
 [DefaultExecutionOrder(1000)]
 public class AnimalGrounding : MonoBehaviour
 {
-    const float MaxShift = 2.5f;
     const float SoleLift = 0.03f;
     const float FollowRate = 6f;
-    const float ActiveRange = 800f; // far deer on hillsides were left hovering beyond the old 260 m
 
     static readonly string[] FootNames =
     {
@@ -26,7 +22,6 @@ public class AnimalGrounding : MonoBehaviour
     };
 
     Animal animal;
-    DeerHunt.Health deerHealth;
     Transform model;
     Transform[] feet = System.Array.Empty<Transform>();
     Vector3 baseLocal;
@@ -37,6 +32,13 @@ public class AnimalGrounding : MonoBehaviour
     float shift;
     bool measured;
     Renderer[] bodies;
+    Renderer[] carcassBodies;
+    Mesh carcassPose;
+    readonly List<Vector3> carcassVertices = new List<Vector3>();
+    bool carcassGrounded;
+    bool carcassWasFalling;
+    Vector3 carcassPosition, carcassScale;
+    Quaternion carcassRotation;
 
     public static void Ensure(Animal animal)
     {
@@ -49,7 +51,6 @@ public class AnimalGrounding : MonoBehaviour
     void Start()
     {
         animal = GetComponent<Animal>();
-        deerHealth = GetComponent<DeerHunt.Health>();
         if (animal != null && animal.kind == AnimalKind.Bird)
         {
             enabled = false;
@@ -68,8 +69,13 @@ public class AnimalGrounding : MonoBehaviour
         // No named foot bones: fall back to the bottom of the drawn body.
         if (feet.Length == 0)
             bodies = model.GetComponentsInChildren<Renderer>(true);
+        carcassBodies = model.GetComponentsInChildren<Renderer>(true);
 
-        baseLocal = model.localPosition;
+        // Scene-authored prefab instances can retain placement offsets of tens of
+        // metres. The visual must share the animal's origin, or turning the animal
+        // swings its mesh away from the AI, hit collider and sampled ground.
+        baseLocal = Vector3.zero;
+        model.localPosition = baseLocal;
         baseLocalRot = model.localRotation;
     }
 
@@ -83,7 +89,12 @@ public class AnimalGrounding : MonoBehaviour
         // fighting the ground snap, so only a separate child model is handled.
         Animator animator = GetComponentInChildren<Animator>(true);
         if (animator != null && animator.transform != transform)
-            return animator.transform;
+        {
+            Transform visualRoot = animator.transform;
+            while (visualRoot.parent != transform)
+                visualRoot = visualRoot.parent;
+            return visualRoot;
+        }
 
         return null;
     }
@@ -119,7 +130,7 @@ public class AnimalGrounding : MonoBehaviour
         Vector3 root = transform.position;
         Quaternion rootRot = transform.rotation;
         float playerDist = (PlayerView.Position() - root).magnitude;
-        bool dead = (animal != null && animal.Dead) || (deerHealth != null && deerHealth.Dead);
+        bool dead = animal != null && animal.Dead;
         if (!smoothed || dead || (root - smoothRoot).sqrMagnitude > 15f * 15f || model.parent != transform)
         {
             smoothRoot = root;
@@ -145,12 +156,12 @@ public class AnimalGrounding : MonoBehaviour
         // Put the model where it was left, in case the animator wrote its root this frame.
         PlaceModel();
 
-        // A dead or dropping animal keeps its last correction; its feet no longer point down.
+        // Hooves are no longer support points once the animal rolls onto its side.
         if (dead)
+        {
+            GroundCarcass();
             return;
-
-        if (playerDist > ActiveRange && measured)
-            return;
+        }
 
         float lowestGap = float.PositiveInfinity;
         for (int i = 0; i < feet.Length; i++)
@@ -187,10 +198,10 @@ public class AnimalGrounding : MonoBehaviour
         if (float.IsPositiveInfinity(lowestGap))
             return;
 
-        // Imported root/pivot offsets can exceed 2.5 m. A lower clamp permanently
-        // leaves those models in the air even when the measured ground gap is known.
-        float target = Mathf.Min(shift - (lowestGap - SoleLift), MaxShift);
-        if (!measured || lowestGap > 0.35f)
+        // Animation poses can move the feet in either direction. Correct the full
+        // measured gap; capping upward correction leaves low poses underground.
+        float target = shift - (lowestGap - SoleLift);
+        if (!measured || Mathf.Abs(lowestGap - SoleLift) > 0.35f)
         {
             // Correct large visible hover gaps immediately, including steep descents.
             // Small gaps retain smoothing so a normal gallop does not bob the body.
@@ -218,6 +229,81 @@ public class AnimalGrounding : MonoBehaviour
             position.y = ground.y;
             owner.transform.position = position;
         }
+    }
+
+    void GroundCarcass()
+    {
+        // The animator is stopped at death. Re-evaluate while the fall moves or
+        // rotates the root, then reuse the settled correction for a still carcass.
+        bool falling = animal != null && animal.Falling;
+        if (carcassGrounded && falling == carcassWasFalling && transform.position == carcassPosition &&
+            transform.rotation == carcassRotation && transform.lossyScale == carcassScale)
+            return;
+
+        float gap = float.PositiveInfinity;
+        foreach (Renderer renderer in carcassBodies)
+        {
+            if (renderer == null) continue;
+            Mesh mesh = null;
+            if (renderer is SkinnedMeshRenderer skin && skin.sharedMesh != null)
+            {
+                if (carcassPose == null) carcassPose = new Mesh { name = "Carcass ground pose" };
+                // Vertices are transformed with localToWorldMatrix below; don't
+                // bake the renderer scale into them a second time.
+                skin.BakeMesh(carcassPose, false);
+                mesh = carcassPose;
+            }
+            else if (renderer is MeshRenderer)
+            {
+                MeshFilter filter = renderer.GetComponent<MeshFilter>();
+                if (filter != null) mesh = filter.sharedMesh;
+            }
+
+            if (mesh != null && mesh.isReadable)
+            {
+                mesh.GetVertices(carcassVertices);
+                Matrix4x4 matrix = renderer.localToWorldMatrix;
+                // Sample during the short fall; check every vertex once it stops
+                // so thin body parts cannot remain embedded on uneven terrain.
+                int stride = falling ? Mathf.Max(1, carcassVertices.Count / 256) : 1;
+                Vector3 lowest = Vector3.zero;
+                float lowestY = float.PositiveInfinity;
+                for (int i = 0; i < carcassVertices.Count; i++)
+                {
+                    Vector3 vertex = matrix.MultiplyPoint3x4(carcassVertices[i]);
+                    if (vertex.y < lowestY) { lowestY = vertex.y; lowest = vertex; }
+                    if (i % stride == 0) MeasureCarcassGap(vertex, ref gap);
+                }
+                if (!float.IsPositiveInfinity(lowestY)) MeasureCarcassGap(lowest, ref gap);
+            }
+            else
+            {
+                Vector3 bottom = renderer.bounds.center;
+                bottom.y = renderer.bounds.min.y;
+                MeasureCarcassGap(bottom, ref gap);
+            }
+        }
+        if (float.IsPositiveInfinity(gap)) return;
+        shift -= gap - SoleLift;
+        PlaceModel();
+        carcassGrounded = true;
+        carcassWasFalling = falling;
+        carcassPosition = transform.position;
+        carcassRotation = transform.rotation;
+        carcassScale = transform.lossyScale;
+    }
+
+    static void MeasureCarcassGap(Vector3 vertex, ref float gap)
+    {
+        if (WorldGround.TryGetGround(vertex, out Vector3 ground, out _))
+            gap = Mathf.Min(gap, vertex.y - ground.y);
+    }
+
+    void OnDestroy()
+    {
+        if (carcassPose == null) return;
+        if (Application.isPlaying) Destroy(carcassPose);
+        else DestroyImmediate(carcassPose);
     }
 
     void PlaceModel()

@@ -133,6 +133,11 @@ namespace HuntingGame.Animals
             if (!isActiveAndEnabled)
                 return;
 
+            // Animal.Update advances death animation every frame at every LOD.
+            // Don't advance it again through the reduced/dormant AI scheduler.
+            if (animal.Dead)
+                return;
+
             if (band == AnimalAiBand.Dormant)
             {
                 animal.SimulatePresence();

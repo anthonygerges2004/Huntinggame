@@ -13,7 +13,6 @@ public class CameraViewSwitcher : MonoBehaviour
     [SerializeField] private Renderer[] bodyRenderers;
 
     [Header("Settings")]
-    [SerializeField] private float transitionSpeed = 10f;
     [SerializeField] private bool startInFirstPerson = false;
     [SerializeField] private float thirdPersonPitch = 12f;
     [SerializeField] private float cameraPadding = 0.35f;

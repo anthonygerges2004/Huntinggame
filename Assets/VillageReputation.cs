@@ -12,7 +12,6 @@ public static class VillageReputation
     static float nextTick;
     static float nextSettlementScan;
     static Settlement lastSettlement;
-    static bool warnedThisVisit;
     static readonly HashSet<int> greetedSettlements = new HashSet<int>();
 
     static Settlement[] cachedSettlements = new Settlement[0];
@@ -71,7 +70,6 @@ public static class VillageReputation
         if (s == null)
         {
             lastSettlement = null;
-            warnedThisVisit = false;
             return;
         }
 
@@ -79,7 +77,6 @@ public static class VillageReputation
             return;
 
         lastSettlement = s;
-        warnedThisVisit = false;
         int id = SettlementKey(s);
         if (greetedSettlements.Contains(id))
             return;

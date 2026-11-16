@@ -197,6 +197,11 @@ public sealed class HuntGoods
     /// <summary>Turns this carcass into a pelt. Returns the meat it yields; spoiled carcasses yield bait instead.</summary>
     public int Skin(float now, bool byHand, out bool meatSpoiled)
     {
+        if (skinned)
+        {
+            meatSpoiled = freshnessAtSkinning <= 0.4f;
+            return 0;
+        }
         meatSpoiled = Spoiled(now);
         freshnessAtSkinning = Freshness01(now);
         skinned = true;

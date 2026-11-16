@@ -286,13 +286,19 @@ public partial class Inventory : MonoBehaviour
 
     public bool CookOneMeat()
     {
-        if (meat <= 0 || GetSpaceFor(ItemKind.CookedMeat) <= 0)
+        if (meat <= 0)
             return false;
 
+        Slot[] before = (Slot[])slots.Clone();
         if (RemoveItem(ItemKind.RawMeat, 1) != 1)
             return false;
 
-        AddItem(ItemKind.CookedMeat, 1);
+        if (AddItem(ItemKind.CookedMeat, 1) != 1)
+        {
+            slots = before;
+            RecalculatePublicCounts();
+            return false;
+        }
         spoilTimer = meat > 0 ? meatSpoilSeconds : spoilTimer;
         return true;
     }

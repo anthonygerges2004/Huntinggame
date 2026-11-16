@@ -3,6 +3,37 @@ using UnityEngine;
 
 namespace HuntingGame.Animals
 {
+    // Bounded assistance: changes future encounter placement, never teleports live animals.
+    public static class WildlifeDirector
+    {
+        static float lastSuccess;
+        static int streak;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void Reset() { lastSuccess = 0f; streak = 0; }
+
+        public static void SuccessfulHunt()
+        {
+            streak = Time.time - lastSuccess < 180f ? Mathf.Min(streak + 1, 5) : 1;
+            lastSuccess = Time.time;
+        }
+
+        public static float Caution => 1f +
+            Mathf.Clamp01(1f - (Time.time - lastSuccess) / 180f) * streak * 0.04f;
+
+        public static float PreferredDistance
+        {
+            get
+            {
+                float health = PlayerHealth.Instance != null
+                    ? PlayerHealth.Instance.health / Mathf.Max(1f, PlayerHealth.Instance.maxHealth) : 1f;
+                float assistance = Mathf.Max(1f - Mathf.Clamp01(health),
+                    Mathf.Clamp01((Time.time - lastSuccess - 180f) / 240f));
+                return Mathf.Lerp(78f, 52f, assistance);
+            }
+        }
+    }
+
     public static class SpeciesCatalog
     {
         static SpeciesData deer;
@@ -58,6 +89,8 @@ namespace HuntingGame.Animals
                 150f,
                 profile.downwind);
             data.senses = SenseCatalog.ForQuarry(quarry);
+            data.predator = quarry == QuarryKind.Wolf;
+            data.prey = !data.predator;
             game[quarry] = data;
             return data;
         }

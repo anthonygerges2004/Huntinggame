@@ -85,6 +85,7 @@ public class Animal : MonoBehaviour
     AnimalBrain brain;
 
     public bool Dead => dead;
+    public bool Falling => dropping;
     public bool Fleeing => fleeing;
 
     /// <summary>True once the adrenaline bolt or the stumble is over and the deer is favoring a side.</summary>
@@ -146,7 +147,8 @@ public class Animal : MonoBehaviour
 
     void Update()
     {
-        if (suspendSelfTick)
+        // Distance LOD may suspend living AI, but a shot animal must finish falling.
+        if (suspendSelfTick && !dead)
             return;
 
         Simulate(Time.deltaTime);
@@ -240,7 +242,7 @@ public class Animal : MonoBehaviour
             return;
         }
 
-        if (MeatBait.TryGetTarget(transform.position, kind, out Vector3 baitPoint))
+        if (MeatBait.TryGetTarget(transform.position, kind, out Vector3 baitPoint, quarry))
         {
             float baitDist = Vector3.Distance(Flat(transform.position), Flat(baitPoint));
             if (baitDist > 1.4f)
@@ -947,7 +949,13 @@ public class Animal : MonoBehaviour
         FinishKill(direction, playerCredit: false);
     }
 
-    void FinishKill(Vector3 shotDirection, bool sniperVital = false, float shotDistance = 0f, ShotPlace place = ShotPlace.Body, bool playerCredit = true)
+    public void PredatorKill(Vector3 direction)
+    {
+        if (dead || !IsPresent()) return;
+        FinishKill(direction, playerCredit: false, naturalDeath: true);
+    }
+
+    void FinishKill(Vector3 shotDirection, bool sniperVital = false, float shotDistance = 0f, ShotPlace place = ShotPlace.Body, bool playerCredit = true, bool naturalDeath = false)
     {
         if (dead)
             return;
@@ -961,12 +969,16 @@ public class Animal : MonoBehaviour
             : Vector3.Distance(PlayerView.Position(), transform.position);
         if (playerCredit)
         {
+            WildlifeDirector.SuccessfulHunt();
             HuntFeedback.Kill(this, lastHitPlace, killDistance, meatAmount);
             HuntChallenges.ReportKill(this);
             DeerChallenge.NotifyKill(this, sniperVital, shotDistance);
         }
-        WildlifeAlarm.NotifyShot(transform.position);
-        Overhunt.RegisterKill(transform.position);
+        if (!naturalDeath)
+        {
+            WildlifeAlarm.NotifyShot(transform.position);
+            Overhunt.RegisterKill(transform.position);
+        }
 
         if (playerCredit && kind == AnimalKind.Legendary && Trader.Instance != null)
             Trader.Instance.LegendaryTakenByPlayer();

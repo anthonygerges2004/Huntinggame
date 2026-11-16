@@ -191,7 +191,7 @@ public partial class Inventory
 
     public void FieldSkin(AnimalCarcass carcass)
     {
-        if (carcass == null || carcass.goods == null)
+        if (carcass == null || carcass.goods == null || carcass.goods.skinned)
             return;
 
         if (FreeSlotForGoods() < 0)

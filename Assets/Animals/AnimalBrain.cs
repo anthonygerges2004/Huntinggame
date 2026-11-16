@@ -26,6 +26,19 @@ namespace HuntingGame.Animals
         bool homing;
         bool bound;
         bool alertHolds;
+        static readonly System.Collections.Generic.List<AnimalBrain> wildlife = new System.Collections.Generic.List<AnimalBrain>();
+        float hunger = 0.45f;
+        float nextEcosystemScan;
+        AnimalBrain quarryTarget;
+        readonly RaycastHit[] ecosystemHits = new RaycastHit[32];
+
+        public float Hunger => hunger;
+
+        void OnEnable() { if (!wildlife.Contains(this)) wildlife.Add(this); }
+        void OnDisable() { wildlife.Remove(this); quarryTarget = null; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetWildlife() { wildlife.Clear(); }
 
         public AnimalAiState State => state;
         public SpeciesData Species => species;
@@ -147,6 +160,9 @@ namespace HuntingGame.Animals
             }
 
             TickMarker.Begin();
+            delta = Mathf.Max(0f, delta);
+            hunger = Mathf.Clamp01(hunger + species.hungerPerSecond * delta);
+            TickEcosystem();
             if (state == AnimalAiState.Idle)
                 TickIdle(delta);
             else if (state == AnimalAiState.Graze)
@@ -155,13 +171,126 @@ namespace HuntingGame.Animals
                 TickAlert(delta);
             else if (state == AnimalAiState.Flee)
                 TickFleeState(delta);
+            else if (state == AnimalAiState.Eating)
+                TickEating(delta);
+            else if (state == AnimalAiState.Hiding)
+            {
+                animal.Hold();
+                timer -= delta;
+                if (timer <= 0f) BeginReturn();
+            }
+            else if (state == AnimalAiState.Hunt)
+                TickHunt(delta);
             TickMarker.End();
+        }
+
+        void TickEcosystem()
+        {
+            if (Time.time < nextEcosystemScan || !animal.IsPresent()) return;
+            nextEcosystemScan = Time.time + 0.6f;
+            bool hunting = species.predator && !homing && hunger >= 0.55f &&
+                state != AnimalAiState.Alert && state != AnimalAiState.Flee;
+            float best = species.huntRadius * species.huntRadius;
+            AnimalBrain target = null;
+            for (int i = 0; i < wildlife.Count; i++)
+            {
+                AnimalBrain other = wildlife[i];
+                if (other == null || other == this || other.animal == null ||
+                    other.animal.Dead || !other.animal.IsPresent() || other.species == null) continue;
+                Vector3 offset = other.transform.position - transform.position;
+                offset.y = 0f;
+                if (species.prey && other.species.predator && offset.sqrMagnitude < 22f * 22f)
+                {
+                    Notice(other.transform.position, true);
+                    return;
+                }
+                if (!hunting || !other.species.prey || other.animal.kind == AnimalKind.Bird ||
+                    offset.sqrMagnitude >= best || !WithinTerritory(other.transform.position)) continue;
+                if (!CanSeeAnimal(other)) continue;
+                best = offset.sqrMagnitude;
+                target = other;
+            }
+            if (target != null)
+            {
+                if (state != AnimalAiState.Hunt) timer = 18f;
+                quarryTarget = target;
+                state = AnimalAiState.Hunt;
+            }
+        }
+
+        bool WithinTerritory(Vector3 point)
+        {
+            Vector3 offset = point - animal.HomePosition;
+            offset.y = 0f;
+            return offset.sqrMagnitude <= species.territoryRadius * species.territoryRadius;
+        }
+
+        bool CanSeeAnimal(AnimalBrain target)
+        {
+            Vector3 origin = transform.position + Vector3.up * 0.8f;
+            Vector3 offset = target.transform.position + Vector3.up * 0.8f - origin;
+            float distance = offset.magnitude;
+            if (distance < 0.001f) return true;
+            int count = Physics.RaycastNonAlloc(origin, offset / distance, ecosystemHits,
+                distance, ~0, QueryTriggerInteraction.Ignore);
+            // A full buffer cannot prove the absence of an occluder.
+            if (count == ecosystemHits.Length) return false;
+            float nearestTarget = distance;
+            float nearestBlocker = float.PositiveInfinity;
+            for (int i = 0; i < count; i++)
+            {
+                Transform body = ecosystemHits[i].transform;
+                if (body == transform || body.IsChildOf(transform)) continue;
+                if (body == target.transform || body.IsChildOf(target.transform))
+                    nearestTarget = Mathf.Min(nearestTarget, ecosystemHits[i].distance);
+                else nearestBlocker = Mathf.Min(nearestBlocker, ecosystemHits[i].distance);
+            }
+            return nearestBlocker >= nearestTarget;
+        }
+
+        void TickHunt(float delta)
+        {
+            timer -= delta;
+            if (quarryTarget == null || !quarryTarget.isActiveAndEnabled || quarryTarget.animal.Dead ||
+                !quarryTarget.animal.IsPresent() || !WithinTerritory(quarryTarget.transform.position) || timer <= 0f)
+            {
+                quarryTarget = null;
+                BeginReturn();
+                return;
+            }
+            Vector3 target = quarryTarget.transform.position;
+            if (!CanSeeAnimal(quarryTarget))
+            {
+                quarryTarget = null;
+                BeginReturn();
+                return;
+            }
+            animal.MoveHeading(animal.Steer(target - transform.position), species.fleeSpeed * animal.WoundMoveScale);
+            if ((transform.position - target).sqrMagnitude > species.catchRange * species.catchRange) return;
+            if (!CanSeeAnimal(quarryTarget)) return;
+            quarryTarget.animal.PredatorKill(target - transform.position);
+            quarryTarget = null;
+            hunger = 0f;
+            BeginReturn();
+        }
+
+        void TickEating(float delta)
+        {
+            animal.Hold();
+            hunger = Mathf.Clamp01(hunger - species.feedingPerSecond * delta);
+            timer -= delta;
+            if (timer <= 0f || hunger <= 0.15f) EnterIdle();
         }
 
         void TickIdle(float delta)
         {
+            if (species.prey && hunger >= 0.7f && animal.kind != AnimalKind.Bird)
+            {
+                EnterGraze();
+                return;
+            }
             if (animal.kind != AnimalKind.Bird &&
-                MeatBait.TryGetTarget(animal.transform.position, animal.kind, out _))
+                MeatBait.TryGetTarget(animal.transform.position, animal.kind, out _, animal.quarry))
             {
                 EnterGraze();
                 return;
@@ -186,7 +315,7 @@ namespace HuntingGame.Animals
             }
 
             bool chasingBait = false;
-            if (!homing && MeatBait.TryGetTarget(animal.transform.position, animal.kind, out Vector3 bait))
+            if (!homing && MeatBait.TryGetTarget(animal.transform.position, animal.kind, out Vector3 bait, animal.quarry))
             {
                 chasingBait = true;
                 grazePoint = bait;
@@ -202,7 +331,12 @@ namespace HuntingGame.Animals
                     return;
 
                 homing = false;
-                EnterIdle();
+                if (species.prey && hunger >= 0.35f)
+                {
+                    state = AnimalAiState.Eating;
+                    timer = 6f;
+                }
+                else EnterIdle();
                 return;
             }
 
@@ -265,7 +399,13 @@ namespace HuntingGame.Animals
                 return;
 
             animal.EndFlee();
-            BeginReturn();
+            if (species.prey && species.hideSeconds > 0f)
+            {
+                state = AnimalAiState.Hiding;
+                timer = species.hideSeconds;
+                RestoreFleeSpeed();
+            }
+            else BeginReturn();
         }
 
         void EnterIdle()
@@ -284,7 +424,7 @@ namespace HuntingGame.Animals
             homing = false;
             timer = species.grazeSeconds > 0.05f ? species.grazeSeconds : 4f;
             if (animal.kind != AnimalKind.Bird &&
-                MeatBait.TryGetTarget(animal.transform.position, animal.kind, out Vector3 bait))
+                MeatBait.TryGetTarget(animal.transform.position, animal.kind, out Vector3 bait, animal.quarry))
             {
                 grazePoint = bait;
                 return;

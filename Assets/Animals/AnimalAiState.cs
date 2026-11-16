@@ -6,6 +6,9 @@ namespace HuntingGame.Animals
         Graze,
         Alert,
         Flee,
-        Dead
+        Dead,
+        Eating,
+        Hiding,
+        Hunt
     }
 }

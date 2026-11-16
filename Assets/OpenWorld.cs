@@ -614,7 +614,7 @@ public class OpenWorld : MonoBehaviour
         if (distance < 36f)
             return 0f;
 
-        float off = Mathf.Abs(distance - 78f) / 70f;
+        float off = Mathf.Abs(distance - HuntingGame.Animals.WildlifeDirector.PreferredDistance) / 70f;
         float score = Mathf.Clamp01(1f - off);
         return 0.2f + score * score * 4f;
     }

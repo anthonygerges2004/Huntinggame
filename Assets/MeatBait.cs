@@ -32,9 +32,17 @@ public class MeatBait : MonoBehaviour
         return bait;
     }
 
-    public static bool TryGetTarget(Vector3 from, AnimalKind kind, out Vector3 target)
+    public static bool EatsMeatBait(AnimalKind kind, QuarryKind quarry = QuarryKind.None)
+    {
+        return kind == AnimalKind.Large || kind == AnimalKind.Legendary ||
+            (kind == AnimalKind.Game && (quarry == QuarryKind.Wolf || quarry == QuarryKind.Fox ||
+                quarry == QuarryKind.Pig || quarry == QuarryKind.Boar));
+    }
+
+    public static bool TryGetTarget(Vector3 from, AnimalKind kind, out Vector3 target, QuarryKind quarry = QuarryKind.None)
     {
         target = default;
+        if (!EatsMeatBait(kind, quarry)) return false;
         bool large = kind == AnimalKind.Large || kind == AnimalKind.Legendary;
         if (large)
         {
@@ -127,9 +135,11 @@ public class MeatBait : MonoBehaviour
         if (Inventory.Instance == null)
             return;
 
-        Inventory.Instance.AddSpoiledMeat(amount);
+        int collected = Inventory.Instance.GiveBait(amount);
+        if (collected <= 0) return;
+        amount -= collected;
         Inventory.Instance.ShowNotice("Picked up spoiled meat.");
-        Destroy(gameObject);
+        if (amount <= 0) Destroy(gameObject);
     }
 
     void TryDrawLarge()

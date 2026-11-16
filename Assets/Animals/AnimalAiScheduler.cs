@@ -113,6 +113,7 @@ namespace HuntingGame.Animals
 
         void Update()
         {
+            if (GamePause.Active || Time.deltaTime <= 0f) return;
             TickMarker.Begin();
             TickSlice();
             TickMarker.End();
@@ -120,6 +121,8 @@ namespace HuntingGame.Animals
 
         void TickSlice()
         {
+            if (player == null && PlayerHealth.Instance != null)
+                player = PlayerHealth.Instance.transform;
             if (player == null || count == 0)
                 return;
 

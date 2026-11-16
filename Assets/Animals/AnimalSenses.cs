@@ -17,7 +17,6 @@ namespace HuntingGame.Senses
         AnimalBrain brain;
         Transform body;
         Transform player;
-        RaycastHit[] hits;
         RaycastHit[] sightHits;
         float interval;
         float sightRange = 32f;
@@ -54,7 +53,6 @@ namespace HuntingGame.Senses
             animal = GetComponent<Animal>();
             brain = GetComponent<AnimalBrain>();
             body = transform;
-            hits = new RaycastHit[1];
             sightHits = new RaycastHit[8];
 
             if (settings == null)
@@ -109,11 +107,14 @@ namespace HuntingGame.Senses
         public void Tick(AnimalAiBand band)
         {
             ApplySpeciesSenses();
+            if (player == null && PlayerHealth.Instance != null)
+                player = PlayerHealth.Instance.transform;
             if (band == AnimalAiBand.Dormant || player == null || animal == null || animal.Dead)
                 return;
 
             TickMarker.Begin();
-            float scaleSqr = band == AnimalAiBand.Reduced ? reducedScaleSqr : 1f;
+            float caution = WildlifeDirector.Caution;
+            float scaleSqr = (band == AnimalAiBand.Reduced ? reducedScaleSqr : 1f) * caution * caution;
             if (animal.kind == AnimalKind.Deer)
                 TickDeer(scaleSqr);
             else
@@ -346,6 +347,7 @@ namespace HuntingGame.Senses
                 range,
                 blocks,
                 QueryTriggerInteraction.Ignore);
+            if (hitCount == sightHits.Length) return 0f;
             float nearest = float.MaxValue;
             Transform nearestHit = null;
             for (int i = 0; i < hitCount; i++)
@@ -486,19 +488,23 @@ namespace HuntingGame.Senses
             int hitCount = Physics.RaycastNonAlloc(
                 origin,
                 direction,
-                hits,
+                sightHits,
                 range,
                 blocks,
                 QueryTriggerInteraction.Ignore);
 
-            if (hitCount == 0)
+            if (hitCount == sightHits.Length) return;
+            float blockerDistance = float.PositiveInfinity;
+            float playerDistance = range;
+            for (int i = 0; i < hitCount; i++)
             {
-                animal.NoticeThreat(player.position);
-                return;
+                Transform hit = sightHits[i].transform;
+                if (hit == body || hit.IsChildOf(body)) continue;
+                if (hit == player || hit.IsChildOf(player))
+                    playerDistance = Mathf.Min(playerDistance, sightHits[i].distance);
+                else blockerDistance = Mathf.Min(blockerDistance, sightHits[i].distance);
             }
-
-            Transform hit = hits[0].transform;
-            if (hit == player || hit.IsChildOf(player))
+            if (blockerDistance >= playerDistance)
                 animal.NoticeThreat(player.position);
         }
 
