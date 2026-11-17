@@ -30,6 +30,7 @@ public partial class GameHUD
 
     readonly List<(TMP_Text value, System.Func<string> read)> logRows = new List<(TMP_Text, System.Func<string>)>();
     Slider sensSlider, fovSlider, volumeSlider;
+    TMP_Text[] graphicsLabels;
     TMP_Text sensValue, fovValue, volumeValue, invertValue;
 
     // ---------------------------------------------------------------- build
@@ -171,8 +172,27 @@ public partial class GameHUD
             RefreshSettingLabels();
         }, out invertValue);
 
+        // Graphics preset: five buttons, the chosen one lit in gold.
+        TMP_Text gfxLabel = Text(page, "GRAPHICS", 13f, TextDim, TextAlignmentOptions.MidlineLeft, true);
+        gfxLabel.characterSpacing = 4f;
+        Place(gfxLabel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, -330f), new Vector2(width, 20f), new Vector2(0f, 1f));
+        const float gap = 6f;
+        float bw = (width - gap * (GraphicsQuality.Count - 1)) / GraphicsQuality.Count;
+        graphicsLabels = new TMP_Text[GraphicsQuality.Count];
+        for (int i = 0; i < GraphicsQuality.Count; i++)
+        {
+            int level = i;
+            MakeButton(page, GraphicsQuality.Names[i], new Vector2(i * (bw + gap), -356f), new Vector2(bw, 34f), () =>
+            {
+                GraphicsQuality.Level = level;
+                RefreshSettingLabels();
+            }, out graphicsLabels[i]);
+            graphicsLabels[i].fontSize = 11.5f;
+            graphicsLabels[i].characterSpacing = 2f;
+        }
+
         TMP_Text note = Text(page, "Settings are saved automatically.", 12f, TextDim, TextAlignmentOptions.MidlineLeft, false);
-        Place(note.rectTransform, new Vector2(0f, 1f), new Vector2(0f, -330f), new Vector2(width, 18f), new Vector2(0f, 1f));
+        Place(note.rectTransform, new Vector2(0f, 1f), new Vector2(0f, -410f), new Vector2(width, 18f), new Vector2(0f, 1f));
     }
 
     void BuildControlsPage(RectTransform page, float width)
@@ -279,6 +299,9 @@ public partial class GameHUD
         volumeValue.text = Mathf.RoundToInt(GameSettings.Volume * 100f) + "%";
         invertValue.text = GameSettings.InvertY ? "ON" : "OFF";
         invertValue.color = GameSettings.InvertY ? Gold : TextDim;
+        if (graphicsLabels != null)
+            for (int i = 0; i < graphicsLabels.Length; i++)
+                graphicsLabels[i].color = i == GraphicsQuality.Level ? Gold : TextDim;
     }
 
     void ShowPauseTab(int index)

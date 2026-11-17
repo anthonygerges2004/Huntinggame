@@ -22,7 +22,7 @@ public static class GameCulling
         if (camera == null)
             return;
 
-        camera.farClipPlane = minimap ? MinimapCameraFarClip : MainCameraFarClip;
+        camera.farClipPlane = minimap ? MinimapCameraFarClip : GraphicsQuality.FarClip;
         camera.useOcclusionCulling = true;
     }
 
@@ -31,15 +31,16 @@ public static class GameCulling
         if (terrain == null)
             return;
 
-        terrain.treeDistance = TerrainTreeDistance;
-        terrain.treeBillboardDistance = TerrainTreeBillboard;
-        terrain.detailObjectDistance = TerrainDetailDistance;
-        terrain.detailObjectDensity = TerrainDetailDensity;
-        terrain.heightmapPixelError = TerrainPixelError;
+        // Distances follow the Graphics setting in the pause menu.
+        terrain.treeDistance = GraphicsQuality.TreeDistance;
+        terrain.treeBillboardDistance = GraphicsQuality.TreeBillboard;
+        terrain.detailObjectDistance = GraphicsQuality.DetailDistance;
+        terrain.detailObjectDensity = GraphicsQuality.DetailDensity;
+        terrain.heightmapPixelError = GraphicsQuality.PixelError;
         terrain.basemapDistance = TerrainBasemapDistance;
         // The forests are dense: only the nearest trees get full 3D meshes, the rest are
         // billboards, with a soft cross-fade so the switch is not visible.
-        terrain.treeMaximumFullLODCount = 150;
+        terrain.treeMaximumFullLODCount = GraphicsQuality.TreeMaximumFullLod;
         terrain.treeCrossFadeLength = 30f;
         // Heightmap frustum culling cuts holes in the ground mesh.
         // Trees and grass use the distances above, and the camera frustum

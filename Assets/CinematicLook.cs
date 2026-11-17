@@ -125,6 +125,12 @@ public class CinematicLook : MonoBehaviour
         if (profile == null)
             return;
 
+        // The heavier effects follow the Graphics setting in the pause menu.
+        bool rich = GraphicsQuality.RichPost;
+        bloom.active = rich;
+        fringe.active = rich;
+        focus.active = GraphicsQuality.DepthOfField;
+
         TuneSun();
 
         // The player camera can be replaced (view switch); keep post-processing on for it.
